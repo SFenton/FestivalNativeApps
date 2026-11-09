@@ -46,6 +46,11 @@ public struct FestivalRootView: View {
     @State private var windowRouteApplied = false
     #if DEBUG && os(iOS)
     @State private var motionReport = DebugMotionReport()
+    @State private var perfFirstRunPresentation: FirstRunPresentation?
+    @State private var perfFirstRunViewing = FirstRunViewing(slides: [])
+    @State private var perfFirstRunPresented = false
+    @State private var perfFirstRunAdvanceRequest = 0
+    @State private var perfFirstRunPage = 0
     #endif
     @AppStorage("fst.settings.showLead") private var showLead = true
     @AppStorage("fst.settings.showBass") private var showBass = true
@@ -195,6 +200,21 @@ public struct FestivalRootView: View {
                     .zIndex(1)
                 }
             }
+            #if DEBUG && os(iOS)
+            .sheet(item: $perfFirstRunPresentation, onDismiss: {
+                perfFirstRunPresented = false
+            }) { presentation in
+                FirstRunCarouselView(
+                    page: .songs, slides: presentation.slides,
+                    viewing: $perfFirstRunViewing,
+                    performanceAdvanceRequest: perfFirstRunAdvanceRequest,
+                    onPerformancePageChanged: { perfFirstRunPage = $0 },
+                    onFinish: { perfFirstRunPresentation = nil }
+                )
+                .environment(\.firstRunSession, session)
+                .onAppear { perfFirstRunPresented = true }
+            }
+            #endif
             .tint(moreContrast || systemContrast == .increased
                 ? BrandTokens.textPrimary : BrandTokens.accentBlue)
             .accessibilityFocusMove(drawerFocus)
@@ -212,6 +232,88 @@ public struct FestivalRootView: View {
                 PerfNavigationHooks.register(
                     push: { paths[selected, default: []].append($0) },
                     pop: { _ = paths[selected]?.popLast() }
+                )
+                PerfNavigationHooks.registerModal(
+                    "profile",
+                    present: { rootProfilePresented = true },
+                    dismiss: { rootProfilePresented = false },
+                    isPresented: { rootProfilePresented }
+                )
+                PerfNavigationHooks.registerModal(
+                    "global-search",
+                    present: { globalSearchPresented = true },
+                    dismiss: { globalSearchPresented = false },
+                    isPresented: { globalSearchPresented }
+                )
+                PerfNavigationHooks.registerModal(
+                    "notifications",
+                    present: { notificationsPresented = true },
+                    dismiss: { notificationsPresented = false },
+                    isPresented: { notificationsPresented }
+                )
+                PerfNavigationHooks.registerModal(
+                    "whats-new",
+                    present: { whatsNewPresented = true },
+                    dismiss: { whatsNewPresented = false },
+                    isPresented: { whatsNewPresented }
+                )
+                let priorSection = selected
+                PerfNavigationHooks.registerComponent(
+                    "drawer",
+                    start: { openDrawer() },
+                    stop: { dismissDrawer() },
+                    isReady: { drawerPresented }
+                )
+                PerfNavigationHooks.registerComponent(
+                    "sheet",
+                    start: { rootProfilePresented = true },
+                    stop: { rootProfilePresented = false },
+                    isReady: { rootProfilePresented }
+                )
+                PerfNavigationHooks.registerComponent(
+                    "section-stack",
+                    start: { select(.settings) },
+                    stop: { select(priorSection) },
+                    isReady: { selected == .settings }
+                )
+                let perfDebug = PerfComponentDebugState.shared
+                PerfNavigationHooks.registerComponent(
+                    "row-press",
+                    start: { openDrawer(); perfDebug.rowPressed = true },
+                    stop: { perfDebug.rowPressed = false; dismissDrawer() },
+                    isReady: { drawerPresented && perfDebug.rowPressed }
+                )
+                PerfNavigationHooks.registerComponent(
+                    "edge-fade",
+                    start: { PerfComponentBuiltins.startEdgeFade() },
+                    stop: { PerfComponentBuiltins.stopEdgeFade() },
+                    isReady: { PerfComponentBuiltins.edgeFadeReady },
+                    isRestored: { PerfComponentBuiltins.edgeFadeRestored }
+                )
+                PerfNavigationHooks.registerComponent(
+                    "marquee",
+                    start: {
+                        perfDebug.beginMarqueeComponent()
+                        if selected != .songs { select(.songs) }
+                        perfDebug.marqueeRequested = true
+                    },
+                    stop: { perfDebug.marqueeRequested = false },
+                    isReady: { perfDebug.marqueeComponentReady },
+                    isRestored: { perfDebug.marqueeComponentRestored }
+                )
+                PerfNavigationHooks.registerComponent(
+                    "carousel",
+                    start: {
+                        let slides = FirstRunSettingsSection.replaySlides(.songs)
+                        session.firstRunCenter.store.resetPage(slides.map(\.id))
+                        perfFirstRunViewing = FirstRunViewing(slides: slides)
+                        perfFirstRunPage = 0
+                        perfFirstRunAdvanceRequest += 1
+                        perfFirstRunPresentation = FirstRunPresentation(slides: slides)
+                    },
+                    stop: { perfFirstRunPresentation = nil },
+                    isReady: { perfFirstRunPresented && perfFirstRunPage > 0 },
+                    isRestored: { !perfFirstRunPresented && perfFirstRunPresentation == nil }
                 )
             }
             #endif
@@ -1060,7 +1162,18 @@ struct DebugLaunchRoute {
         case "suggestions": route = .suggestions
         case "compete": route = .compete
         case "bands": route = .bands
-        case "band": route = arg.map { .band(bandId: $0, name: nil) }
+        case "band":
+            // The debug band manifest carries the same provenance as a real band-row
+            // link. Preserve it so both app shells exercise the fixture board rather
+            // than the unresolved bare-ID state.
+            if let arg, let band {
+                route = .band(
+                    bandId: arg, name: band.displayName,
+                    bandType: band.bandType, teamKey: band.teamKey
+                )
+            } else {
+                route = nil
+            }
         case "licenses": route = .licenses
         case "settingsTopic": route = arg.flatMap(SettingsTopic.init(rawValue:)).map { .settingsTopic($0) }
         default: route = nil

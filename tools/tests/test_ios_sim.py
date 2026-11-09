@@ -14,6 +14,9 @@ if _sys.platform == "win32":  # Apple tooling imports the POSIX-only fcntl modul
 
 import contextlib
 import io
+import os
+import argparse
+import subprocess
 import unittest
 import unittest.mock
 from pathlib import Path
@@ -44,9 +47,45 @@ from tools.ios_sim import (
     skip_problem,
     parse_steps,
     resolve_device,
+    _coverage_source_digest,
+    _coverage_source_manifest,
+    _coverage_profile,
+    _result_device_identity,
+    _parse_lcov,
     source_hash,
     write_driver_hash,
 )
+
+
+class ResultDeviceIdentityTests(unittest.TestCase):
+    """Coverage provenance follows the xcresult device, not the selected scheme."""
+
+    def _summary(self, model: str, udid: str) -> dict:
+        return {
+            "devicesAndConfigurations": [{
+                "device": {
+                    "platform": "iOS Simulator",
+                    "modelName": model,
+                    "deviceId": udid,
+                }
+            }]
+        }
+
+    def test_phone_app_on_ipad_uses_actual_ipad_family(self):
+        self.assertEqual(
+            _result_device_identity(self._summary("iPad Pro 11-inch (M5)", "ipad-1"), "ipad-1"),
+            ("iPad", "ipad-1"),
+        )
+
+    def test_ipad_test_target_on_phone_uses_actual_iphone_family(self):
+        self.assertEqual(
+            _result_device_identity(self._summary("iPhone 17 Pro", "phone-1"), "phone-1"),
+            ("iPhone", "phone-1"),
+        )
+
+    def test_mismatched_result_udid_fails_closed(self):
+        with self.assertRaisesRegex(RuntimeError, "device mismatch"):
+            _result_device_identity(self._summary("iPhone 17 Pro", "actual"), "owned")
 
 
 class ParseStepsTests(unittest.TestCase):
@@ -146,6 +185,37 @@ class ResolveDeviceTests(unittest.TestCase):
     def test_unknown_alias_passes_through_as_udid(self):
         self.assertEqual(resolve_device("SOME-OTHER-UDID"), "SOME-OTHER-UDID")
 
+    def test_owned_batch_releases_only_its_device_on_failure(self):
+        with unittest.mock.patch.object(ios_sim, "sim_lock", return_value=contextlib.nullcontext()), \
+             unittest.mock.patch.object(ios_sim, "_shutdown_simulator") as shutdown:
+            with self.assertRaisesRegex(RuntimeError, "test failure"):
+                with ios_sim._uitest_device("owned-uuid", True):
+                    raise RuntimeError("test failure")
+        shutdown.assert_called_once_with("owned-uuid")
+
+    def test_legacy_batch_does_not_claim_ownership_of_its_alias(self):
+        with unittest.mock.patch.object(ios_sim, "sim_lock", return_value=contextlib.nullcontext()), \
+             unittest.mock.patch.object(ios_sim, "_shutdown_simulator") as shutdown:
+            with ios_sim._uitest_device("shared-alias", False):
+                pass
+        shutdown.assert_not_called()
+
+    def test_owned_boot_timeout_never_preempts_others_and_releases_its_device(self):
+        with TemporaryDirectory() as temporary, \
+             unittest.mock.patch.object(ios_sim, "sim_lock", return_value=contextlib.nullcontext()), \
+             unittest.mock.patch.object(ios_sim, "_shutdown_simulator") as shutdown, \
+             unittest.mock.patch.object(ios_sim, "boot_exclusive") as exclusive, \
+             unittest.mock.patch.object(ios_sim, "_run", return_value=unittest.mock.Mock(stdout="")), \
+             unittest.mock.patch.object(ios_sim, "run_bounded", side_effect=[0, None]), \
+             unittest.mock.patch.object(ios_sim.tempfile, "gettempdir", return_value=temporary):
+            code, _, _, _ = ios_sim._run_uitest_batch(
+                udid="owned-uuid", derived=Path(temporary), selectors=["Journey/test"],
+                timeout=60, owned_device=True,
+            )
+        self.assertEqual(code, 124)
+        exclusive.assert_not_called()
+        shutdown.assert_called_once_with("owned-uuid")
+
 
 class CiDeviceTests(unittest.TestCase):
     """`ci-device` picks the newest iOS runtime for the iPhone and only runs in CI."""
@@ -194,6 +264,7 @@ class CiDeviceTests(unittest.TestCase):
         import contextlib
         import io
         import json
+        import os
         import os
         import subprocess
         from unittest import mock
@@ -266,6 +337,12 @@ class UitestDiagnosticsTests(unittest.TestCase):
         cmd = self.run_batch(diagnostics=False)
         index = cmd.index("-collect-test-diagnostics")
         self.assertEqual(cmd[index + 1], "never")
+        self.assertLess(index, cmd.index("test-without-building"))
+
+    def test_coverage_flag_is_passed_to_the_test_action(self):
+        cmd = self.run_batch(coverage=True)
+        index = cmd.index("-enableCodeCoverage")
+        self.assertEqual(cmd[index + 1], "YES")
         self.assertLess(index, cmd.index("test-without-building"))
 
 
@@ -493,7 +570,8 @@ class SourceHashTests(unittest.TestCase):
     def test_hash_changes_when_a_file_is_edited(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
-            target = root / "a.swift"
+            target = root / "apple/Sources/a.swift"
+            target.parent.mkdir(parents=True)
             target.write_text("struct A {}")
             before = source_hash([root])
             target.write_text("struct A { let x = 1 }")
@@ -508,6 +586,54 @@ class SourceHashTests(unittest.TestCase):
             (root / "b.swift").write_text("struct B {}")
             after = source_hash([root])
         self.assertNotEqual(before, after)
+
+    def test_coverage_digest_rejects_same_size_edit_with_restored_mtime(self):
+        """Coverage provenance is content-bound, unlike the fast rebuild identity."""
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "apple/Sources/a.swift"
+            target.parent.mkdir(parents=True)
+            target.write_text("struct A {}\n")
+            original_mtime = target.stat().st_mtime_ns
+            before = _coverage_source_digest(_coverage_source_manifest(root))
+            target.write_text("struct B {}\n")
+            os.utime(target, ns=(original_mtime, original_mtime))
+            after = _coverage_source_digest(_coverage_source_manifest(root))
+        self.assertNotEqual(before, after)
+
+    def test_lcov_parser_preserves_executable_and_covered_lines(self):
+        """The automatic LLVM export retains exact line locations, not just totals."""
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "apple/Sources/FestivalUI/Shared.swift"
+            source.parent.mkdir(parents=True)
+            source.write_text("one\ntwo\nthree\n", encoding="utf-8")
+            lcov = f"SF:{source}\nDA:1,3\nDA:2,0\nend_of_record\n"
+            self.assertEqual(_parse_lcov(lcov, root), (lcov, {
+                "apple/Sources/FestivalUI/Shared.swift",
+            }))
+
+    def test_lcov_parser_rejects_negative_counts(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "apple/Sources/FestivalUI/Shared.swift"
+            source.parent.mkdir(parents=True)
+            source.write_text("one\n", encoding="utf-8")
+            with self.assertRaises(RuntimeError):
+                _parse_lcov(
+                    f"SF:{source}\nDA:1,-1\nend_of_record\n", root
+                )
+
+    def test_profile_selection_is_bound_to_the_owned_simulator(self):
+        with TemporaryDirectory() as tmp:
+            derived = Path(tmp)
+            expected = derived / "Build/ProfileData/owned/Coverage.profdata"
+            other = derived / "Build/ProfileData/other/Coverage.profdata"
+            expected.parent.mkdir(parents=True)
+            other.parent.mkdir(parents=True)
+            expected.write_bytes(b"owned")
+            other.write_bytes(b"other")
+            self.assertEqual(_coverage_profile(derived, "owned"), expected)
 
 
 class DriverBuildStaleTests(unittest.TestCase):
@@ -543,6 +669,92 @@ class DriverBuildStaleTests(unittest.TestCase):
             self._runner_app(derived).mkdir(parents=True)
             write_driver_hash(derived, "same-hash")
             self.assertFalse(driver_build_stale(derived, "same-hash"))
+
+    def test_coverage_builds_do_not_reuse_uninstrumented_cache(self):
+        with TemporaryDirectory() as tmp:
+            derived = Path(tmp)
+            self._runner_app(derived).mkdir(parents=True)
+            write_driver_hash(derived, "same-hash")
+            self.assertTrue(driver_build_stale(derived, "same-hash", coverage=True))
+            write_driver_hash(derived, "same-hash", coverage=True)
+            self.assertFalse(driver_build_stale(derived, "same-hash", coverage=True))
+            self.assertTrue(driver_build_stale(derived, "same-hash", coverage=False))
+
+    def test_coverage_cache_requires_content_digest(self):
+        with TemporaryDirectory() as tmp:
+            derived = Path(tmp)
+            self._runner_app(derived).mkdir(parents=True)
+            write_driver_hash(derived, "same-hash", coverage=True, coverage_digest="old")
+            self.assertTrue(
+                driver_build_stale(derived, "same-hash", coverage=True, coverage_digest="new")
+            )
+
+
+class DriveFlowTests(unittest.TestCase):
+    """Successful drive paths initialize the process before optional coverage work."""
+
+    def _args(self, path: Path, coverage: bool) -> argparse.Namespace:
+        return argparse.Namespace(
+            steps=f"capture:{path}", steps_file=None, set_pose=False, device="iphone",
+            tab=None, route=None, env=[], animate=False, clean_status_bar=False,
+            pose=None, record=False, display=0, timeout=5, rebuild=False,
+            coverage=coverage,
+        )
+
+    def test_successful_noncoverage_drive_runs_subprocess(self):
+        from unittest import mock
+
+        with TemporaryDirectory() as tmp:
+            with mock.patch.object(ios_sim, "scripting_preflight", return_value=0), \
+                    mock.patch.object(ios_sim, "resolve_device", return_value="UDID"), \
+                    mock.patch.object(ios_sim, "driver_derived_data", return_value=Path(tmp)), \
+                    mock.patch.object(ios_sim, "driver_build_stale", return_value=False), \
+                    mock.patch.object(ios_sim, "sim_lock", return_value=contextlib.nullcontext()), \
+                    mock.patch.object(ios_sim, "boot_exclusive"), \
+                    mock.patch.object(ios_sim, "_run", return_value=subprocess.CompletedProcess([], 0)), \
+                    mock.patch.object(ios_sim, "ScreenRecording", return_value=contextlib.nullcontext()), \
+                    mock.patch.object(ios_sim, "HostBridge", return_value=contextlib.nullcontext()), \
+                    mock.patch.object(ios_sim.subprocess, "run",
+                                      return_value=subprocess.CompletedProcess([], 0)) as run, \
+                    contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(ios_sim.cmd_drive(self._args(Path(tmp) / "shot.png", False)), 0)
+            self.assertTrue(run.called)
+
+    def test_successful_coverage_drive_freezes_artifacts_inside_flow(self):
+        from unittest import mock
+
+        with TemporaryDirectory() as tmp:
+            with mock.patch.object(ios_sim, "product", return_value=ios_sim.PRODUCTS["uikit"]), \
+                    mock.patch.object(ios_sim, "scripting_preflight", return_value=0), \
+                    mock.patch.object(ios_sim, "resolve_device", return_value="UDID"), \
+                    mock.patch.object(ios_sim, "driver_derived_data", return_value=Path(tmp)), \
+                    mock.patch.object(ios_sim, "driver_build_stale", return_value=False), \
+                    mock.patch.object(ios_sim, "_coverage_source_manifest", return_value={}), \
+                    mock.patch.object(ios_sim, "_coverage_source_digest", return_value="digest"), \
+                    mock.patch.object(ios_sim, "_require_coverage_sources"), \
+                    mock.patch.object(ios_sim, "sim_lock", return_value=contextlib.nullcontext()), \
+                    mock.patch.object(ios_sim, "boot_exclusive"), \
+                    mock.patch.object(ios_sim, "_run", return_value=subprocess.CompletedProcess([], 0)), \
+                    mock.patch.object(ios_sim, "ScreenRecording", return_value=contextlib.nullcontext()), \
+                    mock.patch.object(ios_sim, "HostBridge", return_value=contextlib.nullcontext()), \
+                    mock.patch.object(ios_sim.subprocess, "run",
+                                      return_value=subprocess.CompletedProcess([], 0)), \
+                    mock.patch.object(ios_sim, "_result_summary",
+                                      return_value={
+                                          "startTime": 1, "finishTime": 2,
+                                          "devicesAndConfigurations": [{
+                                              "device": {
+                                                  "platform": "iOS Simulator",
+                                                  "modelName": "iPhone 17 Pro",
+                                                  "deviceId": "UDID",
+                                              }
+                                          }],
+                                      }), \
+                    mock.patch.object(ios_sim, "collect_llvm_coverage",
+                                      return_value=(Path("export"), Path("lcov"), Path("prov"))) as collect, \
+                    contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(ios_sim.cmd_drive(self._args(Path(tmp) / "shot.png", True)), 0)
+            collect.assert_called_once()
 
 
 def _bmp(pixels: list[tuple[int, int, int]], bits: int = 32) -> bytes:

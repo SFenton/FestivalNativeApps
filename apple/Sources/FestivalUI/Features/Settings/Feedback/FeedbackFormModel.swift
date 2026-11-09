@@ -163,10 +163,23 @@ final class FeedbackFormModel {
     /// - Parameter items: Staged copies, in drop order.
     func importDropped(_ items: [FeedbackPickedMedia]) async {
         for item in items {
-            importing += 1
-            defer { importing -= 1 }
-            await admit(item.url, displayName: item.url.lastPathComponent)
+            await importPickedMedia(item)
         }
+    }
+
+    /// Admits one staged native picker/drop item through the shared limits and scrubbing.
+    ///
+    /// - Parameter item: A private staged media copy.
+    /// - Returns: The admitted attachment identifier, or nil when refused.
+    @discardableResult
+    func importPickedMedia(_ item: FeedbackPickedMedia) async -> UUID? {
+        guard !Task.isCancelled else {
+            Self.deleteCopy(item.url)
+            return nil
+        }
+        importing += 1
+        defer { importing -= 1 }
+        return await admit(item.url, displayName: item.url.lastPathComponent)
     }
 
     /// Whether the form takes new media now (drops and the inline library): not while
@@ -228,6 +241,10 @@ final class FeedbackFormModel {
                 Self.deleteCopy(url)
                 return nil
             }
+        }
+        guard !Task.isCancelled else {
+            Self.deleteCopy(url)
+            return nil
         }
         let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init)
         let rejection: FeedbackAttachmentRejection?

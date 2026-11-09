@@ -11,7 +11,7 @@ import UIKit
 /// and dismisses the sheet. Rows are decorated like the SwiftUI rows: media rail, marquee
 /// title, bold-run message, colour-coded flag chips and the unread dot / chevron column.
 @MainActor
-final class UKNotificationsViewController: UIViewController, UICollectionViewDelegate, UKModalScrollProviding {
+final class UKNotificationsViewController: UKScreenViewController, UICollectionViewDelegate, UKModalScrollProviding {
     private enum Section: Hashable { case new, older }
 
     private let session: FestivalSession

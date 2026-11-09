@@ -134,7 +134,7 @@ final class UKBackgroundView: UIView {
             systemReduceTransparency: UIAccessibility.isReduceTransparencyEnabled,
             constrained: constrained
         )
-        let animate = window != nil
+        let animate = window?.windowScene?.activationState == .foregroundActive
         let lightness = 1 - dimming
 
         // Carousel slots (a slot without an image has no view, as in SwiftUI).

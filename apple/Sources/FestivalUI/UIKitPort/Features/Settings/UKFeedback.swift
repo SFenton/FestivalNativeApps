@@ -17,11 +17,13 @@ import UniformTypeIdentifiers
 /// presenter, which shows "Report Sent" once the sheet has gone (issue #565).
 ///
 /// Photos come from the system picker (`PHPickerViewController`, out of process) and files from
-/// the document picker; both go through the model's own import and limits. Dragging media onto
-/// the form and the beside-the-form photo pane are not ported.
+/// the document picker; both go through the model's own import and limits. Regular-width iPad
+/// and Duo windows can host the photo picker beside the form, and media drops are accepted on
+/// the form through native UIKit drop interactions.
 @MainActor
-final class UKFeedbackFormViewController: UIViewController, UKModalScrollProviding, UIAdaptivePresentationControllerDelegate,
-    PHPickerViewControllerDelegate, UIDocumentPickerDelegate, QLPreviewControllerDataSource {
+final class UKFeedbackFormViewController: UKScreenViewController, UKModalScrollProviding, UIAdaptivePresentationControllerDelegate,
+    PHPickerViewControllerDelegate, UIDocumentPickerDelegate, QLPreviewControllerDataSource, QLPreviewControllerDelegate,
+    UIDropInteractionDelegate {
     private let kind: FeedbackKind
     private let session: FestivalSession
     private let onSent: (FeedbackSentNotice) -> Void
@@ -29,6 +31,23 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
     private let scroll = UIScrollView()
     private let column = UIStackView()
     private let formHolder = UIView()
+    private let formPane = UIView()
+    private let libraryPane = UIView()
+    private var paneHost: UKHingeColumnsView?
+    private var formHolderConstraints: [NSLayoutConstraint] = []
+    private var formPaneConstraints: [NSLayoutConstraint] = []
+    private var paneHostConstraints: [NSLayoutConstraint] = []
+    private var libraryPicker: PHPickerViewController?
+    private var libraryVisible = false
+    private var libraryHideButton: UIButton?
+    private lazy var librarySelection = UKFeedbackPhotoSelection(
+        importItem: { [model] provider in
+            let items = await FeedbackPickedMedia.load(from: [provider])
+            guard let item = items.first else { return nil }
+            return await model.importPickedMedia(item)
+        },
+        remove: { [model] in model.remove(id: $0) }
+    )
     private let statusView = UIView()
     private let observations = UKObservationBag()
     private let titleField = UITextField()
@@ -38,20 +57,23 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
     private let attachMenuButton = UIButton(type: .system)
     private let attachProgress = UKLoadingView(status: "Adding media…")
     private let attachMessage = UKLabel(style: .footnote, color: BrandUIColors.statusRed)
+    private let dropNotice = UKLabel("Drop to Attach", style: .footnote, color: BrandUIColors.accentBlue)
+    private var dropTargets = 0
     private lazy var submitItem = UIBarButtonItem(title: "Submit", primaryAction: UIAction { [weak self] _ in self?.submit() })
     private lazy var closeItem = UIBarButtonItem(title: "Cancel", primaryAction: UIAction { [weak self] _ in self?.requestClose() })
     private var statusTitle = UKStateTitleLabel("")
     private var statusSubtitle = UKStateSubtitleLabel("")
     private let progressBar = UIProgressView(progressViewStyle: .default)
     private let stopButton = UIButton(type: .system)
-    private let busy: UKLoadingView
+    private let busy: UIActivityIndicatorView
     private var showsStatus = false
     private var shownStage: FeedbackSendingStage?
     private var handedOver = false
     private var alertedFailure = false
     private var previewURLs: [URL] = []
     private var stripKey = ""
-    private var busyIndicator: UIActivityIndicatorView?
+    private var mediaImports: [UUID: Task<Void, Never>] = [:]
+    private var didFinishDismissal = false
 
     var ukModalScrollView: UIScrollView? { scroll }
 
@@ -66,12 +88,14 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
         self.session = session
         self.onSent = onSent
         model = FeedbackFormModel(kind: kind)
-        busy = UKLoadingView(accessibilityLabel: FeedbackSendingStage.busyLabel(for: kind), placement: .inline)
+        busy = UIActivityIndicatorView(style: .large)
         super.init(nibName: nil, bundle: nil)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    deinit { mediaImports.values.forEach { $0.cancel() } }
 
     /// Presents the form over `presenter`.
     ///
@@ -90,12 +114,16 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
             form, title: kind.formTitle, closeIdentifier: "fst.settings.feedback.close", size: .large, sizing: .regularPage,
             regularWidth: presenter.traitCollection.horizontalSizeClass == .regular, onClose: { form.requestClose() }
         )
+        form.rearmClose = { [weak sheet] in sheet?.ukRearmClose() }
         sheet.presentationController?.delegate = form
         form.onDismiss = onDismiss
-        presenter.present(sheet, animated: true)
+        _ = UKPresentationCoordinator.shared(for: presenter).presentIndependent(
+            sheet, from: presenter, onDismiss: { [weak form] in form?.finishDismissal() }
+        )
     }
 
     private var onDismiss: (() -> Void)?
+    private var rearmClose: (() -> Void)?
 
     // MARK: Lifecycle
 
@@ -111,17 +139,29 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
         scroll.keyboardDismissMode = .interactive
         scroll.alwaysBounceVertical = true
         formHolder.translatesAutoresizingMaskIntoConstraints = false
+        formPane.translatesAutoresizingMaskIntoConstraints = false
         statusView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(formHolder)
         view.addSubview(statusView)
-        formHolder.addSubview(scroll)
-        NSLayoutConstraint.activate([
+        formPane.addSubview(scroll)
+        formHolder.addSubview(formPane)
+        formHolderConstraints = [
             formHolder.leadingAnchor.constraint(equalTo: view.leadingAnchor), formHolder.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             formHolder.topAnchor.constraint(equalTo: view.topAnchor), formHolder.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ]
+        NSLayoutConstraint.activate(formHolderConstraints)
+        NSLayoutConstraint.activate([
             statusView.leadingAnchor.constraint(equalTo: view.leadingAnchor), statusView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             statusView.topAnchor.constraint(equalTo: view.topAnchor), statusView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            scroll.leadingAnchor.constraint(equalTo: formHolder.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: formHolder.trailingAnchor),
-            scroll.topAnchor.constraint(equalTo: formHolder.topAnchor), scroll.bottomAnchor.constraint(equalTo: formHolder.bottomAnchor),
+        ])
+        formPaneConstraints += [
+            formPane.leadingAnchor.constraint(equalTo: formHolder.leadingAnchor), formPane.trailingAnchor.constraint(equalTo: formHolder.trailingAnchor),
+            formPane.topAnchor.constraint(equalTo: formHolder.topAnchor), formPane.bottomAnchor.constraint(equalTo: formHolder.bottomAnchor),
+        ]
+        NSLayoutConstraint.activate(formPaneConstraints)
+        NSLayoutConstraint.activate([
+            scroll.leadingAnchor.constraint(equalTo: formPane.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: formPane.trailingAnchor),
+            scroll.topAnchor.constraint(equalTo: formPane.topAnchor), scroll.bottomAnchor.constraint(equalTo: formPane.bottomAnchor),
         ])
         column.axis = .vertical
         column.spacing = 20
@@ -129,21 +169,25 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
         buildForm()
         buildStatus()
         statusView.isHidden = true
+        installDropInteractions()
+        librarySelection.onDeselect = { [weak self] identifiers in
+            self?.libraryPicker?.deselectAssets(withIdentifiers: identifiers)
+        }
         observations.observe { [weak self] in self?.render() }
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        if libraryVisible && !canInlinePhotoLibrary { hideInlinePhotoLibrary() }
         if UKSettingsScrollPage.remeasureLabels(in: scroll) { scroll.setNeedsLayout() }
     }
 
-    override func viewDidDisappear(_ animated: Bool) {
-        super.viewDidDisappear(animated)
-        if navigationController?.isBeingDismissed == true || isBeingDismissed { finishDismissal() }
-    }
-
     private func finishDismissal() {
-        FeedbackFormModel.purgeStagedMedia()
+        guard !didFinishDismissal else { return }
+        didFinishDismissal = true
+        stopMediaImports()
+        librarySelection.close()
+        model.discardMedia()
         let done = onDismiss
         onDismiss = nil
         done?()
@@ -306,7 +350,11 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
         attachMenuButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         attachProgress.accessibilityIdentifier = "fst.settings.feedback.attach.progress"
         attachMessage.accessibilityIdentifier = "fst.settings.feedback.attachments.notice"
-        let content = UIStackView(arrangedSubviews: [stripScroll, attachMenuButton, attachProgress, attachMessage])
+        dropNotice.accessibilityIdentifier = "fst.settings.feedback.drop.shown"
+        dropNotice.isHidden = true
+        let content = UIStackView(arrangedSubviews: [
+            stripScroll, attachMenuButton, attachProgress, attachMessage, dropNotice,
+        ])
         content.axis = .vertical
         content.spacing = 8
         return section("Media", detail: mediaDetail, content: content)
@@ -318,23 +366,174 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
         return action
     }
 
+    // MARK: Inline photo library and drops
+
+    private var canInlinePhotoLibrary: Bool {
+        let widthClass: WidthClass = traitCollection.horizontalSizeClass == .regular ? .regular : .compact
+        let isPadOrDuo = UIDevice.current.userInterfaceIdiom == .pad || ukWindowLayout.pose != .standard
+        return isPadOrDuo && FeedbackPhotoLibraryPlacement.resolve(
+            isMac: false, windowWidthClass: widthClass
+        ) == .beside
+    }
+
+    private func makePhotoPicker(inline: Bool = false) -> PHPickerViewController {
+        var configuration = PHPickerConfiguration(photoLibrary: .shared())
+        configuration.selectionLimit = inline
+            ? FeedbackLimits.attachments : max(1, FeedbackLimits.attachments - model.attachments.count)
+        if inline {
+            configuration.selection = .continuousAndOrdered
+            configuration.preselectedAssetIdentifiers = librarySelection.selected
+        }
+        configuration.filter = .any(of: [.images, .videos])
+        configuration.preferredAssetRepresentationMode = .current
+        let picker = PHPickerViewController(configuration: configuration)
+        picker.delegate = self
+        return picker
+    }
+
+    private func showInlinePhotoLibrary() {
+        guard canInlinePhotoLibrary, !libraryVisible else { return }
+        libraryVisible = true
+        libraryPane.translatesAutoresizingMaskIntoConstraints = false
+        libraryPane.accessibilityIdentifier = "fst.settings.feedback.library"
+        let header = UIStackView()
+        header.translatesAutoresizingMaskIntoConstraints = false
+        header.axis = .horizontal
+        header.alignment = .center
+        header.addArrangedSubview(UKLabel("Photo Library", style: .headline, weight: .semibold))
+        header.addArrangedSubview(UIView())
+        let hide = UIButton(type: .system)
+        hide.setTitle("Hide", for: .normal)
+        hide.accessibilityIdentifier = "fst.settings.feedback.library.hide"
+        NSLayoutConstraint.activate([
+            hide.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            hide.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+        ])
+        hide.addAction(UIAction { [weak self] _ in self?.hideInlinePhotoLibrary() }, for: .touchUpInside)
+        header.addArrangedSubview(hide)
+        libraryHideButton = hide
+        let picker = makePhotoPicker(inline: true)
+        libraryPicker = picker
+        addChild(picker)
+        picker.view.translatesAutoresizingMaskIntoConstraints = false
+        libraryPane.addSubview(header)
+        libraryPane.addSubview(picker.view)
+        NSLayoutConstraint.activate([
+            header.leadingAnchor.constraint(equalTo: libraryPane.leadingAnchor, constant: 12),
+            header.trailingAnchor.constraint(equalTo: libraryPane.trailingAnchor, constant: -12),
+            header.topAnchor.constraint(equalTo: libraryPane.topAnchor, constant: 8),
+            picker.view.leadingAnchor.constraint(equalTo: libraryPane.leadingAnchor),
+            picker.view.trailingAnchor.constraint(equalTo: libraryPane.trailingAnchor),
+            picker.view.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 4),
+            picker.view.bottomAnchor.constraint(equalTo: libraryPane.bottomAnchor),
+        ])
+        picker.didMove(toParent: self)
+
+        NSLayoutConstraint.deactivate(formPaneConstraints)
+        formPane.removeFromSuperview()
+        let host = UKHingeColumnsView()
+        host.layoutProvider = { [weak self] in self?.ukWindowLayout ?? .standardPhone }
+        host.translatesAutoresizingMaskIntoConstraints = false
+        host.leadingContent.addSubview(formPane)
+        host.trailingContent.addSubview(libraryPane)
+        formPane.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            formPane.leadingAnchor.constraint(equalTo: host.leadingContent.leadingAnchor),
+            formPane.trailingAnchor.constraint(equalTo: host.leadingContent.trailingAnchor),
+            formPane.topAnchor.constraint(equalTo: host.leadingContent.topAnchor),
+            formPane.bottomAnchor.constraint(equalTo: host.leadingContent.bottomAnchor),
+            libraryPane.leadingAnchor.constraint(equalTo: host.trailingContent.leadingAnchor),
+            libraryPane.trailingAnchor.constraint(equalTo: host.trailingContent.trailingAnchor),
+            libraryPane.topAnchor.constraint(equalTo: host.trailingContent.topAnchor),
+            libraryPane.bottomAnchor.constraint(equalTo: host.trailingContent.bottomAnchor),
+        ])
+        formHolder.addSubview(host)
+        paneHostConstraints = [
+            host.leadingAnchor.constraint(equalTo: formHolder.leadingAnchor),
+            host.trailingAnchor.constraint(equalTo: formHolder.trailingAnchor),
+            host.topAnchor.constraint(equalTo: formHolder.topAnchor),
+            host.bottomAnchor.constraint(equalTo: formHolder.bottomAnchor),
+        ]
+        NSLayoutConstraint.activate(paneHostConstraints)
+        paneHost = host
+    }
+
+    private func hideInlinePhotoLibrary() {
+        guard libraryVisible else { return }
+        libraryVisible = false
+        if let picker = libraryPicker {
+            picker.willMove(toParent: nil)
+            picker.view.removeFromSuperview()
+            picker.removeFromParent()
+        }
+        libraryPicker = nil
+        libraryHideButton = nil
+        libraryPane.subviews.forEach { $0.removeFromSuperview() }
+        if let host = paneHost {
+            NSLayoutConstraint.deactivate(paneHostConstraints)
+            host.removeFromSuperview()
+            paneHost = nil
+        }
+        formPane.removeFromSuperview()
+        formHolder.addSubview(formPane)
+        NSLayoutConstraint.activate(formPaneConstraints)
+    }
+
+    private func installDropInteractions() {
+        let interaction = UIDropInteraction(delegate: self)
+        formHolder.addInteraction(interaction)
+        scroll.addInteraction(UIDropInteraction(delegate: self))
+        for textView in textViews {
+            textView.0.addInteraction(UIDropInteraction(delegate: self))
+        }
+    }
+
+    private func setDropTarget(_ active: Bool) {
+        dropTargets = max(0, dropTargets + (active ? 1 : -1))
+        let visible = dropTargets > 0 && model.acceptsMedia
+        dropNotice.isHidden = !visible
+        formHolder.layer.borderWidth = visible ? 2 : 0
+        formHolder.layer.borderColor = visible ? BrandUIColors.accentBlue.cgColor : nil
+        formHolder.layer.cornerRadius = visible ? 12 : 0
+    }
+
+    func dropInteraction(_ interaction: UIDropInteraction, canHandle session: any UIDropSession) -> Bool {
+        session.hasItemsConforming(toTypeIdentifiers: FeedbackPickedMedia.droppableTypes.map(\.identifier))
+    }
+
+    func dropInteraction(_ interaction: UIDropInteraction, sessionDidEnter session: any UIDropSession) {
+        setDropTarget(true)
+    }
+
+    func dropInteraction(_ interaction: UIDropInteraction, sessionDidExit session: any UIDropSession) {
+        setDropTarget(false)
+    }
+
+    func dropInteraction(_ interaction: UIDropInteraction, sessionDidUpdate session: any UIDropSession) -> UIDropProposal {
+        UIDropProposal(operation: model.acceptsMedia ? .copy : .forbidden)
+    }
+
+    func dropInteraction(_ interaction: UIDropInteraction, performDrop session: any UIDropSession) {
+        setDropTarget(false)
+        guard model.acceptsMedia else { return }
+        let providers = session.items.map(\.itemProvider)
+        importMedia { [model] in await model.importDropped(await FeedbackPickedMedia.load(from: providers)) }
+    }
+
+    func dropInteraction(_ interaction: UIDropInteraction, sessionDidEnd session: any UIDropSession) {
+        setDropTarget(false)
+    }
+
     // MARK: Status
 
     private func buildStatus() {
         statusView.backgroundColor = .clear
-        // The spinner is drawn by the shared arc; a system activity indicator laid over it carries the
-        // role, name and identifier assistive technology and UI tests read as the one busy indicator.
-        busy.accessibilityElementsHidden = true
         busy.translatesAutoresizingMaskIntoConstraints = false
-        let indicator = UIActivityIndicatorView(style: .large)
-        indicator.hidesWhenStopped = false
-        indicator.alpha = 0.02
-        indicator.startAnimating()
-        indicator.isAccessibilityElement = true
-        indicator.accessibilityLabel = FeedbackSendingStage.busyLabel(for: kind)
-        indicator.accessibilityIdentifier = "fst.settings.feedback.busy"
-        indicator.translatesAutoresizingMaskIntoConstraints = false
-        busyIndicator = indicator
+        busy.hidesWhenStopped = false
+        busy.startAnimating()
+        busy.isAccessibilityElement = true
+        busy.accessibilityLabel = FeedbackSendingStage.busyLabel(for: kind)
+        busy.accessibilityIdentifier = "fst.settings.feedback.busy"
         statusTitle.accessibilityIdentifier = "fst.settings.feedback.status.title"
         statusSubtitle.accessibilityIdentifier = "fst.settings.feedback.status.subtitle"
         progressBar.accessibilityLabel = "Upload progress"
@@ -364,12 +563,6 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
             progressBar.widthAnchor.constraint(equalTo: stack.widthAnchor).withPriority(.defaultHigh),
             busy.widthAnchor.constraint(greaterThanOrEqualToConstant: 44), busy.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
         ])
-        if let indicator = busyIndicator {
-            statusView.addSubview(indicator)
-            NSLayoutConstraint.activate([
-                indicator.centerXAnchor.constraint(equalTo: busy.centerXAnchor), indicator.centerYAnchor.constraint(equalTo: busy.centerYAnchor),
-            ])
-        }
     }
 
     private func setStatus(_ stage: FeedbackSendingStage?) {
@@ -418,6 +611,13 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
         let message = model.attachmentMessage
         let unsaved = model.hasUnsavedInput
         let filing = model.isFiling
+        librarySelection.prune(keeping: Set(attachments.map(\.id)))
+        libraryPicker?.view.isUserInteractionEnabled = !busyNow
+        if busyNow {
+            dropTargets = 0
+            dropNotice.isHidden = true
+            formHolder.layer.borderWidth = 0
+        }
         if submitItem.isEnabled != canSubmit { submitItem.isEnabled = canSubmit }
         closeItem.title = filing ? "Close" : "Cancel"
         let modal = model.isSubmitting || (unsaved && !filing)
@@ -442,11 +642,11 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
         case let .failed(text) where !alertedFailure:
             alertedFailure = true
             let alert = UIAlertController(title: "Couldn't Send", message: text, preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "OK", style: .cancel) { [weak self] _ in
+            alert.addAction(alert.ukAction(title: "OK", style: .cancel) { [weak self] in
                 self?.alertedFailure = false
                 self?.model.acknowledgeFailure()
             })
-            present(alert, animated: true)
+            _ = UKPresentationCoordinator.shared(for: self).presentRelated(alert, from: self)
         case let .finished(outcome) where !handedOver:
             handedOver = true
             onSent(FeedbackSentNotice(kind: kind, outcome: outcome))
@@ -489,7 +689,9 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
         remove.tintColor = BrandUIColors.textPrimary
         remove.accessibilityLabel = "Remove \(attachment.filename)"
         remove.accessibilityIdentifier = "fst.settings.feedback.attachment.\(position).remove"
-        remove.addAction(UIAction { [weak self] _ in self?.model.remove(attachment) }, for: .touchUpInside)
+        remove.addAction(UIAction { [weak self] _ in
+            self?.librarySelection.removeAttachment(id: attachment.id)
+        }, for: .touchUpInside)
         holder.addSubview(open)
         holder.addSubview(remove)
         NSLayoutConstraint.activate([
@@ -533,8 +735,11 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
     }
 
     private func closeNow() {
+        stopMediaImports()
+        librarySelection.close()
         model.discardMedia()
-        (navigationController ?? self).dismiss(animated: true) { [weak self] in self?.finishDismissal() }
+        let controller = navigationController ?? self
+        UKPresentationCoordinator.shared(for: self).dismiss(controller)
     }
 
     private func confirmDiscard() {
@@ -542,48 +747,79 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
             title: kind == .bug ? "Discard this report?" : "Discard this request?",
             message: "Your text and attached media will be lost.", preferredStyle: .actionSheet
         )
-        let discard = UIAlertAction(title: "Discard Changes", style: .destructive) { [weak self] _ in self?.closeNow() }
-        let keep = UIAlertAction(title: "Keep Editing", style: .cancel)
+        let discard = alert.ukAction(title: "Discard Changes", style: .destructive) { [weak self] in self?.closeNow() }
+        let keep = alert.ukAction(title: "Keep Editing", style: .cancel) { [weak self] in
+            self?.rearmClose?()
+        }
         alert.addAction(discard)
         alert.addAction(keep)
         alert.popoverPresentationController?.barButtonItem = closeItem
-        present(alert, animated: true) {
+        _ = UKPresentationCoordinator.shared(for: self).presentRelated(alert, from: self) {
             UKAlertIdentifiers.apply(["Discard Changes": "fst.settings.feedback.discard.confirm", "Keep Editing": "fst.settings.feedback.discard.cancel"], in: alert.view)
         }
     }
 
     func presentationControllerDidAttemptToDismiss(_ presentationController: UIPresentationController) { requestClose() }
 
-    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) { finishDismissal() }
-
     // MARK: Pickers
 
     private func pickPhotos() {
-        var configuration = PHPickerConfiguration(photoLibrary: .shared())
-        configuration.selectionLimit = max(1, FeedbackLimits.attachments - model.attachments.count)
-        configuration.filter = .any(of: [.images, .videos])
-        configuration.preferredAssetRepresentationMode = .current
-        let picker = PHPickerViewController(configuration: configuration)
-        picker.delegate = self
-        present(picker, animated: true)
+        guard model.attachments.count < FeedbackLimits.attachments else { return }
+        if canInlinePhotoLibrary {
+            showInlinePhotoLibrary()
+        } else {
+            let picker = makePhotoPicker()
+            _ = UKPresentationCoordinator.shared(for: self).presentRelated(picker, from: self)
+        }
     }
 
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-        picker.dismiss(animated: true)
+        let isInline = picker === libraryPicker
+        if isInline {
+            librarySelection.apply(results.compactMap { result in
+                result.assetIdentifier.map {
+                    UKFeedbackPhotoSelection.Item(identifier: $0, provider: result.itemProvider)
+                }
+            })
+            return
+        } else {
+            UKPresentationCoordinator.shared(for: self).dismiss(picker)
+        }
         let providers = results.map(\.itemProvider)
         guard !providers.isEmpty else { return }
-        Task { await model.importDropped(await FeedbackPickedMedia.load(from: providers)) }
+        importMedia { [model] in await model.importDropped(await FeedbackPickedMedia.load(from: providers)) }
     }
 
     private func pickFiles() {
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.image, .movie], asCopy: true)
         picker.allowsMultipleSelection = true
         picker.delegate = self
-        present(picker, animated: true)
+        _ = UKPresentationCoordinator.shared(for: self).presentRelated(picker, from: self)
     }
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-        Task { await model.importFiles(.success(urls)) }
+        UKPresentationCoordinator.shared(for: self).dismiss(controller) { [weak self] in
+            guard let self else { return }
+            importMedia { [model] in await model.importFiles(.success(urls)) }
+        }
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        UKPresentationCoordinator.shared(for: self).dismiss(controller)
+    }
+
+    private func importMedia(_ operation: @escaping @MainActor () async -> Void) {
+        guard !didFinishDismissal, model.acceptsMedia else { return }
+        let token = UUID()
+        mediaImports[token] = Task { @MainActor [weak self] in
+            await operation()
+            self?.mediaImports[token] = nil
+        }
+    }
+
+    private func stopMediaImports() {
+        mediaImports.values.forEach { $0.cancel() }
+        mediaImports.removeAll()
     }
 
     // MARK: Quick Look
@@ -591,8 +827,9 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
     private func preview(_ index: Int) {
         let controller = QLPreviewController()
         controller.dataSource = self
+        controller.delegate = self
         controller.currentPreviewItemIndex = index
-        present(controller, animated: true)
+        _ = UKPresentationCoordinator.shared(for: self).presentRelated(controller, from: self)
     }
 
     nonisolated func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
@@ -601,6 +838,10 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
 
     nonisolated func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> any QLPreviewItem {
         MainActor.assumeIsolated { previewURLs[index] as NSURL }
+    }
+
+    nonisolated func previewControllerDidDismiss(_ controller: QLPreviewController) {
+        MainActor.assumeIsolated { UKMotionVisibility.changed() }
     }
 }
 

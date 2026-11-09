@@ -4,6 +4,9 @@ options:
 packages:
   FestivalApple:
     path: .
+  FentonPlatform:
+    url: https://github.com/SFenton/FentonPlatform.git
+    revision: 0b9592686a90a89181e442cdc0f5058bca9af001
 targets:
   FestivalMobile:
     type: application
@@ -121,6 +124,40 @@ targets:
         TEST_TARGET_NAME: FestivalMobileUIKit
         # The few journeys that must tell the side-by-side port apart (its Home Screen name).
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) FST_UIKIT_PORT"
+        CODE_SIGNING_ALLOWED: NO
+  FestivalMobileUIKitHostedTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Tests/FestivalUITests/UKPageFoundationTests.swift
+      - path: Tests/FestivalUITests/UKModalFoundationTests.swift
+      - path: Tests/FestivalUITests/UKSectionStackFoundationTests.swift
+      - path: Tests/FestivalUITests/UKHostedWindow.swift
+      - path: Tests/FestivalUITests/UKMotionFoundationTests.swift
+      - path: Tests/FestivalUITests/UKRouteArchitectureTests.swift
+      - path: Tests/FestivalUITests/UKPresentationCoordinatorTests.swift
+      - path: Tests/FestivalUITests/UKFeatureComponentTests.swift
+      - path: Tests/FestivalUITests/UKFeedbackPhotoSelectionTests.swift
+    dependencies:
+      - target: FestivalMobileUIKit
+      # Use the app host's package images instead of linking a second copy.
+      - package: FestivalApple
+        product: FestivalUI
+        link: false
+      - package: FestivalApple
+        product: FestivalCore
+        link: false
+      - package: FentonPlatform
+        product: FentonUIKit
+        link: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.festivalscoretracker.uikithostedtests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/FestivalMobileUIKit.app/FestivalMobileUIKit"
+        BUNDLE_LOADER: "$(TEST_HOST)"
         CODE_SIGNING_ALLOWED: NO
   FestivalDesktop:
     type: application
@@ -289,6 +326,9 @@ schemes:
         FestivalMobile: all
     test:
       gatherCoverageData: true
+      coverageTargets:
+        - FestivalMobile
+        - package: FestivalApple/FestivalUI
       targets:
         - name: FestivalMobileUITests
   FestivalMobileIPad:
@@ -297,6 +337,9 @@ schemes:
         FestivalMobile: all
     test:
       gatherCoverageData: true
+      coverageTargets:
+        - FestivalMobile
+        - package: FestivalApple/FestivalUI
       targets:
         - name: FestivalMobileIPadUITests
   FestivalMobileUIKit:
@@ -305,6 +348,9 @@ schemes:
         FestivalMobileUIKit: all
     test:
       gatherCoverageData: true
+      coverageTargets:
+        - FestivalMobileUIKit
+        - package: FestivalApple/FestivalUI
       targets:
         - name: FestivalMobileUIKitUITests
   FestivalMobileUIKitIPad:
@@ -313,8 +359,23 @@ schemes:
         FestivalMobileUIKit: all
     test:
       gatherCoverageData: true
+      coverageTargets:
+        - FestivalMobileUIKit
+        - package: FestivalApple/FestivalUI
       targets:
         - name: FestivalMobileUIKitIPadUITests
+  FestivalMobileUIKitHosted:
+    build:
+      targets:
+        FestivalMobileUIKit: all
+        FestivalMobileUIKitHostedTests: [test]
+    test:
+      environmentVariables:
+        FST_UIKIT_GALLERY: design
+        FST_API_BASE_URL: http://127.0.0.1:8765
+        FST_DEBUG_ANONYMOUS: "1"
+      targets:
+        - name: FestivalMobileUIKitHostedTests
   FestivalDesktop:
     build:
       targets:

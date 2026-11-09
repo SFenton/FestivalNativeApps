@@ -6,6 +6,7 @@
 
 - Iterate: `DEVELOPER_DIR=… swift test --package-path apple --filter <names>`.
 - Gate: `bash tools/apple_coverage.sh` — runs all three SwiftPM test bundles, merges real LLVM line coverage per binary, checks `apple/Sources` for missing/nested files, requires **95% logic / 90% UX**, and runs `python3 -m tools.contrast_gate`. Re-run after compiled-source edits; targeted tests cannot certify a new source state.
+- Match iOS-only probe definitions and call sites with `#if DEBUG && os(iOS)`. Validate host SwiftPM compilation and true Release with no `DEBUG` condition; an optimized Release-plus-DEBUG performance build cannot detect missing guards in either path.
 - Exclusions (`contracts/coverage-rules.json`'s `swift.exclude`): generated `BrandTokens.swift`, plus `App/AppRoute.swift` and `Features/Settings/LicenseManifest.swift` — all three have **zero executable lines** (pure `enum`/`struct` declarations and array literals with no function bodies or control flow), so `llvm-cov export` omits them entirely rather than reporting 0 covered/0 executable; the gate's completeness check otherwise reports them as "missing coverage" once correctly classified. Never exclude a file that has real logic; the gate fails loudly (`executable source cannot be excluded`) if an excluded file ever gains one.
 
 ### Fixed 2026-09-28 (Lane C): non-recursive glob undercounted UX by ~25,800 lines
@@ -29,7 +30,27 @@ found). Regression tests: `tools/tests/test_coverage_gate.py`'s
 ## iOS app target (`FestivalUI` + mobile app on device)
 
 - SwiftPM does **not** measure `apple/Apps/iOS` or `apple/Apps/macOS`.
-- `DEVELOPER_DIR=… python3 tools/apple_xccov_gate.py --result <iphone.xcresult> --result <ipad.xcresult>` (default `--scope paired`); `--scope iphone` for the phone-only phase. It unions **unique executable lines** across passing shards from the same simulator per family; every result must contain both coverage targets and all source files with matching executable-line sets and source timestamps older than every result. Never add or average Xcode target summaries (they double-count SwiftUI specializations).
+- `DEVELOPER_DIR=… python3 tools/apple_xccov_gate.py --app-family swiftui --result <iphone.xcresult> --result <ipad.xcresult>` (default `--scope paired`); use `--app-family uikit` for the UIKit port and `--scope iphone` for the phone-only phase. SwiftUI maps `FestivalMobile.app` to `apple/Apps/iOS/**/*.swift`; UIKit maps `FestivalMobileUIKit.app` to `apple/Apps/iOSUIKit/**/*.swift`. A foreign app target or a missing target fails closed.
+- Coverage collection is opt-in. The serialized runner's `uitest --coverage` (or `drive --coverage`) passes `-enableCodeCoverage YES` to **both** `build-for-testing` and `test-without-building`, records the coverage mode in the DerivedData receipt, and retains each `.xcresult`. This prevents a non-instrumented cache from being reused. The iOS schemes explicitly list both their app target and `FestivalApple/FestivalUI` in `coverageTargets`; `ci_journeys.py --coverage` applies that option to the selected full-matrix workflow legs and binds it into the evidence provenance.
+- Coverage provenance derives the device family from the retained xcresult model and requires its simulator ID to equal the held UDID; scheme or test-target labels do not classify iPhone versus iPad.
+- Static Swift package products can be linked into the app's debug dylib while still being omitted by `xccov`'s target projection. The UIKit runner freezes the exact `Build/ProfileData/<owned-udid>/Coverage.profdata` and matching debug dylib inside the simulator-lock hold immediately after each passing batch, then generates both `llvm-cov export --format=text` JSON and raw `llvm-cov export --format=lcov` before another batch can overwrite the profile. The collector records content-SHA source state before/after build and around the test, proves macOS-only/declaration-only omissions from the frozen source, and binds the passing result interval/device, actual arm64/UUID/profile identity, and artifact digests. In this compiler, the JSON `summary.lines` aggregate differs from the emitted LCOV `DA` map; the latter is the canonical executable-line definition. The gate independently reruns LCOV export from the frozen binary/profile and rejects mismatched line locations, negative counts, executable omissions, or stale artifacts. Pass the generated `--llvm-export`, `--llvm-line-map`, and `--llvm-provenance` files in result order; this is still source-bound line coverage, not a package-target or test-bundle percentage.
+- On the approved Mac, from the parent validation checkout with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`, use the existing capacity/hold runner only (one FST product simulator per host):
+  ```
+  python3 tools/ci_journeys.py --app uikit --coverage --out <evidence-dir> \
+    --device iphone=<owned-phone-udid> \
+    --device duo=<owned-duo-udid> \
+    --device ipad=<owned-ipad-udid>
+  DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer python3 tools/apple_xccov_gate.py \
+    --root <parent-validation-checkout> --app-family uikit --scope paired \
+    --result <iphone.xcresult> --result <ipad.xcresult>
+  DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer python3 tools/apple_xccov_gate.py \
+    --root <parent-validation-checkout> --app-family uikit --scope iphone \
+    --result <duo.xcresult>
+  ```
+  The collection command is a safe recipe, not evidence: replace each result path with
+  retained archives from distinct source-bound legs, and do not claim a percentage until
+  `xccov` reports actual per-line data. The Duo is an iPhone-family shard and must use the
+  same simulator identity for its iPhone shards; do not merge it with an unrelated phone.
 - Xcode sometimes omits `FestivalUI` from a passing `.xcresult`; the gate rejects such bundles. Timestamps are not hashes: freeze sources across shards.
 - `FestivalCore`/`FestivalDesign` are not Xcode coverage targets; macOS SwiftPM coverage does not certify their device lines.
 
@@ -41,6 +62,7 @@ failing on "unclassified production source":
 
 | Gate | Value | Date / source |
 |---|---|---|
+| UIKit current-a9 production-source collector smoke | 5095/63608 (8.01%) **fail** (need 90%); 1 pass / 0 skip / 0 fail, strict provenance and line-map validation succeeded; no final matrix or 95% logic claim | current-a9, one retained UIKit journey |
 | SwiftPM logic (`FestivalCore`) | 5780/6033 (95.81%) **pass** | 2026-09-28, Lane C, after adding `FestivalAPIBandsTests.swift`/`FestivalAPIHistoryTests.swift`/notification-format tests |
 | SwiftPM UX (`FestivalUI` + `FestivalDesign`, minus exclusions) | 18272/25943 (70.43%) **fail** (need 90%) | same run; per-feature breakdown below |
 | iPhone UI/app union | 4092/4695 (87.16%) fail — historical | pre-Score/FC-Filter source; no current-source phone or paired measurement |

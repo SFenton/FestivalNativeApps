@@ -22,6 +22,21 @@ before writing a real journey.
 
 ## CI journeys
 
+Local UIKit qualification uses `python3 tools/ci_journeys.py --app uikit --list`,
+then selected `--step` entries with an output directory. Repeat `--device FAMILY=UDID`
+for owned `iphone`, `ipad` and `duo` devices; never substitute a shared lane's simulator.
+The runner refuses occupied fixed fixture ports, bounds each script with
+`--step-timeout`, and requires completed non-skipped test summaries. Its output
+`provenance.json` binds resume to the app/fixture source, selected steps and device
+configuration; changed or unbound evidence cannot resume, and prior failures remain
+failures. A manifest is a source binding, not proof of runtime or performance coverage.
+Explicit device overrides also select `uitest --owned-device`: require a UUID, boot
+only that device (never the broad exclusive-boot helper), and shut it down after each
+batch even on failure. This trades warm-device reuse for shared-host isolation.
+The qualification runner always sets `FST_UITEST_KEEP_RESULTS=1`, preserving passing
+result bundles and attachments as well as failures; direct qualification calls must set
+it too because the normal driver prunes green bundles after reading their summaries.
+
 On the weekly release branch ([release train](../../workflow/release-machine.md#release-train); the machine dispatches it), `apple-ci` runs a short list of iPhone journeys on a simulator (step "iPhone simulator journeys", `JOURNEYS` in [`apple-ci.yml`](../../../.github/workflows/apple-ci.yml)) in the build job. A separate job, `ipad-journeys` ("apple-ci iPad and Rival Detail journeys"), runs beside it on its own runner: the iPad plain-fixture journeys, a list of iPad journeys (step "iPad simulator journeys", its own `JOURNEYS`) and the Rival Detail journeys on an iPad, an iPhone and a folded iPhone Duo (step "Rival Detail accessibility journeys", `RIVAL_JOURNEYS`). One job needed about 7 hours on the runner, past the 300-minute job limit and the hosted runner's 360-minute cap (#636), so keep each job's journeys under its limit and split again rather than raise a limit past 360. Use it for evidence the macOS-hosted suite cannot give: real Dynamic Type sizes (macOS has no Dynamic Type, [accessibility](accessibility.md)), `performAccessibilityAudit`, and the production chrome's accessibility order (the navigation bar and tab-bar accessory are system containers a hosted view cannot reproduce, e.g. the account buttons, `page-tools-and-nav-chrome` R17).
 
 - The iPhone step starts two loopback fixtures, `tools/mock_service.py --large-catalogue` on the default port 8765 (Songs) and `tools/mock_service.py --port 18934` (band boards, `SongBandRevealAccessibilityJourneyTests`, #386), creates one throwaway runner simulator with `ios_sim.py ci-device` (an iPhone 17 Pro on the runner's newest iOS runtime) and runs `ios_sim.py uitest --device <UDID> --fail-on-skip --no-test-diagnostics` in batches of three (1800 s each, #388).

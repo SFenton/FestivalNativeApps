@@ -179,7 +179,12 @@ final class UKSongScorePreviewView: UIView {
         task = nil
         loadingKey = nil
         render()
-        UKFadeIn.fadeIn(body, rises: false)
+        if UKMotionVisibility.permitsAnimation(in: body) {
+            UKFadeIn.fadeIn(body, rises: false)
+        } else {
+            body.alpha = 1
+            body.transform = .identity
+        }
     }
 
     // MARK: Rendering
@@ -244,13 +249,15 @@ final class UKSongScorePreviewView: UIView {
     }
 
     private func viewFullButton() -> UIView {
-        UKPurpleActionButton(
+        let button = UKPurpleActionButton(
             title: "View Full Leaderboard", card: instrument.label,
             identifier: "fst.song-detail.leaderboard.\(instrument.rawValue)"
         ) { [weak self] in
             guard let self else { return }
             self.context.navigator?.selectDetail(.songLeaderboard(self.song, self.instrument, 1))
         }
+        button.ukBindDetailSelection(.songLeaderboard(song, instrument, 1), context: context)
+        return button
     }
 
     private func failedBody(_ message: String) -> UIView {
@@ -327,13 +334,15 @@ final class UKSongScorePreviewView: UIView {
         )
         let view = UKSongLeaderboardEntryRowView(
             entry: entry, isPlayer: highlighted, columns: columns, currentSeason: session.catalogCurrentSeason,
-            chevron: route == nil ? false : true, hint: route.map(SongPreviewSpotlightPolicy.hint(for:))
+            chevron: route == nil ? false : true, hint: route.map(SongPreviewSpotlightPolicy.hint(for:)),
+            traits: traitCollection
         )
         if let route {
             view.onTap = { [weak self] in
                 guard let navigator = self?.context.navigator else { return }
                 if case .songLeaderboard = route { navigator.selectDetail(route) } else { navigator.push(route) }
             }
+            if case .songLeaderboard = route { view.ukBindDetailSelection(route, context: context) }
         }
         return view
     }

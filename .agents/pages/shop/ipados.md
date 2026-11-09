@@ -10,3 +10,13 @@
 - The Filter button (issue #19, [ios.md](ios.md)) sits before the grid/list toggle and filters the grid and list alike; the sheet is the system form sheet with the same switch rows. The no-match card replaces the grid.
 - The Filter button (issue #19, [ios.md](ios.md)) sits before the grid/list toggle and filters the grid and list alike; the sheet is the system form sheet with the same switch rows. The centred filtered-empty state (no card, no Reset; #377) replaces the grid.
 - The web's wide-sidebar Shop entry is not ported.
+
+## UIKit port transition invariant
+
+The UIKit iPad port keeps the same List/Grid content and accessibility behavior.
+When the mode changes, `UKShopViewController` uses
+`UICollectionViewDiffableDataSource.applySnapshotUsingReloadData(_:completion:)`
+to reload existing cells through the new mode's registration; it does not
+insert an intermediate empty snapshot. Same-mode updates retain ordinary
+diffable `reconfigureItems`. `renderedMode` commits only from the apply
+completion, while in-flight recomputes remain queued.

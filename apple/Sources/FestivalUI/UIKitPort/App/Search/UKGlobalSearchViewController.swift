@@ -15,7 +15,7 @@ import UIKit
 /// and returns to the previous tab when it is dismissed), or ``UKBottomSearchField`` on the
 /// iPhone Duo inner display (``GlobalSearchFieldPlacement``).
 @MainActor
-final class UKGlobalSearchViewController: UIViewController, UISearchResultsUpdating, UISearchBarDelegate,
+final class UKGlobalSearchViewController: UKPageViewController, UISearchResultsUpdating, UISearchBarDelegate,
     UICollectionViewDelegate {
     // MARK: Types
 
@@ -88,6 +88,7 @@ final class UKGlobalSearchViewController: UIViewController, UISearchResultsUpdat
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        installPageBody(scrollView: collection)
         view.backgroundColor = .clear
         view.accessibilityIdentifier = ids("surface")
         navigationItem.largeTitleDisplayMode = GlobalSearchTitleStyle.resolve(asTab: asTab) == .inlineLarge ? .inline : .always
@@ -194,11 +195,11 @@ final class UKGlobalSearchViewController: UIViewController, UISearchResultsUpdat
             self.model.scope = self.model.targets.scopes[self.scopeControl.selectedSegmentIndex]
         }, for: .valueChanged)
         scopeControl.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(scopeControl)
+        pageBodyView.addSubview(scopeControl)
         NSLayoutConstraint.activate([
-            scopeControl.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-            scopeControl.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
-            scopeControl.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+            scopeControl.topAnchor.constraint(equalTo: pageBodyView.safeAreaLayoutGuide.topAnchor, constant: 8),
+            scopeControl.leadingAnchor.constraint(equalTo: pageBodyView.safeAreaLayoutGuide.leadingAnchor, constant: 16),
+            scopeControl.trailingAnchor.constraint(equalTo: pageBodyView.safeAreaLayoutGuide.trailingAnchor, constant: -16),
         ])
     }
 
@@ -216,12 +217,12 @@ final class UKGlobalSearchViewController: UIViewController, UISearchResultsUpdat
         collection.backgroundColor = .clear
         collection.delegate = self
         collection.keyboardDismissMode = .onDrag
-        view.addSubview(collection)
+        pageBodyView.addSubview(collection)
         NSLayoutConstraint.activate([
             collection.topAnchor.constraint(equalTo: scopeControl.bottomAnchor, constant: 10),
-            collection.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            collection.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            collection.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            collection.leadingAnchor.constraint(equalTo: pageBodyView.leadingAnchor),
+            collection.trailingAnchor.constraint(equalTo: pageBodyView.trailingAnchor),
+            collection.bottomAnchor.constraint(equalTo: pageBodyView.bottomAnchor),
         ])
         let titleCell = UICollectionView.CellRegistration<UICollectionViewListCell, GlobalSearchScope> { [weak self] cell, _, scope in
             guard let self else { return }
@@ -432,7 +433,7 @@ final class UKGlobalSearchViewController: UIViewController, UISearchResultsUpdat
         spinner.isAccessibilityElement = true
         for state in [hint, spinner, emptyState] as [UIView] {
             state.translatesAutoresizingMaskIntoConstraints = false
-            view.addSubview(state)
+            pageBodyView.addSubview(state)
         }
         // The status states centre in the free area between the scope bar and the keyboard
         // (less the iPhone Search tab's field, which floats just above it), as SwiftUI does.

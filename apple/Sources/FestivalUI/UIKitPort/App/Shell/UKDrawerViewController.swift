@@ -15,7 +15,7 @@ import UIKit
 /// a leading swipe, the close button, the VoiceOver escape gesture and, in the flyout,
 /// the hardware Escape key.
 @MainActor
-final class UKDrawerViewController: UIViewController {
+final class UKDrawerViewController: UKScreenViewController {
     // MARK: Inputs
 
     private let session: FestivalSession
@@ -55,6 +55,8 @@ final class UKDrawerViewController: UIViewController {
     private var presence: Double
     private var isPresented = true
     private var link: CADisplayLink?
+    private var dragLink: CADisplayLink?
+    private var motionObserver: UKAccessibilityObserver?
     private var animationStart: CFTimeInterval = 0
     private var animationFrom: Double = 0
     private var animationTo: Double = 1
@@ -102,12 +104,25 @@ final class UKDrawerViewController: UIViewController {
         presence = 0
         super.init(nibName: nil, bundle: nil)
         overrideUserInterfaceStyle = .dark
+        motionObserver = UKAccessibilityObserver { [weak self] in
+            guard let self, UKAccessibility.reduceMotion else { return }
+            if link != nil { run(to: animationTo) }
+            if dragLink != nil { animateDrag(to: 0) }
+        }
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     // MARK: Lifecycle
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        link?.invalidate()
+        link = nil
+        dragLink?.invalidate()
+        dragLink = nil
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -400,13 +415,13 @@ final class UKDrawerViewController: UIViewController {
             title: "Deselect \(name)?", message: "Scores and profile tabs will be hidden until you select a profile again.",
             preferredStyle: .actionSheet
         )
-        alert.addAction(UIAlertAction(title: "Deselect Profile", style: .destructive) { [weak self] _ in
+        alert.addAction(alert.ukAction(title: "Deselect Profile", style: .destructive) { [weak self] in
             self?.onIntent(.deselectProfile)
         })
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(alert.ukAction(title: "Cancel", style: .cancel))
         alert.popoverPresentationController?.sourceView = source
         alert.popoverPresentationController?.sourceRect = source.bounds
-        present(alert, animated: true)
+        UKPresentationCoordinator.shared(for: self).presentRelated(alert, from: self)
     }
 
     /// Updates the highlighted destination and profile rows without rebuilding the panel.
@@ -450,7 +465,9 @@ final class UKDrawerViewController: UIViewController {
     }
 
     private func animateDrag(to value: CGFloat) {
-        let reduce = UIAccessibility.isReduceMotionEnabled
+        dragLink?.invalidate()
+        dragLink = nil
+        let reduce = UKAccessibility.reduceMotion
         let start = dragOffset
         guard start != value else { return }
         if reduce { dragOffset = value; applyPresence(); return }
@@ -462,9 +479,13 @@ final class UKDrawerViewController: UIViewController {
             let eased = 1 - pow(1 - t, 3)
             self.dragOffset = start + (value - start) * CGFloat(eased)
             self.applyPresence()
-            if t >= 1 { link.invalidate() }
+            if t >= 1 {
+                link.invalidate()
+                if self.dragLink === link { self.dragLink = nil }
+            }
         }, selector: #selector(BlockTarget.fire(_:)))
         timer.add(to: .main, forMode: .common)
+        dragLink = timer
     }
 
     // MARK: Motion
@@ -504,10 +525,21 @@ final class UKDrawerViewController: UIViewController {
 
     private func run(to target: Double) {
         link?.invalidate()
+        link = nil
+        if UKAccessibility.reduceMotion {
+            presence = target
+            applyPresence()
+            if target == 0 { onDismissed() }
+            else { UIAccessibility.post(notification: .screenChanged, argument: titleLabel) }
+            return
+        }
         animationFrom = presence
         animationTo = target
         animationStart = CACurrentMediaTime()
-        let timer = CADisplayLink(target: BlockTarget { [weak self] link in self?.step(link) }, selector: #selector(BlockTarget.fire(_:)))
+        let timer = CADisplayLink(target: BlockTarget { [weak self] link in
+            guard let self else { link.invalidate(); return }
+            self.step(link)
+        }, selector: #selector(BlockTarget.fire(_:)))
         timer.add(to: .main, forMode: .common)
         link = timer
     }
@@ -593,6 +625,9 @@ private final class BlockTarget {
 /// 48 pt tall, highlighted while pressed and while it names the page on screen.
 @MainActor
 final class UKDrawerRow: UIControl {
+    #if DEBUG
+    private static weak var debugTarget: UKDrawerRow?
+    #endif
     private let stack = UIStackView()
     private let iconView = UIImageView()
     private let label = UILabel()
@@ -611,6 +646,9 @@ final class UKDrawerRow: UIControl {
         self.isCurrent = isCurrent
         self.tint = tint
         super.init(frame: .zero)
+        #if DEBUG
+        Self.debugTarget = self
+        #endif
         layer.cornerRadius = DrawerCorners.rowRadius
         layer.cornerCurve = .continuous
         backgroundColor = isCurrent ? BrandUIColors.accentBlue.withAlphaComponent(0.28) : .clear
@@ -676,5 +714,11 @@ final class UKDrawerRow: UIControl {
                 : (isCurrent ? BrandUIColors.accentBlue.withAlphaComponent(0.28) : .clear)
         }
     }
+
+    #if DEBUG
+    /// Drives the same highlighted renderer as a real press for the performance probe.
+    static func setDebugPressed(_ pressed: Bool) { debugTarget?.isHighlighted = pressed }
+    static var debugIsPressed: Bool { debugTarget?.isHighlighted == true }
+    #endif
 }
 #endif

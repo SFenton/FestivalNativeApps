@@ -31,9 +31,9 @@ Both are shared by seven web files (song rows, Suggestions, Song Detail, leaderb
 
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
-| Season pill (R2, R3, R5) | `apple/Sources/FestivalUI/Features/SongLeaderboard/ScoreSeasonPill.swift` `ScoreSeasonPill` | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/MetadataPills.kt` `SeasonPill` (current season from `LocalCurrentSeason`; colours `seasonPillColors`) | `windows/Festival.App/Controls/MetadataPills.cs` `MetadataPills.Season` / `ApplySeason` (sizes and roles in `windows/Festival.Core/Domain/MetadataPillStyle.cs`) |
+| Season pill (R2, R3, R5) | SwiftUI: `apple/Sources/FestivalUI/Features/SongLeaderboard/ScoreSeasonPill.swift` `ScoreSeasonPill`; UIKit: `apple/Sources/FestivalUI/UIKitPort/Common/UKScoreRowParts.swift` `UKSeasonPillView` and `apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongMetadataViews.swift` `UKSongMetadataFieldView` | `android/app/src/main/java/com/festivalscoretracker/android/ui/design/MetadataPills.kt` `SeasonPill` (current season from `LocalCurrentSeason`; colours `seasonPillColors`) | `windows/Festival.App/Controls/MetadataPills.cs` `MetadataPills.Season` / `ApplySeason` (sizes and roles in `windows/Festival.Core/Domain/MetadataPillStyle.cs`) |
 | Songs full-combo accuracy (R7) | `apple/Sources/FestivalUI/Features/Songs/SongProfileMetadataPills.swift` `SongMetadataFieldView` (`GoldSkewBadgeShape`) | `android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongRow.kt` `MetadataPill` (debt below) | `MetadataPills.FullCombo` (look `MetadataPillStyle.FullCombo`, width `AccuracyMinWidth`), placed by `Controls/SongRowVisuals.Pill` |
-| Percentile pill (R3, R4) | `apple/Sources/FestivalUI/Features/Profile/PlayerPercentileTable.swift` `PercentilePill` | `MetadataPills.kt` `PercentilePill` (gold outlines via `ui/design/AccuracyPill.kt` `goldOutline`) | `MetadataPills.Percentile` / `ApplyPercentile` (XAML templates: `Controls/PercentilePillView`); tiers `MetadataPillStyle.Tier` / `TierOf` |
+| Percentile pill (R3, R4) | SwiftUI: `apple/Sources/FestivalUI/Features/Profile/PlayerPercentileTable.swift` `PercentilePill`; UIKit: `apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongMetadataViews.swift` `UKSongMetadataFieldView` (Profile's `UKPercentilePillView` delegates to it) | `MetadataPills.kt` `PercentilePill` (gold outlines via `ui/design/AccuracyPill.kt` `goldOutline`) | `MetadataPills.Percentile` / `ApplyPercentile` (XAML templates: `Controls/PercentilePillView`); tiers `MetadataPillStyle.Tier` / `TierOf` |
 
 Android consumers:
 
@@ -42,6 +42,8 @@ Android consumers:
 - `LocalCurrentSeason` is provided from the catalogue's `currentSeason` by the Song Detail and song leaderboard routes (`SongDetailViewModel` / `SongLeaderboardViewModel` `currentSeason`) and Score History (`PlayerHistoryUiState.currentSeason`). Suggestions doesn't provide it: its stale categories are never the current season.
 - The leaderboard season column (`LeaderboardSectionColumns` `metaWidth`) measures the label plus the pill's padding and never drops below `SEASON_PILL_MIN_WIDTH`, so every row's pill fits the shared column.
 - Tests: `MetadataPillsUiTest` (one height, Songs rows draw the same composable, 48 dp / 5.5 em minimums, colours, labels, 200% text), `SongScoreMetadataUiTest` (tiers and season on Songs rows), `ProfileViewModelsTest.historyNamesTheCurrentSeasonOnlyWhenTheCatalogueReportsIt`, and the `SeasonPillAccessibilityJourneyTest` device journey (spoken "Current season" / "Season", reading order, ATF at 100% and 200%).
+
+UIKit consumers: Suggestions reuses the Songs canonical `UKSongMetadataFieldView` and `UKSongStatusChipsView`; Profile's `UKPercentilePillView` is a thin trait-aware wrapper around the same metadata field. `UKFeatureComponentTests` checks the shared spoken labels, accessibility-size height and hosted accessibility target.
 
 Windows consumers:
 

@@ -10,10 +10,18 @@ import UIKit
 @MainActor
 final class UKSongsSheetDismissObserver: NSObject, UIAdaptivePresentationControllerDelegate {
     private let onDismiss: () -> Void
+    private var didNotify = false
 
     init(onDismiss: @escaping () -> Void) { self.onDismiss = onDismiss }
 
-    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) { onDismiss() }
+    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) { notifyDismissal() }
+
+    /// Delivers the shared shell's dismissal notification once.
+    func notifyDismissal() {
+        guard !didNotify else { return }
+        didNotify = true
+        onDismiss()
+    }
 }
 
 extension UIViewController {
@@ -28,14 +36,17 @@ extension UIViewController {
     func ukPresentSongsSheet(
         _ content: UIViewController, title: String, closeIdentifier: String, size: FestivalSheetSize, keep: (UKSongsSheetDismissObserver) -> Void
     ) {
+        let coordinator = UKPresentationCoordinator.shared(for: self)
+        guard coordinator.canPresentIndependent(from: self) else { return }
         let observer = UKSongsSheetDismissObserver { [weak self] in self?.ukPageToolsDidChange() }
-        keep(observer)
-        var sheet: UKSheetNavigationController?
-        sheet = UKSheet.make(content, title: title, closeIdentifier: closeIdentifier, size: size, regularWidth: traitCollection.horizontalSizeClass == .regular) { [weak self] in
-            sheet?.dismiss(animated: true) { self?.ukPageToolsDidChange() }
+        let sheet = UKSheet.make(
+            content, title: title, closeIdentifier: closeIdentifier, size: size,
+            regularWidth: traitCollection.horizontalSizeClass == .regular
+        )
+        sheet.ukOnDismiss = { observer.notifyDismissal() }
+        if coordinator.presentIndependent(sheet, from: self) == .presented {
+            keep(observer)
         }
-        sheet?.presentationController?.delegate = observer
-        if let sheet { present(sheet, animated: true) }
     }
 }
 #endif

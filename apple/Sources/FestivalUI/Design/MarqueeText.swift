@@ -57,6 +57,10 @@ public struct MarqueeText: View {
     @Environment(\.displayScale) private var displayScale
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorScheme) private var colorScheme
+    #if DEBUG && os(iOS)
+    @Environment(\.perfComponentDebugState) private var perfDebug
+    @State private var perfMarqueeID = UUID()
+    #endif
 
     /// Create a marquee text view.
     ///
@@ -78,7 +82,12 @@ public struct MarqueeText: View {
 
     /// Whether an overflowing text may scroll in this environment.
     private var mayScroll: Bool {
-        animationEnabled && !reduceMotion && !appReduceMotion
+        #if DEBUG && os(iOS)
+        let enabled = animationEnabled || perfDebug.marqueeRequested
+        #else
+        let enabled = animationEnabled
+        #endif
+        return enabled && !reduceMotion && !appReduceMotion
             && AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible)
             && !DebugAnimationOverride.stillBackground
     }
@@ -96,7 +105,7 @@ public struct MarqueeText: View {
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
             } else if mayScroll {
-                MarqueeFitLayout {
+                MarqueeFitLayout(onMeasure: perfMeasurementCallback) {
                     text.opacity(overflows ? 0 : 1)
                     // Proposed a non-zero width only while the text overflows.
                     Color.clear
@@ -117,7 +126,60 @@ public struct MarqueeText: View {
         // `.ignore` drops the inner Text's role; keep every branch static text like the
         // wrapped one, so an unwrapped marquee is not an unknown element (macOS AXUnknown).
         .accessibilityAddTraits(.isStaticText)
+        #if DEBUG && os(iOS)
+        .onAppear { updatePerfDiagnostic() }
+        .onChange(of: overflows) { _, value in
+            updatePerfDiagnostic(overflow: value)
+        }
+        .onChange(of: perfDebug.marqueeRequested) { _, _ in
+            updatePerfDiagnostic()
+        }
+        .onChange(of: scenePhase) { _, _ in
+            updatePerfDiagnostic()
+        }
+        .onChange(of: windowVisible) { _, _ in
+            updatePerfDiagnostic()
+        }
+        .onChange(of: reduceMotion) { _, _ in
+            updatePerfDiagnostic()
+        }
+        .onChange(of: appReduceMotion) { _, _ in
+            updatePerfDiagnostic()
+        }
+        .onDisappear {
+            perfDebug.removeMarquee(perfMarqueeID)
+        }
+        #endif
     }
+
+    #if DEBUG && os(iOS)
+    private func updatePerfDiagnostic(overflow: Bool? = nil) {
+        perfDebug.updateMarquee(
+            perfMarqueeID, rendererClass: "MarqueeText",
+            overflow: overflow ?? overflows,
+            visible: windowVisible && scenePhase == .active,
+            reduceMotion: reduceMotion || appReduceMotion,
+            sceneActive: scenePhase == .active,
+            animation: (overflow ?? overflows) && mayScroll,
+            textLength: text.count, textWidth: 0, viewportWidth: 0
+        )
+    }
+    #endif
+
+    #if DEBUG && os(iOS)
+    private var perfMeasurementCallback: ((CGFloat, CGFloat) -> Void)? {
+        { natural, available in
+            Task { @MainActor in
+                perfDebug.updateMarqueeMeasurement(
+                    perfMarqueeID, textLength: self.text.count,
+                    textWidth: natural, viewportWidth: available
+                )
+            }
+        }
+    }
+    #else
+    private var perfMeasurementCallback: ((CGFloat, CGFloat) -> Void)? { nil }
+    #endif
 
     /// The Core Animation track, built only for text that overflows.
     private var track: some View {
@@ -144,6 +206,12 @@ public struct MarqueeText: View {
 /// text and its geometry observer; the probe's one Bool changes only for text that
 /// overflows, so a row whose texts fit is laid out once.
 struct MarqueeFitLayout: Layout {
+    let onMeasure: ((CGFloat, CGFloat) -> Void)?
+
+    init(onMeasure: ((CGFloat, CGFloat) -> Void)? = nil) {
+        self.onMeasure = onMeasure
+    }
+
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         subviews.first?.sizeThatFits(proposal) ?? .zero
     }
@@ -155,6 +223,7 @@ struct MarqueeFitLayout: Layout {
         text.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
         guard subviews.count > 1 else { return }
         let natural = text.sizeThatFits(.unspecified).width
+        onMeasure?(natural, bounds.width)
         let overflows = MarqueeTiming.overflows(textWidth: natural, available: bounds.width)
         subviews[1].place(
             at: bounds.origin,

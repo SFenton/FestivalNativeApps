@@ -11,7 +11,7 @@ import UIKit
 /// primitive carries a `fst.uikit.gallery.<name>` identifier so
 /// `UKDesignGalleryJourneyTests` can check labels, traits, targets and text scaling; the
 /// SwiftUI app has no gallery, so the journey skips there.
-final class UKDesignGalleryViewController: UIViewController, UKModalScrollProviding {
+final class UKDesignGalleryViewController: UKScreenViewController, UKModalScrollProviding {
     private let scroll = UIScrollView()
     private let stack = UIStackView()
     private var fade: UKModalTopEdgeFade?
@@ -355,7 +355,7 @@ final class UKDesignGalleryViewController: UIViewController, UKModalScrollProvid
 }
 
 /// Sheet content for the gallery: a list that scrolls under the transparent header.
-private final class UKGallerySheetContent: UIViewController, UKModalScrollProviding {
+private final class UKGallerySheetContent: UKScreenViewController, UKModalScrollProviding {
     private let scroll = UIScrollView()
     var ukModalScrollView: UIScrollView? { scroll }
 

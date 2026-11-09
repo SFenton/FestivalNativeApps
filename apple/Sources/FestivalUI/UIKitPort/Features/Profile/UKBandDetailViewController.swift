@@ -679,7 +679,11 @@ final class UKBandSongRowView: UIControl {
         let info = UIStackView(arrangedSubviews: [art, textStack])
         info.spacing = 12
         info.alignment = .center
-        let badge = BandSongRow.percentileDisplay(entry).map { UKBandSongPercentileBadge(label: $0) }
+        let badge = BandSongRow.percentileDisplay(entry).flatMap { display -> UKPercentilePillView? in
+            let digits = display.drop(while: { !$0.isNumber }).prefix(while: { $0.isNumber })
+            guard let topPercent = Int(digits) else { return nil }
+            return UKPercentilePillView(topPercent: topPercent)
+        }
         let stack: UIStackView
         if twoRow {
             // The pill sits trailing under the song.
@@ -705,33 +709,4 @@ final class UKBandSongRowView: UIControl {
     }
 }
 
-/// The band song row's percentile pill (``SongMetadataFieldView`` `.percentile`): callout bold
-/// "Top N%", gold with a gold outline for a top-5% placement (italic for the top 1%).
-final class UKBandSongPercentileBadge: UIView {
-    /// Creates the pill.
-    ///
-    /// - Parameter label: The "Top N%" text.
-    init(label text: String) {
-        super.init(frame: .zero)
-        translatesAutoresizingMaskIntoConstraints = false
-        let tier = SuggestionSongRowView.tier(text)
-        let highlighted = tier != .ordinary
-        let label = UKLabel(text, style: .callout, weight: .bold, color: highlighted ? BrandUIColors.gold : BrandUIColors.textPrimary, lines: 0, alignment: .center)
-        if tier == .topOne { label.font = UKFont.font(.callout, weight: .bold, italic: true) }
-        backgroundColor = highlighted ? BrandUIColors.cardBackground : BrandUIColors.surfaceMuted
-        layer.cornerRadius = 6
-        layer.cornerCurve = .continuous
-        layer.borderWidth = highlighted ? 2 : 0
-        layer.borderColor = BrandUIColors.goldStroke.cgColor
-        ukPin(label, insets: UIEdgeInsets(top: 0, left: 4, bottom: 0, right: 4))
-        NSLayoutConstraint.activate([
-            widthAnchor.constraint(greaterThanOrEqualToConstant: 80),
-            heightAnchor.constraint(greaterThanOrEqualToConstant: 28),
-        ])
-        isUserInteractionEnabled = false
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-}
 #endif

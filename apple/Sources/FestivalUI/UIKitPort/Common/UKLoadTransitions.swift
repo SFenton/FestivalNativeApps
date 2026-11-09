@@ -13,6 +13,17 @@ enum UKFadeIn {
     /// Whether fades run (`festivalFadeInEnabled`; UI tests that freeze animations turn
     /// it off).
     static var isEnabled = true
+    private static let activeViews = NSHashTable<UIView>.weakObjects()
+    private static var accessibilityObserver: UKAccessibilityObserver?
+
+    /// Settles entrances when their page leaves, without retaining its views.
+    ///
+    /// - Parameter root: The disappearing page or reusable subtree.
+    static func finishAnimations(in root: UIView) {
+        (objc_getAssociatedObject(root, &entranceKey) as? UKEntranceAnimation)?.finish()
+        (root as? UKReloadGate)?.settleAnimations()
+        for child in root.subviews { finishAnimations(in: child) }
+    }
 
     /// The web `ease-out` curve, 400 ms.
     ///
@@ -29,7 +40,11 @@ enum UKFadeIn {
     ///   - staggerIndex: Its place in a staggered list; nil fades it at once; negative
     ///     shows it without a fade (a row rebuilt after the first reveal).
     ///   - rises: Whether it also rises 12 pt (`fadeInUp`).
-    static func fadeIn(_ view: UIView, staggerIndex: Int? = nil, rises: Bool = true) {
+    ///   - overrideDelay: An existing feature choreography's delay, when not row-indexed.
+    static func fadeIn(
+        _ view: UIView, staggerIndex: Int? = nil, rises: Bool = true, delay overrideDelay: TimeInterval? = nil
+    ) {
+        (objc_getAssociatedObject(view, &entranceKey) as? UKEntranceAnimation)?.finish()
         let start: FestivalFadeInStart = staggerIndex.map { FestivalFadeIn.start(forIndex: $0) } ?? .after(0)
         let delay: TimeInterval
         switch start {
@@ -47,14 +62,67 @@ enum UKFadeIn {
             view.transform = .identity
             return
         }
+        if accessibilityObserver == nil {
+            accessibilityObserver = UKAccessibilityObserver {
+                guard UKAccessibility.reduceMotion else { return }
+                for active in activeViews.allObjects { finishAnimations(in: active) }
+            }
+        }
+        activeViews.add(view)
+        let entrance = UKEntranceAnimation(view: view, rises: rises)
+        objc_setAssociatedObject(view, &entranceKey, entrance, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        entrance.start(after: max(0, overrideDelay ?? delay))
+    }
+}
+
+nonisolated(unsafe) private var entranceKey: UInt8 = 0
+
+@MainActor
+private final class UKEntranceAnimation {
+    private weak var view: UIView?
+    private var animator: UIViewPropertyAnimator?
+    private var pending: Task<Void, Never>?
+    private let rises: Bool
+
+    init(view: UIView, rises: Bool) {
+        self.view = view
+        self.rises = rises
+    }
+
+    deinit { pending?.cancel() }
+
+    func start(after delay: TimeInterval) {
+        guard let view else { return }
         view.alpha = 0
         view.transform = rises ? CGAffineTransform(translationX: 0, y: FestivalFadeIn.riseDistance) : .identity
-        let animator = animator()
-        animator.addAnimations {
-            view.alpha = 1
-            view.transform = .identity
+        pending = Task { @MainActor [weak self] in
+            do {
+                if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
+                try Task.checkCancellation()
+            } catch { return }
+            guard let self, let view = self.view else { return }
+            guard UKFadeIn.isEnabled, !UKAccessibility.reduceMotion else { finish(); return }
+            let animator = UKFadeIn.animator()
+            self.animator = animator
+            animator.addAnimations { [weak view] in
+                view?.alpha = 1
+                view?.transform = .identity
+            }
+            animator.addCompletion { [weak self] _ in self?.finish() }
+            animator.startAnimation()
         }
-        animator.startAnimation(afterDelay: delay)
+    }
+
+    func finish() {
+        pending?.cancel()
+        pending = nil
+        if animator?.state == .active { animator?.stopAnimation(true) }
+        animator = nil
+        guard let view,
+              objc_getAssociatedObject(view, &entranceKey) as? UKEntranceAnimation === self else { return }
+        view.alpha = 1
+        view.transform = .identity
+        objc_setAssociatedObject(view, &entranceKey, nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
 }
 
@@ -80,6 +148,9 @@ final class UKReloadGate: UIView {
     private var timer: Task<Void, Never>?
     private let retainsFrame: Bool
     private var lastReveal: UKReloadReveal?
+    private var animator: UIViewPropertyAnimator?
+    private var renderGeneration = 0
+    private var accessibilityObserver: UKAccessibilityObserver?
 
     /// Called just before the content is revealed (``FestivalReloadGate`` `onReveal`).
     var onReveal: (() -> Void)?
@@ -113,6 +184,10 @@ final class UKReloadGate: UIView {
         spinner.isUserInteractionEnabled = !retainsFrame
         render(animation: nil)
         scheduleWait()
+        accessibilityObserver = UKAccessibilityObserver { [weak self] in
+            guard UKAccessibility.reduceMotion else { return }
+            self?.render(animation: nil)
+        }
     }
 
     @available(*, unavailable)
@@ -139,7 +214,20 @@ final class UKReloadGate: UIView {
         ReloadTransition.Timing.standard(reduceMotion: UKAccessibility.reduceMotion)
     }
 
-    private var animates: Bool { UKFadeIn.isEnabled && !UKAccessibility.reduceMotion }
+    private var animates: Bool {
+        UKFadeIn.isEnabled && !UKAccessibility.reduceMotion
+            && window?.windowScene?.activationState == .foregroundActive
+    }
+
+    /// Commits the current phase's visual state without a lingering native animator.
+    func settleAnimations() {
+        render(animation: nil)
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window == nil { settleAnimations() }
+    }
 
     private func apply(_ change: (inout ReloadTransition) -> Void) {
         var next = transition
@@ -174,11 +262,16 @@ final class UKReloadGate: UIView {
     // MARK: Render
 
     private func render(animation: (FadeKind, TimeInterval)?) {
+        renderGeneration += 1
+        let generation = renderGeneration
+        if animator?.state == .active { animator?.stopAnimation(true) }
+        animator = nil
         let hasContent = transition.hasShownContent
         let showsResult = transition.showsContent && !keyPending
         let spinnerAlpha: CGFloat = transition.showsSpinner || keyPending ? 1 : 0
         let contentAlpha: CGFloat = retainsFrame ? (hasContent ? 1 : 0) : (showsResult ? 1 : 0)
-        let apply = { [self] in
+        let apply = { [weak self] in
+            guard let self else { return }
             spinner.alpha = spinnerAlpha
             contentView.alpha = contentAlpha
         }
@@ -195,7 +288,12 @@ final class UKReloadGate: UIView {
             case .content: animator = UKFadeIn.animator(duration: duration)
             }
             animator.addAnimations(apply)
-            animator.addCompletion { [weak self] _ in self?.contentView.isHidden = !(self?.retainsFrame == true ? hasContent : showsResult) }
+            self.animator = animator
+            animator.addCompletion { [weak self] _ in
+                guard let self, renderGeneration == generation else { return }
+                contentView.isHidden = !(retainsFrame ? hasContent : showsResult)
+                self.animator = nil
+            }
             animator.startAnimation()
         } else {
             apply()
@@ -243,12 +341,30 @@ enum UKListJump {
     ///   - view: The list (or its container); its alpha is animated.
     ///   - scroll: Scrolls to the target without animation; called twice.
     static func teleport(_ view: UIView, scroll: @escaping @MainActor () -> Void) async {
-        UIView.animate(withDuration: ListJump.fadeOut, delay: 0, options: .curveEaseOut) { view.alpha = 0 }
-        try? await Task.sleep(for: .seconds(ListJump.fadeOut))
+        guard !Task.isCancelled else { return }
+        defer { view.alpha = 1 }
+        if !UKAccessibility.reduceMotion {
+            await fade(view, to: 0, duration: ListJump.fadeOut, curve: .easeOut)
+        }
+        guard !Task.isCancelled else { return }
         UIView.performWithoutAnimation { scroll() }
-        try? await Task.sleep(for: ListJump.correction)
+        do {
+            if !UKAccessibility.reduceMotion { try await Task.sleep(for: ListJump.correction) }
+            try Task.checkCancellation()
+        } catch { return }
         UIView.performWithoutAnimation { scroll() }
-        UIView.animate(withDuration: ListJump.fadeIn, delay: 0, options: .curveEaseIn) { view.alpha = 1 }
+        if !UKAccessibility.reduceMotion {
+            await fade(view, to: 1, duration: ListJump.fadeIn, curve: .easeIn)
+        }
+    }
+
+    private static func fade(_ view: UIView, to alpha: CGFloat, duration: TimeInterval, curve: UIView.AnimationCurve) async {
+        await withCheckedContinuation { continuation in
+            let animator = UIViewPropertyAnimator(duration: duration, curve: curve)
+            animator.addAnimations { [weak view] in view?.alpha = alpha }
+            animator.addCompletion { _ in continuation.resume() }
+            animator.startAnimation()
+        }
     }
 }
 #endif

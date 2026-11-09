@@ -4,6 +4,29 @@
   "webRoot": "FortniteFestivalWeb/src",
   "patterns": [
     {
+      "id": "uikit-page-foundation",
+      "title": "UIKit page foundation",
+      "status": "current",
+      "doc": ".agents/patterns/uikit-page-foundation.md",
+      "summary": "Festival-owned UIKit page adapter composes the pinned shared host, preserves native scrolling by default, opts into explicit containment deliberately and reclaims persistent content before removing loading-gate state. Feature routes, branding and loading policy stay app-owned; macOS is separate.",
+      "keywords": ["UIKit", "page", "viewport", "safe area", "state overlay", "loading gate"],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {"path": "apple/Sources/FestivalUI/UIKitPort/Common/UKScreenFoundation.swift", "symbol": "UKScreenViewController"},
+          {"path": "apple/Sources/FestivalUI/UIKitPort/Common/UKPageFoundation.swift", "symbol": "UKPageViewController"},
+          {"path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKProfilePage.swift", "symbol": "UKProfileScrollViewController"},
+          {"path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalsPage.swift", "symbol": "UKRivalsPageViewController"},
+          {"path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsForm.swift", "symbol": "UKFormViewController"}
+        ]
+      },
+      "guards": [],
+      "related": {"patterns": ["modal-shell", "back-keeps-place", "split-panes", "scroll-edge"], "controls": [], "pages": []},
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": []
+    },
+    {
       "id": "artwork-background",
       "title": "Artwork background",
       "status": "current",
@@ -1221,8 +1244,13 @@
           "id": "apple-menu-bar-page-tools",
           "glob": "apple/Sources/**/*.swift",
           "regex": "Button\\(\"(Sort|Filter|Find Rival)…\"\\)|Toggle\\(\"as (List|Grid)\"|Menu\\(\"(Rank By|Instrument|Band Size)\"\\)|\"View Rival's Profile\"",
-          "allow": ["apple/Sources/FestivalUI/Mac/PageToolMenuItems.swift"],
-          "message": "The macOS and iPadOS menu bars lay out page tools only through the shared PageToolViewMenuItems / PageToolProfileMenuItems, so both menu bars and their tested mirror stay one implementation (page-tools-and-nav-chrome R28, #633)."
+          "allow": [
+            "apple/Sources/FestivalUI/Mac/PageToolMenuItems.swift",
+            "apple/Sources/FestivalUI/UIKitPort/App/Shell/UKDebugMenuBarMirror.swift",
+            "apple/Sources/FestivalUI/UIKitPort/App/Shell/UKMenuBar.swift",
+            "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalComparisonViewController.swift"
+          ],
+          "message": "SwiftUI and macOS page tools remain owned by PageToolViewMenuItems / PageToolProfileMenuItems. UIKit uses the explicit UKPageMenuCommand seam: these named UIKit owners may project the typed command tree and its DEBUG mirror, but may not create a second action registry (page-tools-and-nav-chrome R28, #633)."
         },
         {
           "id": "apple-title-display-mode",
@@ -1453,6 +1481,14 @@
           {
             "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKSheet.swift",
             "symbol": "UKSheet"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/App/Presentation/UKPresentationCoordinator.swift",
+            "symbol": "UKPresentationCoordinator"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKAlertActions.swift",
+            "symbol": "ukAction"
           }
         ],
         "android": [
@@ -2220,6 +2256,10 @@
           {
             "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKStates.swift",
             "symbol": "UKLoadingView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKMotionVisibility.swift",
+            "symbol": "UKMotionVisibility"
           }
         ],
         "android": [
@@ -3910,6 +3950,14 @@
             "symbol": "SettingsRowToggleStyle"
           },
           {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKRowSwitch.swift",
+            "symbol": "UKRowSwitch"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Features/Settings/UKSettingsSupport.swift",
+            "symbol": "UKSettingsToggleRow"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Settings/SettingsRowToggleStyle.swift",
             "symbol": "settingsRowToggles"
           }
@@ -4649,6 +4697,10 @@
           {
             "path": "apple/Sources/FestivalUI/App/Layout/OnDemandSplitPolicy.swift",
             "symbol": "trailingContent"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/App/Layout/UKSectionStack.swift",
+            "symbol": "UKSectionStack"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/Settings/SettingsTopic.swift",

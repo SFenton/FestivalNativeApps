@@ -48,7 +48,14 @@ Tests: `FestivalAccordionTests` (plan, phases, interruption, Reduce Motion, hidd
 | iOS 27 beta (simulator 24A5355p): a List section header's `FestivalAccordionContent` (Songs Filter Year's Select All / Clear All) that fades in while scrolled under the sheet's bar can stay out of the accessibility hit test (VoiceOver touch exploration) until its next state change; swipe navigation and real touches work. Whether opacity or `.allowsHitTesting` keeps the stale hit test is unproven | R4 | Open finding from #432; `SongsFilterAccessibilityJourneyTests` proves those actions by a real tap and their reported state. Recheck on the iOS 27 release runtime before changing the component |
 
 UIKit: `UKAccordionView` (runs `AccordionChoreography.plan` with `UIView.animate`) and `UKDisclosureGroupView` in `UIKitPort/Design/UKAccordion.swift`; `UKInstrumentSelectorView` opens its panel in one.
+Under system or in-app Reduce Motion, every choreography step settles synchronously:
+no residual fade or settling delay remains after the height change. Normal-motion
+phase order and owner-approved timings are unchanged (`UKMotionFoundationTests`).
 
 ## Guards (`tools/pattern_guard.py`)
 
 - `accordion/apple-raw-disclosure-group`
+The UIKit performance component probe drives the canonical Settings accordion
+row and waits for its settled open state before sampling, then follows the same
+row back to its collapsed state. Readiness is the row's rendered accordion
+state, not a synthetic timer or a hidden duplicate component.

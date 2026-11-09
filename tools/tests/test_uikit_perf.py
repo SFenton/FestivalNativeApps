@@ -8,6 +8,7 @@ if _sys.platform == "win32":  # Apple tooling imports the POSIX-only fcntl modul
 
 import tempfile
 import unittest
+import json
 from pathlib import Path
 
 from tools import perf_sampler, uikit_perf, uikit_perf_report
@@ -60,7 +61,41 @@ class SurfaceFileTests(unittest.TestCase):
         for wanted in ("Songs (long list)", "Song Detail", "Leaderboards", "Full Rankings", "Song Leaderboard",
                        "Player Profile", "Statistics", "Rivals", "Suggestions", "Settings", "Shop", "Global Search"):
             self.assertIn(wanted, names)
+        for wanted in ("Player History", "Player Bands", "Bands landing", "Band Detail", "Band Rankings",
+                       "Song Band Leaderboard", "Combo Full Rankings", "Compete", "All Rivals", "Rival Detail",
+                       "Rivalry detail", "Licenses", "Settings topic accessibility"):
+            self.assertIn(wanted, names)
         self.assertTrue(all("FST_PERF_NAV" in s.env for s in surfaces if s.section == "nav"))
+        self.assertGreaterEqual(len([s for s in surfaces if s.mode == "modal"]), 3)
+        self.assertGreaterEqual(len([s for s in surfaces if s.mode == "component"]), 3)
+        marquee = next(s for s in surfaces if s.name == "Marquee animation")
+        self.assertEqual(marquee.env["FST_DEBUG_SONG"], "fixture-pulse")
+        self.assertEqual(marquee.env["FST_PERF_COMPONENT"], "marquee")
+        carousel = next(s for s in surfaces if s.name == "Carousel page transition")
+        self.assertEqual(carousel.env["FST_DEBUG_ROUTE"], "settingsTopic:firstRun")
+        self.assertEqual(carousel.env["FST_DEBUG_FIRST_RUN"], "force")
+        self.assertEqual(carousel.env["FST_PERF_COMPONENT"], "carousel")
+        self.assertEqual(
+            {s.name for s in surfaces if s.mode == "latency"},
+            {
+                "Shop", "Global Search", "Bands landing", "All Rivals", "Rivalry detail", "Licenses",
+                "Settings topic accessibility", "Settings topic privacy",
+                "Settings topic instruments", "Settings topic metadata",
+                "Settings topic paths", "Settings topic item shop",
+                "Settings topic version", "Settings topic service info",
+                "Settings topic first run",
+            },
+        )
+
+    def test_manifest_metadata_selects_modal_and_component_families(self):
+        surfaces = uikit_perf.parse_surfaces(
+            "[modal]\nSheet|FST_PERF_MODAL=filter FST_PERF_MIN_RUNS=4\n"
+            "[components]\nFade|FST_PERF_COMPONENT=edge-fade\n"
+        )
+        self.assertEqual(surfaces[0].mode, "modal")
+        self.assertEqual(surfaces[0].min_runs, 4)
+        self.assertEqual(surfaces[1].mode, "component")
+        self.assertEqual(surfaces[1].case_id, "Fade")
 
 
 class RunPlanTests(unittest.TestCase):
@@ -70,12 +105,28 @@ class RunPlanTests(unittest.TestCase):
         self.assertEqual(uikit_perf.app_order(2, apps), ["uikit", "swiftui"])
         self.assertEqual(uikit_perf.app_order(3, apps), ["swiftui", "uikit"])
         self.assertEqual(apps, ["swiftui", "uikit"])
+        arms = ["before", "after", "reference"]
+        self.assertEqual(uikit_perf.app_order(1, arms), ["before", "after", "reference"])
+        self.assertEqual(uikit_perf.app_order(2, arms), ["after", "reference", "before"])
+        self.assertEqual(uikit_perf.app_order(3, arms), ["reference", "before", "after"])
+
+    def test_explicit_app_bundle_specs_are_isolated_arms(self):
+        app = uikit_perf.parse_app_bundle_spec(
+            "uikit-before|/validation/before/FestivalMobileUIKit.app|com.example.before|FestivalMobileUIKit"
+        )
+        self.assertEqual(app.key, "uikit-before")
+        self.assertEqual(app.bundle_path, Path("/validation/before/FestivalMobileUIKit.app"))
+        self.assertEqual(uikit_perf.app_bundle(app), app.bundle_path)
+        with self.assertRaises(ValueError):
+            uikit_perf.parse_app_bundle_spec("uikit before|relative.app|id|exe")
 
     def test_run_paths_use_the_names_the_report_reads(self):
         result, samples = uikit_perf.run_paths(Path("/o"), 2, "uikit", "Songs (long list)")
         self.assertEqual(result.name, "r2-uikit-Songs--long-list-.tsv")
         self.assertEqual(samples.name, "r2-uikit-Songs--long-list-.samples.tsv")
         self.assertRegex(result.name, uikit_perf_report.FILE)
+        custom, _ = uikit_perf.run_paths(Path("/o"), 1, "uikit-before", "Settings")
+        self.assertRegex(custom.name, uikit_perf_report.FILE)
 
     def test_launch_env_carries_surface_perf_and_fixture_keys(self):
         surface = uikit_perf.Surface("Settings", {"FST_DEBUG_TAB": "settings"})
@@ -116,6 +167,7 @@ class RunPlanTests(unittest.TestCase):
     def test_fixture_service_args_and_ready_line(self):
         self.assertEqual(uikit_perf.fixture_args()[:2], ["--port", "0"])
         self.assertIn("--large-catalogue", uikit_perf.fixture_args())
+        self.assertIn("--long-titles", uikit_perf.fixture_args(long_titles=True))
         self.assertEqual(uikit_perf.parse_fixture_port("Local test fixture service on 127.0.0.1:54321\n"), 54321)
         self.assertIsNone(uikit_perf.parse_fixture_port("starting"))
 
@@ -178,6 +230,16 @@ class ReportParsingTests(unittest.TestCase):
     def test_scroll_line_without_a_window_is_an_error(self):
         self.assertIn("error", uikit_perf_report.scroll_metrics("no scroll view: presented=none", []))
 
+    def test_component_settle_failure_with_diagnostics_is_an_error_row(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            summary = "component did not settle: marquee requested=1 renderer_count=17 max_text_width=900"
+            (directory / "r1-swiftui-marquee.tsv").write_text(
+                f"FSTPERF\tMarquee animation\tcomponent\t{summary}\nFSTPERF_DONE\n"
+            )
+            metrics = uikit_perf_report.collect(directory)["runs"][("Marquee animation", "component", "swiftui")][0]
+            self.assertEqual(metrics, {"error": summary[:80], "_round": 1, "_file": "r1-swiftui-marquee.tsv"})
+
 
 class ReportRenderTests(unittest.TestCase):
     def write_run(self, directory: Path, round_number: int, app: str, fps: float):
@@ -204,19 +266,72 @@ class ReportRenderTests(unittest.TestCase):
         self.assertIn("### Scroll and idle", text)
         self.assertIn("### Cold launch", text)
         self.assertIn("### Navigation", text)
-        self.assertIn("| Surface | Kind | App | n | fps |", text)
+        self.assertIn("| Surface | Kind | App | n | spread (fps) | fps |", text)
         swiftui = next(r for r in rows if r["table"] == "Surface" and r["app"] == "swiftui" and r["kind"] == "scroll")
         uikit = next(r for r in rows if r["table"] == "Surface" and r["app"] == "uikit" and r["kind"] == "scroll")
         self.assertEqual(swiftui["n"], 6)  # two scroll runs per round, three rounds
         self.assertEqual((swiftui["fps"], uikit["fps"]), (52.0, 59.0))
-        self.assertIn("| Songs (long list) | SwiftUI | 3 | 900 |", text)
-        self.assertIn("| Push Shop | push | UIKit | 3 | 90 |", text)
-        self.assertIn("| Push Shop | pop | UIKit | 0 | no navigation hooks registered |", text)
+        self.assertIn("| Songs (long list) | SwiftUI | 3 | 900.0..900.0 | 900 |", text)
+        self.assertIn("| Push Shop | push | UIKit | 3 | 40.0..40.0 | 90 |", text)
+        self.assertIn("| Push Shop | pop | UIKit | 0 | – | no navigation hooks registered |", text)
 
     def test_empty_directory_renders_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:
             text, rows = uikit_perf_report.render(uikit_perf_report.collect(Path(tmp)))
         self.assertEqual((text, rows), ("", []))
+
+    def test_qualification_rejects_missing_content_and_rounds(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            (directory / "manifest.json").write_text(
+                '{"apps":["swiftui","uikit"],"rounds":1,"surfaces":['
+                '{"name":"Settings","mode":"scroll","env":{},"expect_content":true}]}'
+            )
+            text = "FSTPERF\tSettings\tlaunch\tfirst_content_ms=-1 content_real=0\nFSTPERF_DONE\n"
+            for app in ("swiftui", "uikit"):
+                (directory / f"r1-{app}-Settings.tsv").write_text(text)
+            failures = uikit_perf_report.qualify(
+                uikit_perf_report.collect(directory), uikit_perf_report.load_manifest(directory)
+            )
+        self.assertTrue(any("n>=3" in failure for failure in failures))
+        self.assertTrue(any("first real content" in failure for failure in failures))
+
+    def test_component_qualification_requires_active_metrics_and_restoration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            (directory / "manifest.json").write_text(json.dumps({
+                "apps": ["swiftui", "uikit"], "rounds": 3,
+                "surfaces": [{
+                    "name": "Row press", "mode": "component", "env": {"FST_PERF_COMPONENT": "row-press"},
+                    "expect_content": True,
+                }],
+            }))
+            summary = (
+                "launch=1 first_content_ms=100 content_real=1\n"
+                "FSTPERF\tRow press\tcomponent\troute=row-press n=5 restored=1 active_s=8 "
+                "cpu_ms=100 main_ms=80 p95_ms=2 worst_ms=8 over8=0 fps=60 dropped=0 "
+                "hitch_ms_per_s=0 mem_mb=20 peak_mb=21\nFSTPERF_DONE\n"
+            )
+            # Use a valid FSTPERF launch line; the first line above is intentionally noise.
+            summary = (
+                "FSTPERF\tRow press\tlaunch\tlaunch=1 first_content_ms=100 content_real=1\n"
+                "FSTPERF\tRow press\tcomponent\troute=row-press n=5 restored=1 active_s=8 "
+                "cpu_ms=100 main_ms=80 p95_ms=2 worst_ms=8 over8=0 fps=60 dropped=0 "
+                "hitch_ms_per_s=0 mem_mb=20 peak_mb=21\nFSTPERF_DONE\n"
+            )
+            for round_number in range(1, 4):
+                for app in ("swiftui", "uikit"):
+                    (directory / f"r{round_number}-{app}-Row-press.tsv").write_text(summary)
+            manifest = uikit_perf_report.load_manifest(directory)
+            self.assertEqual(uikit_perf_report.qualify(
+                uikit_perf_report.collect(directory), manifest
+            ), [])
+            bad = directory / "r1-swiftui-Row-press.tsv"
+            bad.write_text(summary.replace("restored=1", "restored=0"))
+            self.assertTrue(any(
+                "active CPU/frame/memory" in item
+                for item in uikit_perf_report.qualify(uikit_perf_report.collect(directory), manifest)
+            ))
 
 
 if __name__ == "__main__":

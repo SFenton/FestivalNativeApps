@@ -232,7 +232,8 @@ final class UKSongLeaderboardViewController: UKSongBoardViewController {
             let route = playerRoute(for: entry)
             rows.append((entry.id, UKLeaderboardRow(
                 kind: .song, make: { UKSongScoreRowView() }, apply: { ($0 as? UKSongScoreRowView)?.apply(model) },
-                isSelectedBand: false, onTap: { [weak self] in self?.context.navigator?.push(route) }
+                isSelectedBand: false, onTap: { [weak self] in self?.context.navigator?.push(route) },
+                detailSelection: (route, context)
             )))
         }
         let footer = makeFooter(columns: columns)

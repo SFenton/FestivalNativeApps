@@ -309,7 +309,9 @@ final class UKLeaderboardNameView: UIView {
 /// together); without one it is plain text whose parts are separate elements.
 final class UKSongLeaderboardEntryRowView: UIButton {
     /// Called when a row with a route is tapped.
-    var onTap: (() -> Void)?
+    var onTap: (() -> Void)? {
+        didSet { updateAccessibilityActionState() }
+    }
 
     /// Creates a row.
     ///
@@ -324,12 +326,14 @@ final class UKSongLeaderboardEntryRowView: UIButton {
     ///   - horizontalPadding: Side padding (12 in Song Detail's cards, 14 on the song boards).
     init(
         entry: LeaderboardEntry, isPlayer: Bool, columns: LeaderboardRowColumns?, currentSeason: Int?,
-        chevron: Bool?, hint: String? = nil, separateParts: Bool = false, horizontalPadding: CGFloat = 12
+        chevron: Bool?, hint: String? = nil, separateParts: Bool = false, horizontalPadding: CGFloat = 12,
+        traits: UITraitCollection? = nil
     ) {
         isPlayerRow = isPlayer
+        keepsPartsSeparate = separateParts
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
-        let accessibilitySize = UKFont.isAccessibilitySize(UITraitCollection.current)
+        let accessibilitySize = UKFont.isAccessibilitySize(traits ?? traitCollection)
         backgroundColor = isPlayer ? UIColor(red: 75 / 255, green: 15 / 255, blue: 99 / 255, alpha: 0.75) : .clear
         let name = SongLeaderboardEntryRow.displayName(entry)
         let rankText = SongLeaderboardEntryRow.spokenRank(entry.rank, isPlayer: isPlayer)
@@ -421,6 +425,7 @@ final class UKSongLeaderboardEntryRowView: UIButton {
             heightAnchor.constraint(greaterThanOrEqualToConstant: LeaderboardRowMetrics.minHeight),
         ])
         addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .touchUpInside)
+        combinedAccessibilityLabel = spokenParts.joined(separator: ", ")
         // A row with a destination is one button; an anonymous row's parts stay separate.
         if chevron == true, !separateParts {
             // The parts are not elements of their own (VoiceOver reads the button), but XCUITest
@@ -429,13 +434,15 @@ final class UKSongLeaderboardEntryRowView: UIButton {
             for part in [rank, nameView, score] + values.compactMap({ $0 as? UKAccuracyBadgeView }) + values.compactMap({ $0 as? UKSeasonPillView }) as [UIView] {
                 part.isAccessibilityElement = false
             }
-            isAccessibilityElement = true
-            accessibilityTraits = .button
-            accessibilityLabel = spokenParts.joined(separator: ", ")
+            isAccessibilityElement = false
+            accessibilityTraits = []
+            accessibilityLabel = combinedAccessibilityLabel
             accessibilityHint = hint
         } else {
             isAccessibilityElement = false
-            isUserInteractionEnabled = false
+            accessibilityTraits = []
+            isEnabled = true
+            isUserInteractionEnabled = true
             line.isUserInteractionEnabled = false
         }
     }
@@ -450,6 +457,31 @@ final class UKSongLeaderboardEntryRowView: UIButton {
         }
     }
 
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        guard onTap != nil else { return false }
+        return super.point(inside: point, with: event)
+    }
+
+    override func accessibilityActivate() -> Bool {
+        guard let onTap else { return false }
+        onTap()
+        return true
+    }
+
+    private func updateAccessibilityActionState() {
+        let actionable = onTap != nil
+        accessibilityTraits = actionable ? .button : []
+        if actionable {
+            accessibilityLabel = combinedAccessibilityLabel
+            isAccessibilityElement = true
+        } else {
+            isAccessibilityElement = false
+            if keepsPartsSeparate { accessibilityLabel = nil }
+        }
+    }
+
     private let isPlayerRow: Bool
+    private let keepsPartsSeparate: Bool
+    private var combinedAccessibilityLabel = ""
 }
 #endif

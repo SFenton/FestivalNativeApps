@@ -137,6 +137,9 @@ final class UKAllRivalsViewController: UKRivalsPageViewController {
         let padded = group.ukPadded()
         add(padded)
         UKFadeIn.fadeIn(padded)
+        #if DEBUG
+        FirstContentProbe.markFirstContent(rows: rows.count)
+        #endif
     }
 
     override var columnInsets: (top: CGFloat, bottom: CGFloat) { (12, 12) }

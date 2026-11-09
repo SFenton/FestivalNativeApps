@@ -145,10 +145,19 @@ final class UKStatTileView: UIControl {
         didSet {
             guard tile.link != nil, isHighlighted != oldValue else { return }
             let pressed = isHighlighted
-            UIView.animate(withDuration: 0.08, delay: 0, options: [.curveEaseOut, .allowUserInteraction]) {
+            let apply = {
                 self.wash.alpha = pressed ? 1 : 0
                 self.transform = pressed ? CGAffineTransform(scaleX: 0.985, y: 0.985) : .identity
             }
+            guard !UKAccessibility.reduceMotion, UKMotionVisibility.permitsAnimation(in: self) else {
+                layer.removeAllAnimations()
+                apply()
+                return
+            }
+            UIView.animate(
+                withDuration: 0.08, delay: 0, options: [.curveEaseOut, .allowUserInteraction, .beginFromCurrentState],
+                animations: apply
+            )
         }
     }
 }

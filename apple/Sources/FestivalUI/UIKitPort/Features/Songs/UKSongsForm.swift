@@ -1,13 +1,14 @@
 #if os(iOS)
 import FestivalCore
 import FestivalDesign
+import FentonUIKit
 import UIKit
 
 // MARK: - Form page
 
 /// A sheet page of grouped rows (the SwiftUI `Form` in `FestivalModal`): a scrolling stack of
 /// ``UKGroupSectionView`` cards with the sheet's top edge fade driven by its scroll view.
-class UKFormViewController: UIViewController, UKModalScrollProviding {
+class UKFormViewController: UKPageViewController, UKModalScrollProviding {
     /// A collection view with no items, so the scrolling form is addressable as the list the
     /// SwiftUI `Form` is (XCUITest finds `Form` content in a table or collection view).
     let scroll: UIScrollView = {
@@ -24,17 +25,14 @@ class UKFormViewController: UIViewController, UKModalScrollProviding {
         super.viewDidLoad()
         overrideUserInterfaceStyle = .dark
         view.backgroundColor = .clear
-        scroll.translatesAutoresizingMaskIntoConstraints = false
         scroll.alwaysBounceVertical = true
         scroll.keyboardDismissMode = .onDrag
         stack.axis = .vertical
         stack.spacing = 24
         stack.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(scroll)
         scroll.addSubview(stack)
+        installPageContent(scroll, scrollView: scroll)
         NSLayoutConstraint.activate([
-            scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scroll.topAnchor.constraint(equalTo: view.topAnchor), scroll.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 16),
             stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -16),
             stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 12),
@@ -135,7 +133,10 @@ class UKFormViewController: UIViewController, UKModalScrollProviding {
         })
         button.contentHorizontalAlignment = .leading
         button.accessibilityIdentifier = identifier
-        button.heightAnchor.constraint(greaterThanOrEqualToConstant: 32).isActive = true
+        NSLayoutConstraint.activate([
+            button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            button.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
+        ])
         return button
     }
 
@@ -190,13 +191,17 @@ final class UKToggleRow: UIView {
             row.topAnchor.constraint(equalTo: topAnchor), row.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
         isAccessibilityElement = false
-        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped)))
+        toggle.installRowTap(on: self)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    @objc private func tapped() { toggle.flip() }
+    /// Matches touch handling to the row's expanded accessibility bounds.
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        bounds.inset(by: toggle.framePadding).contains(point)
+    }
+
 }
 
 // MARK: - Radio row

@@ -191,18 +191,18 @@ struct AccessibilityFocusAnchor: UIViewRepresentable {
         ///
         /// - Returns: False when no element matched yet.
         @discardableResult
-        func move(_ request: AccessibilityFocusRequest) -> Bool {
+        func move(_ request: AccessibilityFocusRequest, in focusRegion: CGRect? = nil) -> Bool {
             guard let window else { return false }
             let elements = Self.elements(in: window)
             let chosen: NSObject?
             switch request.target {
             case .topHeading:
-                let region = UIAccessibility.convertToScreenCoordinates(bounds, in: self)
+                let region = focusRegion ?? convert(bounds, to: window.screen.coordinateSpace)
                 let candidates = elements.map { element in
                     AccessibilityFocusChoice.Candidate(
                         label: element.accessibilityLabel ?? "",
                         identifier: Self.identifier(of: element),
-                        frame: element.accessibilityFrame,
+                        frame: Self.frame(of: element),
                         isHeading: element.accessibilityTraits.contains(.header)
                     )
                 }
@@ -233,6 +233,15 @@ struct AccessibilityFocusAnchor: UIViewRepresentable {
             let selector = NSSelectorFromString("accessibilityIdentifier")
             guard element.responds(to: selector) else { return "" }
             return (element.value(forKey: "accessibilityIdentifier") as? String) ?? ""
+        }
+
+        /// UIKit may defer its default accessibility rectangle; use real view geometry then.
+        static func frame(of element: NSObject) -> CGRect {
+            let frame = element.accessibilityFrame
+            if frame.isEmpty, let view = element as? UIView, let window = view.window {
+                return view.convert(view.bounds, to: window.screen.coordinateSpace)
+            }
+            return frame
         }
 
         /// Every accessibility element under `root`, depth first: views that are

@@ -146,12 +146,14 @@ final class UKSongBandPreviewView: UIView {
             ).identified("fst.song-detail.band-selected.\(bandType.rawValue)"))
         }
         section.setRows(views)
-        section.setAction(UKPurpleActionButton(
+        let action = UKPurpleActionButton(
             title: "View Full Leaderboard", card: bandType.label, identifier: "fst.song-detail.band-leaderboard.\(bandType.rawValue)"
         ) { [weak self] in
             guard let self else { return }
             self.context.navigator?.selectDetail(.songBandLeaderboard(self.song, bandType: self.bandType.rawValue))
-        })
+        }
+        action.ukBindDetailSelection(.songBandLeaderboard(song, bandType: bandType.rawValue), context: context)
+        section.setAction(action)
         return section
     }
 
@@ -160,6 +162,9 @@ final class UKSongBandPreviewView: UIView {
         row.onTap = { [weak self, route = row.route] in
             guard let navigator = self?.context.navigator else { return }
             if case .songBandLeaderboard = route { navigator.selectDetail(route) } else { navigator.push(route) }
+        }
+        if case .songBandLeaderboard = row.route {
+            row.ukBindDetailSelection(row.route, context: context)
         }
         return row
     }
@@ -190,7 +195,7 @@ final class UKSongBandRowView: UIControl {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         backgroundColor = highlighted ? UIColor(red: 75 / 255, green: 15 / 255, blue: 99 / 255, alpha: 0.75) : .clear
-        let accessibilitySize = UKFont.isAccessibilitySize(UITraitCollection.current)
+        let accessibilitySize = UKFont.isAccessibilitySize(traitCollection)
 
         let members = UIStackView()
         members.axis = .vertical

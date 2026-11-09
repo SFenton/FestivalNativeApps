@@ -10,6 +10,16 @@ import UIKit
 /// footprint is read at the end (`phys_footprint`, the number Xcode's memory gauge and jetsam use).
 @MainActor
 final class FramePacer {
+    /// Numeric frame and memory observations for a completed active window.
+    struct Report: Equatable {
+        let fps: Double
+        let hz: Double
+        let dropped: Int
+        let hitchMillisecondsPerSecond: Double
+        let memoryMB: Double
+        let peakMB: Double
+    }
+
     private var link: CADisplayLink?
     private var target: Target?
     private var tally = HitchTally()
@@ -45,16 +55,26 @@ final class FramePacer {
     /// `key=value` pairs: delivered frames per second, the display's rate, dropped frames, hitch time ratio (ms of hitch per
     /// second, Apple's hitch metric), memory now and at its peak.
     var summary: String {
+        let values = report
+        return [
+            "fps=\(PerfFormat.oneDecimal(values.fps))", "hz=\(PerfFormat.number(values.hz))",
+            "dropped=\(values.dropped)", "hitch_ms_per_s=\(PerfFormat.number(values.hitchMillisecondsPerSecond))",
+            "mem_mb=\(PerfFormat.oneDecimal(values.memoryMB))", "peak_mb=\(PerfFormat.oneDecimal(values.peakMB))",
+        ].joined(separator: " ")
+    }
+
+    /// Numeric observations for the completed window.
+    var report: Report {
         let seconds = max(ended - started, 0.001)
         let memory = Self.memory()
-        return [
-            "fps=\(PerfFormat.oneDecimal(Double(tally.frames) / seconds))",
-            "hz=\(expected > 0 ? String(format: "%.0f", 1 / expected) : "0")",
-            "dropped=\(tally.dropped)",
-            "hitch_ms_per_s=\(PerfFormat.number(tally.hitchSeconds * 1000 / seconds))",
-            "mem_mb=\(PerfFormat.oneDecimal(memory.now))",
-            "peak_mb=\(PerfFormat.oneDecimal(memory.peak))",
-        ].joined(separator: " ")
+        return Report(
+            fps: Double(tally.frames) / seconds,
+            hz: expected > 0 ? 1 / expected : 0,
+            dropped: tally.dropped,
+            hitchMillisecondsPerSecond: tally.hitchSeconds * 1000 / seconds,
+            memoryMB: memory.now,
+            peakMB: memory.peak
+        )
     }
 
     /// The process's physical footprint now and at its peak, in MB.

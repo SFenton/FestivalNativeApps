@@ -15,8 +15,8 @@ CI's fixtures and journey lists:
 - ``--app uikit`` sets ``FST_SIM_PRODUCT_FAMILY=uikit``, so every ``ios_sim.py`` call runs
   the UIKit port's UI-test bundles (``phone`` → ``uikit``, ``ipad`` → ``uikit-ipad``).
 
-Steps run one at a time (the simulator lock serializes them anyway). Stop any fixture service
-already listening on a port a step starts (8765, 18934, 18446, 18944, 8766) first.
+Steps run one at a time (the simulator lock serializes them anyway). Fixed fixture ports
+must be free; an occupied listener is never stopped or repurposed by this tool.
 
 Usage::
 
@@ -32,12 +32,16 @@ the summary is skipped, so an interrupted run resumes.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
+import shlex
+import socket
 import subprocess
 import sys
 import time
+import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -145,18 +149,101 @@ def local_alias(device_type: str) -> str:
     return "iphone"
 
 
-def localize(script: str) -> str:
+def localize(
+    script: str, devices: dict[str, str] | None = None, *, coverage: bool = False
+) -> str:
     """Rewrite CI-only commands for this Mac.
 
     Args:
         script: A step's ``run`` script.
 
+        coverage: Add explicit coverage collection to every ios_sim uitest action.
+
     Returns:
         The script using local simulator aliases and no per-leg shutdowns.
     """
+    devices = devices or {}
     script = script.replace("python3 tools/ios_sim.py ci-device", "fst_local_device")
+    suffix = " --fail-on-skip"
+    if devices:
+        suffix += " --owned-device"
+    if coverage:
+        suffix += " --coverage"
+    script = script.replace(
+        "python3 tools/ios_sim.py uitest",
+        "python3 tools/ios_sim.py uitest" + suffix,
+    )
     script = re.sub(r"python3 tools/ios_sim\.py shutdown[^\n]*", "true", script)
-    return PRELUDE + script
+    script = re.sub(
+        r"(--device\s+)(iphone27|iphone|ipad|duo)\b",
+        lambda match: match[1] + devices.get("iphone" if match[2] == "iphone27" else match[2], match[2]),
+        script,
+    )
+    prelude = PRELUDE
+    for family, device in devices.items():
+        prelude = prelude.replace(f"echo {family}", f"echo {shlex.quote(device)}")
+    return prelude + script
+
+
+def source_fingerprint(root: Path = ROOT) -> str:
+    """Bind resume acceptance to real app, fixture, runner and workflow source."""
+    roots = (
+        "apple/Sources/", "apple/Apps/", "tools/fixtures/", "tools/mock_service.py",
+        "tools/ios_sim.py", "tools/devcap.py", "tools/ci_journeys.py",
+        ".github/workflows/apple-ci.yml", "apple/project.yml",
+    )
+    try:
+        names = subprocess.check_output(
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+            cwd=root, text=True, stderr=subprocess.DEVNULL,
+        ).split("\0")
+    except (OSError, subprocess.CalledProcessError):
+        names = [path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file()]
+    digest = hashlib.sha256()
+    for name in sorted(set(names)):
+        if not name or not name.startswith(roots):
+            continue
+        path = root / name
+        if path.is_file():
+            digest.update(name.encode() + b"\0" + path.read_bytes() + b"\0")
+    return digest.hexdigest()
+
+
+def bind_provenance(out: Path, configuration: dict, *, root: Path = ROOT) -> None:
+    """Refuse cross-source/configuration resume or legacy unbound summaries."""
+    expected = {"schemaVersion": 1, "sourceDigest": source_fingerprint(root), **configuration}
+    path = out / "provenance.json"
+    if path.exists():
+        if json.loads(path.read_text()) != expected:
+            raise SystemExit("ci_journeys: source/configuration changed; use a new evidence directory")
+    elif (out / "summary.tsv").exists():
+        raise SystemExit("ci_journeys: legacy summary has no source provenance; use a new evidence directory")
+    else:
+        path.write_text(json.dumps(expected, indent=2) + "\n")
+
+
+def fixed_fixture_ports(script: str) -> set[int]:
+    """Find fixed mock-service listeners without changing or stopping another process."""
+    ports = set()
+    for command in re.findall(r"tools/mock_service\.py[^\n;&]*", script):
+        if "--port" not in command:
+            ports.add(8765)
+        else:
+            match = re.search(r"--port[ =]+(\d+)\b", command)
+            if match and int(match[1]):
+                ports.add(int(match[1]))
+    return ports
+
+
+def require_free_ports(script: str) -> None:
+    """Fail before a fixture step if a fixed port is already owned elsewhere."""
+    for port in fixed_fixture_ports(script):
+        with socket.socket() as probe:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                probe.bind(("127.0.0.1", port))
+            except OSError as error:
+                raise SystemExit(f"ci_journeys: fixture port {port} is occupied; leave its owner untouched") from error
 
 
 # endregion
@@ -169,7 +256,10 @@ def slug(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "-", text).strip("-")[:60]
 
 
-def run_step(index: int, step: dict, out: Path, app: str) -> tuple[int, float, str]:
+def run_step(
+    index: int, step: dict, out: Path, app: str, *, devices: dict[str, str] | None = None,
+    timeout: int = 7200, coverage: bool = False,
+) -> tuple[int, float, str]:
     """Run one step's script, logging to ``out``.
 
     Args:
@@ -184,21 +274,35 @@ def run_step(index: int, step: dict, out: Path, app: str) -> tuple[int, float, s
     temp = out / f"runner-temp-{index}"
     temp.mkdir(parents=True, exist_ok=True)
     env = {**os.environ, **step["env"]}
+    devices = devices or {}
+    if env.get("FST_CI_DEVICE") in devices:
+        env["FST_CI_DEVICE"] = devices[env["FST_CI_DEVICE"]]
     env.update({
         "RUNNER_TEMP": str(temp), "GITHUB_ENV": str(temp / "github_env"), "GITHUB_WORKSPACE": str(ROOT),
         "DEVELOPER_DIR": os.environ.get("DEVELOPER_DIR", "/Applications/Xcode.app/Contents/Developer"),
+        "FST_UITEST_KEEP_RESULTS": "1",
     })
     if app == "uikit":
         env["FST_SIM_PRODUCT_FAMILY"] = "uikit"
     log = out / f"{index:02d}-{slug(step['job'])}-{slug(step['leg'] or 'all')}-{slug(step['name'])}.log"
     start = time.time()
+    require_free_ports(step["run"])
+    try:
+        from .ios_sim import run_bounded
+    except ImportError:
+        from ios_sim import run_bounded
     with log.open("w") as handle:
-        code = subprocess.call(
-            ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", localize(step["run"])],
+        code = run_bounded(
+            ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c",
+             localize(step["run"], devices, coverage=coverage)],
+            timeout,
             cwd=ROOT, env=env, stdout=handle, stderr=subprocess.STDOUT,
         )
     lines = [line for line in log.read_text(errors="replace").splitlines() if line.startswith("uitest")]
-    return code, time.time() - start, lines[-1] if lines else ""
+    if code == 0 and not lines:
+        code = 1
+        lines = ["uitest: no completed test summary; not acceptance evidence"]
+    return code if code is not None else 124, time.time() - start, lines[-1] if lines else ""
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -208,29 +312,67 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, help="output directory (required unless --list)")
     parser.add_argument("--job", action="append", help="only these jobs (repeatable)")
     parser.add_argument("--leg", action="append", help="only these matrix legs (repeatable)")
+    parser.add_argument("--step", action="append", help="only these exact workflow step names (repeatable)")
     parser.add_argument("--list", action="store_true", help="list the journey steps and exit")
+    parser.add_argument("--device", action="append", default=[], metavar="FAMILY=UDID",
+                        help="use an explicitly owned iphone/ipad/duo device (repeatable)")
+    parser.add_argument("--step-timeout", type=int, default=7200, help="bounded script lifetime in seconds")
+    parser.add_argument(
+        "--coverage", action="store_true",
+        help="request instrumented build/test actions and retain real .xcresult archives",
+    )
     args = parser.parse_args(argv)
+    devices = {}
+    for raw in args.device:
+        family, separator, device = raw.partition("=")
+        if not separator or family not in {"iphone", "ipad", "duo"}:
+            parser.error("--device requires iphone/ipad/duo=UDID")
+        try:
+            devices[family] = str(uuid.UUID(device)).upper()
+        except ValueError:
+            parser.error("--device requires a valid simulator UDID")
+    if args.step_timeout <= 0:
+        parser.error("--step-timeout must be positive")
 
     steps = [
         step for step in journey_steps(load_workflow())
         if (not args.job or step["job"] in args.job) and (not args.leg or step["leg"] in args.leg)
+        and (not args.step or step["name"] in args.step)
     ]
     if args.list:
         for index, step in enumerate(steps):
             journeys = sum(len(value.split()) for key, value in step["env"].items() if "JOURNEYS" in key)
             print(f"{index:02d} {step['job']} [{step['leg'] or '-'}] {step['name']} ({journeys} journeys)")
         return 0
+    if not steps:
+        parser.error("no journey steps match the requested jobs/legs")
     if not args.out:
         parser.error("--out is required")
     args.out.mkdir(parents=True, exist_ok=True)
+    configuration = {
+        "app": args.app, "devices": devices, "stepTimeout": args.step_timeout,
+        "coverage": args.coverage,
+        "steps": steps,
+    }
+    bind_provenance(args.out, configuration)
     summary = args.out / "summary.tsv"
-    done = {line.split("\t")[0] for line in summary.read_text().splitlines()} if summary.exists() else set()
-    worst = 0
+    done = {
+        parts[0]: int(parts[1])
+        for line in summary.read_text().splitlines()
+        if len(parts := line.split("\t")) >= 2
+    } if summary.exists() else {}
+    selected = {f"{step['job']}/{step['leg'] or '-'}/{step['name']}" for step in steps}
+    worst = next((code for key, code in done.items() if key in selected and code), 0)
     for index, step in enumerate(steps):
         key = f"{step['job']}/{step['leg'] or '-'}/{step['name']}"
         if key in done:
             continue
-        code, seconds, last = run_step(index, step, args.out, args.app)
+        bind_provenance(args.out, configuration)
+        code, seconds, last = run_step(
+            index, step, args.out, args.app, devices=devices, timeout=args.step_timeout,
+            coverage=args.coverage,
+        )
+        bind_provenance(args.out, configuration)
         worst = worst or code
         with summary.open("a") as handle:
             handle.write(f"{key}\t{code}\t{seconds:.0f}\t{last}\n")

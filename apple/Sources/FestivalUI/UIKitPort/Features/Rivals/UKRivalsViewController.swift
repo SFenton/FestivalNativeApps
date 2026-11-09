@@ -57,6 +57,15 @@ final class UKRivalsViewController: UKRivalsPageViewController {
         }]
     }
 
+    override var pageMenuCommands: [UKPageMenuCommand] {
+        [
+            UKPageMenuCommand(
+                identifier: "findRival", title: "Find Rival…",
+                perform: { [weak self] in self?.presentFindRival() }
+            )
+        ]
+    }
+
     private func presentFindRival() {
         let sheet = UKFindRivalViewController(context: context.with { $0.surface = .sheet })
         UKSheet.present(sheet, from: self, title: "Find Rival", closeIdentifier: "fst.rivals.findRival.close")

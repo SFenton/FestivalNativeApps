@@ -191,6 +191,32 @@ class UKPlayerProfileViewController: UKProfileScrollViewController {
 
     override var pageBarItems: [UIBarButtonItem] { identityBarItem.map { [$0] } ?? [] }
 
+    override var pageMenuCommands: [UKPageMenuCommand] {
+        let action = identity
+        let title: String
+        let enabled: Bool
+        switch action {
+        case .switchTo:
+            title = "Switch to This Profile"
+            enabled = true
+        case .deselect:
+            title = "Select This Profile"
+            enabled = false
+        case .select:
+            title = "Select This Profile"
+            enabled = true
+        case nil:
+            title = "Select This Profile"
+            enabled = false
+        }
+        return [
+            UKPageMenuCommand(
+                identifier: "profile.identity", title: title, isEnabled: enabled,
+                perform: enabled ? action.map { [weak self] action in { self?.perform(action) } } : nil
+            )
+        ]
+    }
+
     // MARK: Observation
 
     /// Follows the session: a new selected player (Statistics), a new publication, or a change
@@ -208,6 +234,7 @@ class UKPlayerProfileViewController: UKProfileScrollViewController {
         }
         if let key = loadKey, key.publicationRevision != revision || loadedKey != key, loadedKey != nil || loadTask == nil {
             loadIfNeeded()
+            updateBar()
             return
         }
         refreshLinks()
@@ -621,8 +648,8 @@ class UKPlayerProfileViewController: UKProfileScrollViewController {
     /// A destructive confirmation dialog (`.confirmationDialog` with a visible title).
     private func present(title: String, message: String, confirm: String, onConfirm: @escaping () -> Void, onCancel: (() -> Void)?) {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .actionSheet)
-        alert.addAction(UIAlertAction(title: confirm, style: .destructive) { _ in onConfirm() })
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in onCancel?() })
+        alert.addAction(alert.ukAction(title: confirm, style: .destructive) { onConfirm() })
+        alert.addAction(alert.ukAction(title: "Cancel", style: .cancel) { onCancel?() })
         if let popover = alert.popoverPresentationController {
             if let item = identityBarItem {
                 popover.barButtonItem = item
@@ -632,7 +659,7 @@ class UKPlayerProfileViewController: UKProfileScrollViewController {
                 popover.permittedArrowDirections = []
             }
         }
-        present(alert, animated: true)
+        UKPresentationCoordinator.shared(for: self).presentRelated(alert, from: self)
     }
 
     // MARK: Bar
@@ -649,7 +676,7 @@ class UKPlayerProfileViewController: UKProfileScrollViewController {
         guard !statistics else { return nil }
         let action: ProfileIdentityAction
         let enabled: Bool
-        if let identity, identity != .deselect {
+        if let identity {
             action = identity
             enabled = true
         } else if PlayerProfileTiles.showsIdentityPlaceholder(shownPhase), plannedIdentity != .deselect {

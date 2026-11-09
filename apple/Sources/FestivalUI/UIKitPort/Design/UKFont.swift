@@ -17,30 +17,20 @@ enum UKFont {
     ///   - monospacedDigit: Fixed-width digits (`.monospacedDigit()`).
     ///   - italic: Italic (`.italic()`).
     ///   - monospaced: The monospaced system design (`.monospaced()`).
+    ///   - traits: A specific window's text-size traits, or the current traits.
     /// - Returns: The font, scaled for the current content size category.
     static func font(
         _ style: UIFont.TextStyle, weight: UIFont.Weight? = nil, monospacedDigit: Bool = false, italic: Bool = false,
-        monospaced: Bool = false
+        monospaced: Bool = false, traits: UITraitCollection? = nil
     ) -> UIFont {
-        // A system font scaled by `UIFontMetrics`, landing on the style's own size at the current
-        // content size category (what SwiftUI's `.font(style)` draws). Two traps:
-        // - fonts not created through `UIFontMetrics` (or `preferredFont`) make the XCUITest
-        //   accessibility snapshot drop the subtree they sit in (the open drawer's rows);
-        // - the metrics alone run about 20% under the style's own size at AX5, so the base size
-        //   is corrected by that ratio for the current category.
-        let large = UIFont.preferredFont(
-            forTextStyle: style, compatibleWith: UITraitCollection(preferredContentSizeCategory: .large)
-        )
-        let metrics = UIFontMetrics(forTextStyle: style)
-        let target = UIFont.preferredFont(forTextStyle: style).pointSize
-        let scaled = metrics.scaledValue(for: large.pointSize)
-        let baseSize = scaled > 0 ? large.pointSize * target / scaled : large.pointSize
-        let traits = large.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any]
-        let styleWeight = (traits?[.weight] as? CGFloat).map { UIFont.Weight($0) } ?? .regular
-        let system = monospaced
-            ? UIFont.monospacedSystemFont(ofSize: baseSize, weight: weight ?? styleWeight)
-            : UIFont.systemFont(ofSize: baseSize, weight: weight ?? styleWeight)
-        var descriptor = system.fontDescriptor
+        let preferred = UIFont.preferredFont(forTextStyle: style, compatibleWith: traits)
+        var descriptor = preferred.fontDescriptor
+        if monospaced { descriptor = descriptor.withDesign(.monospaced) ?? descriptor }
+        if let weight {
+            var fontTraits = descriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any] ?? [:]
+            fontTraits[.weight] = weight.rawValue
+            descriptor = descriptor.addingAttributes([.traits: fontTraits])
+        }
         if monospacedDigit {
             descriptor = descriptor.addingAttributes([
                 .featureSettings: [[
@@ -49,8 +39,10 @@ enum UKFont {
                 ]],
             ])
         }
-        if italic, let slanted = descriptor.withSymbolicTraits(.traitItalic) { descriptor = slanted }
-        return metrics.scaledFont(for: UIFont(descriptor: descriptor, size: baseSize))
+        if italic, let slanted = descriptor.withSymbolicTraits(descriptor.symbolicTraits.union(.traitItalic)) {
+            descriptor = slanted
+        }
+        return UIFont(descriptor: descriptor, size: preferred.pointSize)
     }
 
     /// Whether the content size category is an accessibility size (`isAccessibilitySize`).

@@ -137,7 +137,7 @@ private final class UKPathImageScrollView: UIScrollView {
 /// the bottom. Image and Text load independently, so Side by Side (the iPhone Duo inner
 /// display, iPad) shows both; switching reloads only the form that appears, fading through a
 /// spinner (``PathSwitchTransition``). A Karaoke notice follows the first loaded chart.
-final class UKSongPathsViewController: UIViewController, UKModalScrollProviding {
+final class UKSongPathsViewController: UKPageViewController, UKModalScrollProviding {
     private let song: Song
     private let context: UKContext
     private let instruments: [Instrument]
@@ -157,6 +157,7 @@ final class UKSongPathsViewController: UIViewController, UKModalScrollProviding 
     private var requestKeys: [PathDisplayMode: String] = [:]
     private var tasks: [PathDisplayMode: Task<Void, Never>] = [:]
     private let observations = UKObservationBag()
+    private var presentationObserver: UKMotionVisibilityObserver?
     private var pullDowns: [UKPullDownToDismiss] = []
     private var lastShownMode: PathViewMode?
 
@@ -209,16 +210,17 @@ final class UKSongPathsViewController: UIViewController, UKModalScrollProviding 
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        installPageBody()
         view.backgroundColor = .clear
         panesHolder.translatesAutoresizingMaskIntoConstraints = false
         selectorHolder.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(panesHolder)
-        view.addSubview(selectorHolder)
-        let guide = view.safeAreaLayoutGuide
+        pageBodyView.addSubview(panesHolder)
+        pageBodyView.addSubview(selectorHolder)
+        let guide = pageBodyView.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
             panesHolder.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 16),
             panesHolder.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -16),
-            panesHolder.topAnchor.constraint(equalTo: view.topAnchor),
+            panesHolder.topAnchor.constraint(equalTo: pageBodyView.topAnchor),
             selectorHolder.topAnchor.constraint(equalTo: panesHolder.bottomAnchor, constant: 10),
             selectorHolder.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 16),
             selectorHolder.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -16),
@@ -234,6 +236,10 @@ final class UKSongPathsViewController: UIViewController, UKModalScrollProviding 
             self?.refresh()
         }
         NotificationCenter.default.addObserver(self, selector: #selector(contentSizeChanged), name: UIContentSizeCategory.didChangeNotification, object: nil)
+        presentationObserver = UKMotionVisibilityObserver { [weak self] in
+            guard let self, viewIfLoaded?.window?.windowScene?.activationState == .foregroundActive else { return }
+            presentWarningIfDue()
+        }
     }
 
     override func viewDidLayoutSubviews() {
@@ -577,18 +583,19 @@ final class UKSongPathsViewController: UIViewController, UKModalScrollProviding 
             warnAboutKaraoke: warnAboutKaraoke, dismissed: dismissed, alreadyConsidered: warningConsidered,
             resolved: Set(shown.keys), onScreen: shownMode.displays
         ) else { return }
-        warningConsidered = true
         let alert = UIAlertController(
             title: "Some Instruments Unavailable", message: "Karaoke is not available for path visualization yet.", preferredStyle: .alert
         )
         alert.overrideUserInterfaceStyle = .dark
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
-        let never = UIAlertAction(title: "Don't show again", style: .default) { _ in
+        alert.addAction(alert.ukAction(title: "OK", style: .default))
+        let never = alert.ukAction(title: "Don't show again", style: .default) {
             UserDefaults.standard.set(true, forKey: "fst.settings.pathUnavailableWarningDismissed")
         }
         never.accessibilityIdentifier = "fst.paths.warning.dismiss"
         alert.addAction(never)
-        present(alert, animated: true)
+        if UKPresentationCoordinator.shared(for: self).presentRelated(alert, from: self) {
+            warningConsidered = true
+        }
     }
 
     // MARK: Selector row

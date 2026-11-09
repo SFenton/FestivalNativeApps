@@ -1,6 +1,7 @@
 #if os(iOS)
 import FestivalCore
 import FestivalDesign
+import FentonUIKit
 import UIKit
 
 // MARK: - Privacy policy
@@ -142,7 +143,8 @@ final class UKLinkLabel: UILabel {
 /// The Privacy Policy sheet's page (``PrivacyPolicySheet``): the policy in a scroll view, a
 /// 680 pt column with 20 pt side padding.
 @MainActor
-final class UKPrivacyPolicyViewController: UIViewController, UKModalScrollProviding {
+final class UKPrivacyPolicyViewController: UKScreenViewController, UKModalScrollProviding {
+    private let containment = FentonContentContainmentView()
     private let scrollView = UIScrollView()
     private let policy: PrivacyPolicy
     var ukModalScrollView: UIScrollView? { scrollView }
@@ -161,20 +163,31 @@ final class UKPrivacyPolicyViewController: UIViewController, UKModalScrollProvid
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.accessibilityIdentifier = "fst.privacy-policy.content"
-        view.addSubview(scrollView)
+        containment.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(containment)
         let content = UKPrivacyPolicyContent.make(policy: policy)
         NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor), scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor), scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            containment.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            containment.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            containment.topAnchor.constraint(equalTo: view.topAnchor),
+            containment.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
+        containment.installContentView(scrollView)
+        containment.registerMainScrollView(scrollView)
         UKSettingsScrollPage.install(content, in: scrollView, side: 20, top: 8, bottom: 32)
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         if UKSettingsScrollPage.remeasureLabels(in: scrollView) { scrollView.setNeedsLayout() }
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        #if DEBUG
+        FirstContentProbe.markFirstContent()
+        #endif
     }
 
     /// Presents the policy as a large sheet.
@@ -224,7 +237,15 @@ final class UKLicensesViewController: UKSettingsScrollPage {
         } else {
             section.setRows(entries.map(licenseRow))
         }
+
         setCards([section])
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        #if DEBUG
+        if !column.arrangedSubviews.isEmpty { FirstContentProbe.markFirstContent() }
+        #endif
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -294,7 +315,7 @@ final class UKLicensesViewController: UKSettingsScrollPage {
 
 /// Full license text for one entry (``LicenseDetailSheet``).
 @MainActor
-final class UKLicenseDetailViewController: UIViewController, UKModalScrollProviding {
+final class UKLicenseDetailViewController: UKScreenViewController, UKModalScrollProviding {
     private let entry: SoftwareLicense
     private let text = UITextView()
     var ukModalScrollView: UIScrollView? { text }

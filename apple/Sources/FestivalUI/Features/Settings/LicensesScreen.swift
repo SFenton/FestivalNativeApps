@@ -57,6 +57,9 @@ struct LicensesScreen: View {
         }
         .festivalBackground(.carousel, session: session)
         .festivalNavigationTitle("Licenses")
+        #if DEBUG && os(iOS)
+        .onAppear { FirstContentProbe.markFirstContent() }
+        #endif
         .sheet(item: $selected) { entry in
             LicenseDetailSheet(entry: entry)
         }

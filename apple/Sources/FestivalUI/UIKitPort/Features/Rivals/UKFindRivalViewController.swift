@@ -48,7 +48,7 @@ final class UKSheetPathNavigator: UKNavigating {
 /// "Find Rival" search sheet (``FindRivalSheet``): a player search over the public account
 /// search (`GET /api/account/search`), debounced 250 ms, whose chosen result pushes that
 /// player's Rival Detail inside the sheet with no scope (Settings derive it).
-final class UKFindRivalViewController: UIViewController, UITextFieldDelegate, UKModalScrollProviding {
+final class UKFindRivalViewController: UKPageViewController, UITextFieldDelegate, UKModalScrollProviding {
     private enum Phase {
         case enterQuery
         case loading
@@ -87,8 +87,7 @@ final class UKFindRivalViewController: UIViewController, UITextFieldDelegate, UK
         scrollView.keyboardDismissMode = .onDrag
         scrollView.alwaysBounceVertical = true
         scrollView.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(scrollView)
-        scrollView.ukPin(to: view)
+        installPageContent(scrollView, scrollView: scrollView)
         let stack = UIStackView()
         stack.axis = .vertical
         stack.spacing = 12

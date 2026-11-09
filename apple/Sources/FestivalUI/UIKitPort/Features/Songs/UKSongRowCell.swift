@@ -12,6 +12,8 @@ final class UKRowPulseBorderView: UIView {
     private let border = CALayer()
     private var tone: ShopStatusTone?
     private var radius: CGFloat = 12
+    private var accessibilityObserver: UKAccessibilityObserver?
+    private var visibilityObserver: UKMotionVisibilityObserver?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -21,6 +23,8 @@ final class UKRowPulseBorderView: UIView {
         border.cornerCurve = .continuous
         border.borderWidth = 2
         layer.addSublayer(border)
+        accessibilityObserver = UKAccessibilityObserver { [weak self] in self?.replan() }
+        visibilityObserver = UKMotionVisibilityObserver { [weak self] in self?.replan() }
     }
 
     @available(*, unavailable)
@@ -66,8 +70,7 @@ final class UKRowPulseBorderView: UIView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         border.removeAnimation(forKey: "pulse")
-        let running = window != nil && !UKAccessibility.reduceMotion && !DebugAnimationOverride.stillBackground
-            && window?.windowScene?.activationState == .foregroundActive
+        let running = UKMotionVisibility.permitsAnimation(in: self)
         guard tone != nil, running else {
             border.opacity = Float(ShopRowPulseBorder.peak)
             CATransaction.commit()
@@ -208,6 +211,7 @@ final class UKSongRowCell: UICollectionViewCell {
 
     override func prepareForReuse() {
         super.prepareForReuse()
+        rowProxy.ukClearDetailSelection()
         onOpen = nil
         onInvalidScore = nil
         shopLink = nil
@@ -219,6 +223,11 @@ final class UKSongRowCell: UICollectionViewCell {
         bagButton.isHidden = shopLink == nil || shopLink?.below == true
         linkButton.isHidden = shopLink?.below != true
         setNeedsLayout()
+    }
+
+    /// Binds the accessible catalogue row to the window's opened detail.
+    func bindDetailSelection(_ route: AppRoute, context: UKContext) {
+        rowProxy.ukBindDetailSelection(route, context: context)
     }
 
     // MARK: Layout
@@ -305,6 +314,7 @@ final class UKSongRowCell: UICollectionViewCell {
             button.accessibilityLabel = link.label
             button.accessibilityTraits = .button
         }
+        rowProxy.ukRefreshDetailSelection()
     }
 
     // MARK: Taps

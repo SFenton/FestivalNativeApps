@@ -1,4 +1,5 @@
 #if os(iOS)
+import Foundation
 import FestivalCore
 import FestivalDesign
 import UIKit
@@ -206,7 +207,7 @@ final class UKShopFilterSheetController: UKFormViewController {
 /// The Item Shop page (``ShopScreen``): public Shop offers as song rows or a cover grid, with
 /// Sort, Filter and the List/Grid switch, the loading, failed, empty and paused states, and the
 /// official bag link on every offer.
-final class UKShopViewController: UIViewController, UICollectionViewDelegate, UKPageToolsProviding {
+final class UKShopViewController: UKPageViewController, UICollectionViewDelegate, UKPageToolsProviding {
     private let context: UKContext
     private let pushed: Bool
     private var session: FestivalSession { context.session }
@@ -248,6 +249,9 @@ final class UKShopViewController: UIViewController, UICollectionViewDelegate, UK
     private lazy var collectionView = UICollectionView(frame: .zero, collectionViewLayout: makeLayout())
     private var dataSource: UICollectionViewDiffableDataSource<ShopSection, ShopItem>!
     private var gate: UKReloadGate!
+    private var snapshotApplyInFlight = false
+    private var recomputeQueued = false
+    private var renderedMode: ShopViewMode?
 
     init(context: UKContext, pushed: Bool) {
         self.context = context
@@ -315,11 +319,7 @@ final class UKShopViewController: UIViewController, UICollectionViewDelegate, UK
         configureDataSource()
         gate = UKReloadGate(key: viewMode, isLoading: true, spinnerLabel: "Loading Item Shop")
         gate.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(gate)
-        NSLayoutConstraint.activate([
-            gate.leadingAnchor.constraint(equalTo: view.leadingAnchor), gate.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            gate.topAnchor.constraint(equalTo: view.topAnchor), gate.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-        ])
+        installPageContent(gate, scrollView: collectionView)
         gate.contentView.addSubview(collectionView)
         collectionView.frame = gate.contentView.bounds
         collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -555,6 +555,10 @@ final class UKShopViewController: UIViewController, UICollectionViewDelegate, UK
 
     private func recompute() {
         guard isViewLoaded, dataSource != nil else { return }
+        if snapshotApplyInFlight {
+            recomputeQueued = true
+            return
+        }
         gate.update(key: viewMode, isLoading: state.isLoading)
         statusView?.removeFromSuperview()
         statusView = nil
@@ -609,23 +613,48 @@ final class UKShopViewController: UIViewController, UICollectionViewDelegate, UK
         }
         let layoutKey = [viewMode.rawValue, "\(listColumns)", "\(Int(collectionView.bounds.width))", "\(isAX)"]
         let items = snapshot.itemIdentifiers.map { "\($0)" } + disclosureItems.map(\.0)
-        if layoutKey != lastLayoutKey || items != lastItems {
+        let modeChanged = renderedMode != viewMode
+        if modeChanged || layoutKey != lastLayoutKey || items != lastItems {
             let reordered = items != lastItems
             lastLayoutKey = layoutKey
             lastItems = items
             collectionView.collectionViewLayout.invalidateLayout()
-            dataSource.apply(snapshot, animatingDifferences: false)
+            snapshotApplyInFlight = true
+            applySnapshot(snapshot, mode: viewMode, replacingExistingCells: modeChanged)
             if reordered, collectionView.contentOffset.y > -collectionView.adjustedContentInset.top {
                 UIView.performWithoutAnimation {
                     collectionView.setContentOffset(CGPoint(x: 0, y: -collectionView.adjustedContentInset.top), animated: false)
                 }
             }
-        } else if !snapshot.itemIdentifiers.isEmpty {
+        } else if renderedMode == viewMode && !snapshot.itemIdentifiers.isEmpty {
             var current = dataSource.snapshot()
             current.reconfigureItems(current.itemIdentifiers)
             dataSource.apply(current, animatingDifferences: false)
         }
         updateTools()
+    }
+
+    /// Reloads the current cells through the new mode's registrations. Ordinary
+    /// same-mode updates keep diffable reconfiguration.
+    private func applySnapshot(
+        _ snapshot: NSDiffableDataSourceSnapshot<ShopSection, ShopItem>,
+        mode: ShopViewMode,
+        replacingExistingCells: Bool
+    ) {
+        let finish: () -> Void = { [weak self] in
+            guard let self else { return }
+            self.renderedMode = mode
+            self.snapshotApplyInFlight = false
+            if self.recomputeQueued {
+                self.recomputeQueued = false
+                self.recompute()
+            }
+        }
+        guard replacingExistingCells else {
+            dataSource.apply(snapshot, animatingDifferences: false, completion: finish)
+            return
+        }
+        dataSource.applySnapshotUsingReloadData(snapshot, completion: finish)
     }
 
     private func install(_ content: UIView) {
@@ -643,6 +672,66 @@ final class UKShopViewController: UIViewController, UICollectionViewDelegate, UK
     // MARK: Tools
 
     var ukPageTools: [UKPageTool] { tools }
+
+    var ukPageMenuCommands: [UKPageMenuCommand] {
+        let grid = viewMode == .grid
+        return [
+            UKPageMenuCommand(identifier: "sort", title: "Sort…", perform: { [weak self] in self?.presentSort() }),
+            UKPageMenuCommand(identifier: "filter", title: "Filter…", perform: { [weak self] in self?.presentFilter() }),
+            UKPageMenuCommand(
+                identifier: "asList", title: "as List", state: grid ? .off : .on,
+                perform: { [weak self] in
+                    self?.setViewMode(.list)
+                }
+            ),
+            UKPageMenuCommand(
+                identifier: "asGrid", title: "as Grid", state: grid ? .on : .off,
+                perform: { [weak self] in
+                    self?.setViewMode(.grid)
+                }
+            ),
+        ]
+    }
+
+    var ukDebugMenuTrace: String? {
+        guard ProcessInfo.processInfo.environment["FST_DEBUG_MENU_TRACE"] == "1" else { return nil }
+        let visible = collectionView.indexPathsForVisibleItems.sorted {
+            $0.section == $1.section ? $0.item < $1.item : $0.section < $1.section
+        }.compactMap { dataSource.itemIdentifier(for: $0).map { "\($0)" } }
+        let cells = collectionView.visibleCells.map { String(describing: type(of: $0)) }
+        let toggle = tools.first(where: {
+            $0.item.accessibilityIdentifier == "fst.shop.view-toggle"
+        })?.item.accessibilityLabel ?? "<missing>"
+        let payload: [String: Any] = [
+            "page": "UKShopViewController",
+            "requestedPreference": preferredMode.rawValue,
+            "effectiveMode": viewMode.rawValue,
+            "layout": String(describing: type(of: collectionView.collectionViewLayout)),
+            "visibleItems": visible,
+            "visibleCells": cells,
+            "toggle": toggle,
+            "blocked": ukShell?.sheetOpen == true,
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) else {
+            return "{\"page\":\"UKShopViewController\",\"traceError\":\"json-encoding\"}"
+        }
+        return String(data: data, encoding: .utf8) ?? "{\"page\":\"UKShopViewController\",\"traceError\":\"utf8\"}"
+    }
+
+    /// Applies a requested layout through the same state transition used by the local
+    /// List/Grid bar-button menu, then re-renders the real collection view.
+    private func setViewMode(_ mode: ShopViewMode) {
+        guard viewMode != mode else { return }
+        defaults.set(mode.rawValue, forKey: "fst.shop.viewMode")
+        recompute()
+#if DEBUG
+        guard ProcessInfo.processInfo.environment["FST_DEBUG_MENU_TRACE"] == "1" else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            print("[FST_MENU_TRACE] shop render \(self.ukDebugMenuTrace ?? "{}")")
+        }
+#endif
+    }
 
     private var sortPaused: Bool { snapshotValue.map { displayedOffers($0).paused } ?? false }
 
@@ -669,8 +758,7 @@ final class UKShopViewController: UIViewController, UICollectionViewDelegate, UK
                 title: grid ? "List View" : "Grid View", image: UIImage(systemName: grid ? "list.bullet" : "square.grid.2x2"),
                 primaryAction: UIAction { [weak self] _ in
                     guard let self else { return }
-                    self.defaults.set((self.viewMode == .grid ? ShopViewMode.list : .grid).rawValue, forKey: "fst.shop.viewMode")
-                    self.recompute()
+                    self.setViewMode(self.viewMode == .grid ? .list : .grid)
                 }
             )
             toggle.accessibilityLabel = grid ? "List View" : "Grid View"

@@ -14,8 +14,32 @@ Statistics|FST_DEBUG_TAB=statistics FST_DEBUG_PROFILE=fixture-player-1:FixturePl
 Rivals|FST_DEBUG_TAB=rivals FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer
 Suggestions|FST_DEBUG_TAB=suggestions FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer
 Settings|FST_DEBUG_TAB=settings
-Shop|FST_DEBUG_TAB=songs FST_DEBUG_ROUTE=shop
-Global Search|FST_DEBUG_TAB=search
+Shop|FST_DEBUG_TAB=songs FST_DEBUG_ROUTE=shop FST_PERF_MODE=latency FST_PERF_EXPECT_CONTENT=0
+Global Search|FST_DEBUG_TAB=search FST_PERF_MODE=latency FST_PERF_EXPECT_CONTENT=0
+
+# Additional active page families from the hosted journey matrix. These are
+# distinct destinations, not aliases of the twelve landing pages above.
+Player History|FST_DEBUG_TAB=songs FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_DEBUG_ROUTE=playerHistory:fixture-pulse:Solo_Guitar
+Player Bands|FST_DEBUG_TAB=songs FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_DEBUG_ROUTE=playerBands:fixture-player-1
+Bands landing|FST_DEBUG_TAB=songs FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_DEBUG_ROUTE=bands FST_PERF_MODE=latency
+Band Detail|FST_DEBUG_TAB=songs FST_DEBUG_BAND=Band_Duets/fixture-team-1/FixtureBand FST_DEBUG_ROUTE=band:fixture-band-1
+Band Rankings|FST_DEBUG_TAB=leaderboards FST_DEBUG_ROUTE=bandRankings:Band_Duets
+Song Band Leaderboard|FST_DEBUG_TAB=songs FST_DEBUG_SONG=fixture-pulse FST_DEBUG_ROUTE=songBandLeaderboard:fixture-pulse:Band_Duets
+Combo Full Rankings|FST_DEBUG_TAB=leaderboards FST_DEBUG_ROUTE=fullComboRankings:Solo_Guitar+Solo_Bass
+Compete|FST_DEBUG_TAB=leaderboards FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_DEBUG_ROUTE=compete
+All Rivals|FST_DEBUG_TAB=rivals FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_DEBUG_ROUTE=allRivals:song:Solo_Guitar FST_PERF_MODE=latency
+Rival Detail|FST_DEBUG_TAB=rivals FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_DEBUG_ROUTE=rivalDetail:f1c749eb07c32578cfa3e59ec38c03a8:song:Solo_Guitar
+Rivalry detail|FST_DEBUG_TAB=rivals FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_DEBUG_ROUTE=rivalry:f1c749eb07c32578cfa3e59ec38c03a8:closest_battles:song:Solo_Guitar FST_PERF_MODE=latency
+Licenses|FST_DEBUG_TAB=settings FST_DEBUG_ROUTE=licenses FST_PERF_MODE=latency
+Settings topic accessibility|FST_DEBUG_TAB=settings FST_DEBUG_ROUTE=settingsTopic:accessibility FST_PERF_MODE=latency
+Settings topic privacy|FST_DEBUG_TAB=settings FST_DEBUG_ROUTE=settingsTopic:privacyPolicy FST_PERF_MODE=latency
+Settings topic instruments|FST_DEBUG_TAB=settings FST_DEBUG_ROUTE=settingsTopic:instruments FST_PERF_MODE=latency
+Settings topic metadata|FST_DEBUG_TAB=settings FST_DEBUG_ROUTE=settingsTopic:metadata FST_PERF_MODE=latency
+Settings topic paths|FST_DEBUG_TAB=settings FST_DEBUG_ROUTE=settingsTopic:paths FST_PERF_MODE=latency
+Settings topic item shop|FST_DEBUG_TAB=settings FST_DEBUG_ROUTE=settingsTopic:itemShop FST_PERF_MODE=latency
+Settings topic version|FST_DEBUG_TAB=settings FST_DEBUG_ROUTE=settingsTopic:version FST_PERF_MODE=latency
+Settings topic service info|FST_DEBUG_TAB=settings FST_DEBUG_ROUTE=settingsTopic:serviceInfo FST_PERF_MODE=latency
+Settings topic first run|FST_DEBUG_TAB=settings FST_DEBUG_ROUTE=settingsTopic:firstRun FST_PERF_MODE=latency
 
 [nav]
 Push Leaderboards from Songs|FST_DEBUG_TAB=songs FST_PERF_NAV=leaderboards
@@ -23,3 +47,26 @@ Push Shop from Songs|FST_DEBUG_TAB=songs FST_PERF_NAV=shop
 Push Full Rankings|FST_DEBUG_TAB=leaderboards FST_PERF_NAV=fullRankings:Solo_Guitar
 Push Player Profile|FST_DEBUG_TAB=songs FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_PERF_NAV=player:fixture-player-1
 Push Settings topic|FST_DEBUG_TAB=settings FST_PERF_NAV=settingsTopic:accessibility
+
+# Modal/task cases use the app-registered DEBUG seam. A missing seam is an
+# explicit qualification gap, never a successful zero-sample row.
+[modal]
+Profile selection sheet|FST_DEBUG_TAB=songs FST_PERF_MODAL=profile
+Notifications sheet|FST_DEBUG_TAB=settings FST_PERF_MODAL=notifications
+What's New sheet|FST_DEBUG_TAB=settings FST_PERF_MODAL=whats-new
+Songs filter sheet|FST_DEBUG_TAB=songs FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_PERF_MODAL=songs-filter
+Song paths sheet|FST_DEBUG_TAB=songs FST_DEBUG_SONG=fixture-pulse FST_PERF_MODAL=song-paths
+Suggestions filter sheet|FST_DEBUG_TAB=suggestions FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_PERF_MODAL=suggestions-filter
+Feedback form sheet|FST_DEBUG_TAB=settings FST_PERF_MODAL=feedback
+Privacy policy sheet|FST_DEBUG_TAB=settings FST_PERF_MODAL=privacy-policy
+
+# Shared animation/component classes are measured through the same narrow seam.
+[components]
+Drawer open-close|FST_DEBUG_TAB=songs FST_PERF_COMPONENT=drawer
+Sheet transition|FST_DEBUG_TAB=songs FST_PERF_COMPONENT=sheet
+Scroll edge fade|FST_DEBUG_TAB=songs FST_PERF_COMPONENT=edge-fade
+Section stack reveal|FST_DEBUG_TAB=songs FST_PERF_COMPONENT=section-stack
+Row press animation|FST_DEBUG_TAB=songs FST_PERF_COMPONENT=row-press
+Accordion expand-collapse|FST_DEBUG_TAB=settings FST_PERF_COMPONENT=accordion
+Carousel page transition|FST_DEBUG_TAB=settings FST_DEBUG_ROUTE=settingsTopic:firstRun FST_DEBUG_FIRST_RUN=force FST_PERF_COMPONENT=carousel
+Marquee animation|FST_DEBUG_TAB=songs FST_DEBUG_SONG=fixture-pulse FST_PERF_COMPONENT=marquee

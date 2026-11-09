@@ -5,7 +5,9 @@ one, without running a simulator.
 """
 
 import os
+import socket
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -62,6 +64,17 @@ class StepsTests(unittest.TestCase):
         self.assertNotIn("ios_sim.py shutdown", legs)
         self.assertEqual(ci_journeys.local_alias("iPhone 17 Pro"), "iphone")
 
+    def test_coverage_localization_is_explicit_and_idempotent(self):
+        script = "python3 tools/ios_sim.py uitest --only A/test\n"
+        localized = ci_journeys.localize(script, coverage=True)
+        self.assertIn("uitest --fail-on-skip --coverage --only A/test", localized)
+        self.assertEqual(localized.count("--coverage"), 1)
+
+    def test_coverage_localization_preserves_shell_suffixes(self):
+        script = "python3 tools/ios_sim.py uitest --only A/test || false\n"
+        localized = ci_journeys.localize(script, coverage=True)
+        self.assertIn("uitest --fail-on-skip --coverage --only A/test || false", localized)
+
     def test_the_real_workflow_lists_iphone_ipad_and_duo_journeys(self):
         steps = ci_journeys.journey_steps(ci_journeys.load_workflow())
         self.assertGreater(len(steps), 5)
@@ -83,6 +96,76 @@ class ProductFamilyTests(unittest.TestCase):
             os.environ.pop("FST_SIM_PRODUCT_FAMILY", None)
             self.assertEqual(ios_sim.select_product(None, "ipad").scheme, "FestivalMobileIPad")
             self.assertEqual(ios_sim.select_product("uikit", None).scheme, "FestivalMobileUIKit")
+
+
+class FullPassSafetyTests(unittest.TestCase):
+    def test_owned_devices_replace_aliases_and_ci_created_devices(self):
+        device = "F01963C1-E549-4A85-B93B-EA0CE260F908"
+        script = ci_journeys.localize(
+            'device=$(python3 tools/ios_sim.py ci-device --type "iPhone Duo")\n'
+            'python3 tools/ios_sim.py uitest --device duo --only A/testOne',
+            {"duo": device},
+        )
+        self.assertIn(f"echo {device}", script)
+        self.assertIn(f"--device {device}", script)
+        self.assertIn("uitest --fail-on-skip", script)
+        self.assertIn("--owned-device", script)
+
+    def test_changed_source_cannot_resume_previous_acceptance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "apple/Sources/Page.swift"
+            source.parent.mkdir(parents=True)
+            source.write_text("before")
+            out = root / "evidence"
+            out.mkdir()
+            ci_journeys.bind_provenance(out, {"app": "uikit"}, root=root)
+            source.write_text("after")
+            with self.assertRaisesRegex(SystemExit, "source/configuration changed"):
+                ci_journeys.bind_provenance(out, {"app": "uikit"}, root=root)
+
+    def test_occupied_fixture_listener_is_left_running(self):
+        with socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen()
+            port = listener.getsockname()[1]
+            with self.assertRaisesRegex(SystemExit, "leave its owner untouched"):
+                ci_journeys.require_free_ports(f"python3 tools/mock_service.py --port {port}")
+            with socket.create_connection(("127.0.0.1", port), timeout=1):
+                pass
+
+    def test_resuming_failed_step_preserves_failure_instead_of_returning_success(self):
+        steps = ci_journeys.journey_steps(WORKFLOW)[:1]
+        with tempfile.TemporaryDirectory() as temporary:
+            out = Path(temporary)
+            key = "build/-/Journeys"
+            (out / "summary.tsv").write_text(f"{key}\t65\t10\tuitest: failed\n")
+            with mock.patch.object(ci_journeys, "load_workflow", return_value=WORKFLOW), \
+                 mock.patch.object(ci_journeys, "bind_provenance"), \
+                 mock.patch.object(ci_journeys, "run_step") as run:
+                code = ci_journeys.main(["--app", "uikit", "--out", str(out), "--job", "build"])
+            self.assertEqual(code, 65)
+            run.assert_not_called()
+
+    def test_zero_summary_is_not_a_passing_ui_step(self):
+        step = {"job": "test", "leg": "", "name": "zero", "env": {}, "run": "true"}
+        with tempfile.TemporaryDirectory() as temporary:
+            with mock.patch.object(ios_sim, "run_bounded", return_value=0) as run:
+                code, _, summary = ci_journeys.run_step(0, step, Path(temporary), "uikit")
+            self.assertEqual(run.call_args.kwargs["env"]["FST_UITEST_KEEP_RESULTS"], "1")
+        self.assertNotEqual(code, 0)
+        self.assertIn("not acceptance evidence", summary)
+
+    def test_source_change_during_step_cannot_write_acceptance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            out = Path(temporary)
+            with mock.patch.object(ci_journeys, "load_workflow", return_value=WORKFLOW), \
+                 mock.patch.object(ci_journeys, "bind_provenance",
+                                   side_effect=[None, None, SystemExit("source/configuration changed")]), \
+                 mock.patch.object(ci_journeys, "run_step", return_value=(0, 1, "uitest: passed")):
+                with self.assertRaisesRegex(SystemExit, "source/configuration changed"):
+                    ci_journeys.main(["--app", "uikit", "--out", str(out), "--job", "build"])
+            self.assertFalse((out / "summary.tsv").exists())
 
 
 if __name__ == "__main__":

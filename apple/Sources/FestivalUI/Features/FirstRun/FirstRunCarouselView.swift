@@ -31,11 +31,29 @@ struct FirstRunCarouselView: View {
     /// presentation; marking seen happens in the presenter's `onDismiss`, so a swipe or an
     /// outside tap is handled identically.
     let onFinish: () -> Void
+    /// DEBUG-only request used by the performance seam to move to the next real slide.
+    let performanceAdvanceRequest: Int?
+    let onPerformancePageChanged: ((Int) -> Void)?
 
     @State private var index = 0
     @AccessibilityFocusState private var focusedSlide: Int?
     @FirstRunReduceMotion private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+
+    init(
+        page: FirstRunPageKey, slides: [FirstRunSlide],
+        viewing: Binding<FirstRunViewing>,
+        performanceAdvanceRequest: Int? = nil,
+        onPerformancePageChanged: ((Int) -> Void)? = nil,
+        onFinish: @escaping () -> Void
+    ) {
+        self.page = page
+        self.slides = slides
+        self._viewing = viewing
+        self.onFinish = onFinish
+        self.performanceAdvanceRequest = performanceAdvanceRequest
+        self.onPerformancePageChanged = onPerformancePageChanged
+    }
 
     var body: some View {
         // The shared modal: an inline page title (issue #24) and the system Close top-right
@@ -74,6 +92,16 @@ struct FirstRunCarouselView: View {
             // VoiceOver focus is left to the system on open so the navigation title is
             // announced first (HIG VoiceOver); it follows the slide only on a page change.
             viewing.view(index, of: slides)
+            #if DEBUG && os(iOS)
+            if performanceAdvanceRequest != nil, index == 0, slides.count > 1 {
+                withAnimation(pageAnimation, completionCriteria: .logicallyComplete) {
+                    index = 1
+                } completion: {
+                    guard index == 1 else { return }
+                    onPerformancePageChanged?(index)
+                }
+            }
+            #endif
         }
     }
 

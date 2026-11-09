@@ -175,6 +175,15 @@ final class UKSuggestionsViewController: UKRivalsPageViewController, UICollectio
         return [tool]
     }
 
+    override var pageMenuCommands: [UKPageMenuCommand] {
+        [
+            UKPageMenuCommand(
+                identifier: "filter", title: "Filter…", isEnabled: showsFilter,
+                perform: showsFilter ? { [weak self] in self?.presentFilter() } : nil
+            )
+        ]
+    }
+
     private func presentFilter() {
         let sheet = UKSuggestionsFilterViewController(
             applied: viewModel.filter, visibleInstruments: Instrument.allCases.filter(visibleInstruments.contains)
@@ -183,8 +192,13 @@ final class UKSuggestionsViewController: UKRivalsPageViewController, UICollectio
             self.viewModel.filter = updated
             if let data = try? updated.encoded() { UserDefaults.standard.set(data, forKey: SuggestionFilterSettings.storageKey) }
         }
+
         UKSheet.present(sheet, from: self, title: "Filter Suggestions", closeIdentifier: "fst.suggestions.filter.done")
     }
+
+    #if DEBUG
+    func perfPresentFilter() { presentFilter() }
+    #endif
 
     // MARK: Build
 
@@ -270,7 +284,9 @@ final class UKSuggestionsViewController: UKRivalsPageViewController, UICollectio
             key: key ?? "", isLoading: isFirstPageLoading, spinnerLabel: "Loading Suggestions", spinnerIdentifier: "fst.suggestions.loading"
         )
         self.gate = gate
-        showFill(gate, edgeToEdge: true)
+        clearPageState()
+        scrollView.isHidden = true
+        installPageContent(gate, scrollView: collection)
         collection.backgroundColor = .clear
         collection.delegate = self
         collection.alwaysBounceVertical = true
@@ -355,6 +371,13 @@ final class UKSuggestionsViewController: UKRivalsPageViewController, UICollectio
         snapshot.appendItems([.footer], toSection: .footer)
         snapshot.reconfigureItems([.footer])
         dataSource?.apply(snapshot, animatingDifferences: false)
+        #if DEBUG
+        let loadedCount = visibleList.count
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.collection.window != nil, !self.collection.isHidden else { return }
+            FirstContentProbe.markFirstContent(rows: loadedCount)
+        }
+        #endif
         if settledGeneration != generation {
             let count = viewModel.latestBatchIds.count
             runTask { [weak self] in

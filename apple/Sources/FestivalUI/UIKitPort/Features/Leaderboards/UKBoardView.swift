@@ -237,10 +237,15 @@ final class UKBoardView: UIView, UICollectionViewDelegate {
     private func makeSection(_ index: Int, environment: NSCollectionLayoutEnvironment) -> NSCollectionLayoutSection? {
         let isRows = index == 1
         let count = isRows ? columns : 1
-        let item = NSCollectionLayoutItem(layoutSize: .init(widthDimension: .fractionalWidth(1), heightDimension: .fractionalHeight(1)))
         let group: NSCollectionLayoutGroup
         if count > 1 {
-            group = .horizontal(layoutSize: .init(widthDimension: .fractionalWidth(1), heightDimension: .estimated(UKLeaderboardMetrics.minHeight)), repeatingSubitem: item, count: count)
+            let columnItem = NSCollectionLayoutItem(
+                layoutSize: .init(
+                    widthDimension: .fractionalWidth(1.0 / CGFloat(count)),
+                    heightDimension: .estimated(UKLeaderboardMetrics.minHeight)
+                )
+            )
+            group = .horizontal(layoutSize: .init(widthDimension: .fractionalWidth(1), heightDimension: .estimated(UKLeaderboardMetrics.minHeight)), repeatingSubitem: columnItem, count: count)
             group.interItemSpacing = .fixed(WideColumns.spacing)
         } else {
             let single = NSCollectionLayoutItem(layoutSize: .init(widthDimension: .fractionalWidth(1), heightDimension: .estimated(isRows ? UKLeaderboardMetrics.minHeight : 44)))

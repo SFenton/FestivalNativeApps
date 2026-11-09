@@ -22,6 +22,10 @@ final class UKSongScoreRowView: UKRowHostView {
     }
 
     private var model: Model?
+    var onTap: (() -> Void)? {
+        didSet { hostedRow?.onTap = onTap }
+    }
+    private weak var hostedRow: UKSongLeaderboardEntryRowView?
 
     /// Fills the row.
     ///
@@ -32,9 +36,12 @@ final class UKSongScoreRowView: UKRowHostView {
         if model.seasonColumn { columns?.showsSeason = true }
         let row = UKSongLeaderboardEntryRowView(
             entry: model.entry, isPlayer: model.isPlayer, columns: columns, currentSeason: model.currentSeason,
-            chevron: true, hint: model.hint, separateParts: true, horizontalPadding: UKLeaderboardMetrics.horizontalPadding
+            chevron: true, hint: model.hint, separateParts: true, horizontalPadding: UKLeaderboardMetrics.horizontalPadding,
+            traits: traitCollection
         )
+        row.onTap = onTap
         host(row)
+        hostedRow = row
         row.accessibilityContainerType = .semanticGroup
         row.accessibilityIdentifier = model.identifier
         accessibilityIdentifier = nil
@@ -43,6 +50,11 @@ final class UKSongScoreRowView: UKRowHostView {
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
         if previous?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory, let model { apply(model) }
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil, let model { apply(model) }
     }
 }
 

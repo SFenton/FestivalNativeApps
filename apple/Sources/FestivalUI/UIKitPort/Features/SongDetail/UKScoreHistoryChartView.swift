@@ -20,7 +20,7 @@ final class UKScoreHistoryPlotView: UIView {
 
     /// The plot's total height (Swift Charts' `.frame(height: 220)`).
     static let height: CGFloat = 220
-    private static let bottomAxis: CGFloat = 24
+    private static let minimumDateAxisHeight: CGFloat = 24
     private static let topInset: CGFloat = 6
     /// Web `accentBlueBright` (#4C7DFF), the score line and its dots.
     static let lineColor = UIColor(red: 76 / 255, green: 125 / 255, blue: 1, alpha: 1)
@@ -66,6 +66,14 @@ final class UKScoreHistoryPlotView: UIView {
         [.font: UKFont.font(.caption2), .foregroundColor: BrandUIColors.textPrimary]
     }
 
+    private var axisFontLineHeight: CGFloat {
+        (axisFont[.font] as? UIFont)?.lineHeight ?? 16
+    }
+
+    private var dateAxisHeight: CGFloat {
+        max(Self.minimumDateAxisHeight, axisFontLineHeight + 8)
+    }
+
     private func width(of text: String) -> CGFloat {
         ceil((text as NSString).size(withAttributes: axisFont).width)
     }
@@ -76,7 +84,7 @@ final class UKScoreHistoryPlotView: UIView {
         let trailing = width(of: "100%") + 8
         return CGRect(
             x: leading, y: Self.topInset, width: max(1, bounds.width - leading - trailing),
-            height: Self.height - Self.bottomAxis - Self.topInset
+            height: Self.height - dateAxisHeight - Self.topInset
         )
     }
 
@@ -128,7 +136,7 @@ final class UKScoreHistoryPlotView: UIView {
             context.fillPath()
         }
         let positions = visible.map { CGPoint(x: x($0.id, plot: plot), y: y($0.score, plot: plot)) }
-        if let line = Self.monotonePath(positions) {
+        if let line = UKChartMath.monotonePath(positions) {
             context.setStrokeColor(Self.lineColor.cgColor)
             context.setLineWidth(2)
             context.setLineJoin(.round)
@@ -140,15 +148,19 @@ final class UKScoreHistoryPlotView: UIView {
             context.fillEllipse(in: CGRect(x: position.x - 3, y: position.y - 3, width: 6, height: 6))
         }
         context.restoreGState()
-        // Date labels, dropping any that would touch the previous one.
-        var lastMax = -CGFloat.infinity
-        for point in visible {
-            let text = point.label as NSString
-            let size = text.size(withAttributes: axisFont)
-            let left = x(point.id, plot: plot) - size.width / 2
-            guard left >= lastMax + 6, left >= 0, left + size.width <= bounds.width else { continue }
-            text.draw(at: CGPoint(x: left, y: plot.maxY + 6), withAttributes: axisFont)
-            lastMax = left + size.width
+        // Date labels stay centred on their bars and are edge-pinned by the shared axis.
+        let centres = visible.map { x($0.id, plot: plot) }
+        let widths = visible.map { width(of: $0.label) }
+        let axisBounds = CGRect(x: plot.minX, y: plot.maxY + 6, width: plot.width, height: dateAxisHeight)
+        let frames = UKChartDateAxis.labelFrames(
+            centres: centres, widths: widths, bounds: axisBounds, height: axisFontLineHeight
+        )
+        let shown = UKChartDateAxis.visibleIndices(
+            centres: centres, widths: widths, bounds: CGRect(x: plot.minX, y: 0, width: plot.width, height: 0),
+            minimumGap: 6
+        )
+        for index in shown {
+            visible[index].label.draw(in: frames[index], withAttributes: axisFont)
         }
     }
 
@@ -156,47 +168,6 @@ final class UKScoreHistoryPlotView: UIView {
     static func accuracyColor(_ percent: Double) -> UIColor {
         let rgb = SongScoreHistoryChartMath.accuracyRGB(percent)
         return UIColor(red: rgb.red, green: rgb.green, blue: rgb.blue, alpha: 1)
-    }
-
-    /// A monotone cubic path through the points (Swift Charts' `.monotone` interpolation).
-    ///
-    /// - Parameter points: Left-to-right positions.
-    /// - Returns: The curve, or nil for no points.
-    static func monotonePath(_ points: [CGPoint]) -> CGPath? {
-        guard let first = points.first else { return nil }
-        let path = CGMutablePath()
-        path.move(to: first)
-        guard points.count > 1 else { return path }
-        let n = points.count
-        var slopes = [CGFloat](repeating: 0, count: n - 1)
-        for i in 0..<(n - 1) {
-            let dx = points[i + 1].x - points[i].x
-            slopes[i] = dx == 0 ? 0 : (points[i + 1].y - points[i].y) / dx
-        }
-        var tangents = [CGFloat](repeating: 0, count: n)
-        tangents[0] = slopes[0]
-        tangents[n - 1] = slopes[n - 2]
-        for i in 1..<(n - 1) {
-            tangents[i] = slopes[i - 1] * slopes[i] <= 0 ? 0 : (slopes[i - 1] + slopes[i]) / 2
-        }
-        for i in 0..<(n - 1) {
-            if slopes[i] == 0 { tangents[i] = 0; tangents[i + 1] = 0; continue }
-            let a = tangents[i] / slopes[i], b = tangents[i + 1] / slopes[i]
-            let h = (a * a + b * b).squareRoot()
-            if h > 3 {
-                tangents[i] = 3 * a / h * slopes[i]
-                tangents[i + 1] = 3 * b / h * slopes[i]
-            }
-        }
-        for i in 0..<(n - 1) {
-            let dx = (points[i + 1].x - points[i].x) / 3
-            path.addCurve(
-                to: points[i + 1],
-                control1: CGPoint(x: points[i].x + dx, y: points[i].y + tangents[i] * dx),
-                control2: CGPoint(x: points[i + 1].x - dx, y: points[i + 1].y - tangents[i + 1] * dx)
-            )
-        }
-        return path
     }
 
     // MARK: Gestures
@@ -324,9 +295,13 @@ final class UKScoreHistoryChartView: UIView {
             row.leadingAnchor.constraint(equalTo: detailHolder.leadingAnchor), row.trailingAnchor.constraint(equalTo: detailHolder.trailingAnchor),
             row.topAnchor.constraint(equalTo: detailHolder.topAnchor), row.bottomAnchor.constraint(equalTo: detailHolder.bottomAnchor),
         ])
-        if !UKAccessibility.reduceMotion {
+        if UKMotionVisibility.permitsAnimation(in: self) {
             row.alpha = 0
-            UIView.animate(withDuration: 0.35, delay: 0, options: .curveEaseOut) { row.alpha = 1 }
+            UIView.animate(
+                withDuration: 0.35, delay: 0, options: [.curveEaseOut, .beginFromCurrentState]
+            ) { row.alpha = 1 }
+        } else {
+            row.alpha = 1
         }
     }
 
@@ -337,11 +312,17 @@ final class UKScoreHistoryChartView: UIView {
             self.detailHolder.subviews.forEach { $0.removeFromSuperview() }
             self.applyWindow()
         }
-        if UKAccessibility.reduceMotion {
+        guard UKMotionVisibility.permitsAnimation(in: plot) else {
+            plot.layer.removeAllAnimations()
             apply()
-        } else {
-            UIView.transition(with: plot, duration: 0.35, options: [.transitionCrossDissolve, .curveEaseOut], animations: apply)
+            return
         }
+        plot.layer.removeAllAnimations()
+        UIView.transition(
+            with: plot, duration: 0.35,
+            options: [.transitionCrossDissolve, .curveEaseOut, .beginFromCurrentState],
+            animations: apply
+        )
     }
 
     // MARK: Legend

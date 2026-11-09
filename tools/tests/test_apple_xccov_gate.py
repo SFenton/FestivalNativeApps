@@ -2,6 +2,7 @@
 
 import io
 import json
+import os
 import time
 import unittest
 from pathlib import Path
@@ -9,8 +10,9 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from tools.apple_xccov_gate import (
-    TARGET_SOURCES, collect_result, device_identity, line_hits, main,
-    union_lines, validate_result_devices,
+    TARGET_SOURCES, collect_result, device_identity, file_sha256, line_hits, llvm_line_map,
+    main, source_manifest, source_omission_reason, union_lines, validate_result_devices,
+    validate_llvm_provenance,
 )
 
 
@@ -143,6 +145,77 @@ class XcodeCoverageTests(unittest.TestCase):
                 {top.resolve()},
             )
 
+    def test_uikit_collection_selects_uikit_entry_and_unique_lines(self):
+        """UIKit evidence measures its entry source alongside shared UI lines."""
+        summary = {
+            "result": "Passed", "passedTests": 1, "startTime": 1,
+            "devicesAndConfigurations": [{
+                "device": {
+                    "platform": "iOS Simulator", "modelName": "iPhone 17 Pro",
+                    "deviceId": "iphone-1",
+                },
+            }],
+        }
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            shared = root / "apple/Sources/FestivalUI/Shared.swift"
+            entry = root / "apple/Apps/iOSUIKit/UKApp.swift"
+            shared.parent.mkdir(parents=True)
+            entry.parent.mkdir(parents=True)
+            shared.write_text("shared\nsecond\n", encoding="utf-8")
+            entry.write_text("entry\n", encoding="utf-8")
+            result = root / "result.xcresult"
+            result.mkdir()
+            report = {"targets": [
+                {"name": "FestivalUI", "files": [{
+                    "path": str(shared), "coveredLines": 1, "executableLines": 2,
+                }]},
+                {"name": "FestivalMobileUIKit.app", "files": [{
+                    "path": str(entry), "coveredLines": 1, "executableLines": 1,
+                }]},
+            ]}
+            archives = [
+                {str(shared): [
+                    {"line": 4, "isExecutable": True, "executionCount": 2},
+                    {"line": 9, "isExecutable": True, "executionCount": 0},
+                ]},
+                {str(entry): [
+                    {"line": 7, "isExecutable": True, "executionCount": 1},
+                ]},
+            ]
+            with patch("tools.apple_xccov_gate.xcode_json",
+                       side_effect=[summary, report, *archives]):
+                measured, _, _ = collect_result(result, root, "uikit")
+            self.assertEqual(measured, {
+                "apple/Sources/FestivalUI/Shared.swift": {4: True, 9: False},
+                "apple/Apps/iOSUIKit/UKApp.swift": {7: True},
+            })
+
+    def test_foreign_app_target_is_rejected(self):
+        """A result containing the other app family is not a compatible shard."""
+        summary = {
+            "result": "Passed", "passedTests": 1, "startTime": 1,
+            "devicesAndConfigurations": [{
+                "device": {
+                    "platform": "iOS Simulator", "modelName": "iPhone 17 Pro",
+                    "deviceId": "iphone-1",
+                },
+            }],
+        }
+        with TemporaryDirectory() as temporary:
+            result = Path(temporary) / "result.xcresult"
+            result.mkdir()
+            with patch("tools.apple_xccov_gate.xcode_json", side_effect=[
+                summary,
+                {"targets": [
+                    {"name": "FestivalUI", "files": []},
+                    {"name": "FestivalMobile.app", "files": []},
+                    {"name": "FestivalMobileUIKit.app", "files": []},
+                ]},
+            ]):
+                with self.assertRaisesRegex(ValueError, "foreign app coverage"):
+                    collect_result(result, Path(temporary), "uikit")
+
     def test_rejects_missing_identity_and_coverage_target(self):
         """A passing but incomplete Xcode report cannot count as UX evidence."""
         summary = {
@@ -165,6 +238,143 @@ class XcodeCoverageTests(unittest.TestCase):
             ]):
                 with self.assertRaisesRegex(ValueError, "missing FestivalUI coverage"):
                     collect_result(result, Path(temporary))
+
+    def test_llvm_line_map_uses_lcov_lines_not_json_region_totals(self):
+        """LLVM JSON region totals may differ from canonical LCOV line totals."""
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            shared = root / "apple/Sources/FestivalUI/Shared.swift"
+            shared.parent.mkdir(parents=True)
+            shared.write_text("shared\nsecond\n", encoding="utf-8")
+            export = {"data": [{"files": [{
+                "filename": str(shared),
+                "summary": {"lines": {"count": 2, "covered": 1}},
+            }]}]}
+            line_map = f"SF:{shared}\nDA:1,2\nDA:2,0\nend_of_record\n"
+            measured = llvm_line_map(export, line_map, root, {"omittedSources": {}})
+            self.assertEqual(measured, {
+                "apple/Sources/FestivalUI/Shared.swift": {1: True, 2: False},
+            })
+            with self.assertRaisesRegex(ValueError, "FestivalUI"):
+                llvm_line_map(export, "", root, {})
+            # A same-count line outside the source remains invalid; location
+            # integrity is checked independently of JSON's aggregate totals.
+            line_map = f"SF:{shared}\nDA:1,2\nDA:3,0\nend_of_record\n"
+            with self.assertRaisesRegex(ValueError, "outside the source"):
+                llvm_line_map(export, line_map, root, {"omittedSources": {}})
+
+    def test_llvm_provenance_rejects_digest_mismatch(self):
+        """A profile/export from another build cannot be attached to a result."""
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            result = root / "result.xcresult"
+            result.mkdir()
+            binary, profile = root / "app.debug.dylib", root / "Coverage.profdata"
+            export, line_map = root / "export.json", root / "lines.json"
+            for path in (binary, profile, export, line_map):
+                path.write_text(path.name, encoding="utf-8")
+            now = time.time()
+            manifest = source_manifest(root)
+            provenance = {
+                "schemaVersion": 2, "appFamily": "uikit", "architecture": "arm64",
+                "sourceDigest": "source", "sourceManifest": manifest,
+                "device": ["iPhone", "phone"], "result": {
+                    "path": str(result), "startTime": now - 10, "finishTime": now + 10,
+                },
+                "binary": {
+                    "path": str(binary), "sha256": file_sha256(binary),
+                    "architecture": "arm64",
+                },
+                "profile": {"path": str(profile), "sha256": file_sha256(profile), "mtime": now},
+                "export": {"path": str(export), "sha256": "wrong", "mtime": now},
+                "lineMap": {"path": str(line_map), "sha256": file_sha256(line_map)},
+            }
+            os.utime(profile, (now, now))
+            with patch("tools.apple_xccov_gate.source_digest", return_value="source"):
+                with self.assertRaisesRegex(ValueError, "export digest"):
+                    validate_llvm_provenance(
+                        root / "provenance.json", provenance, result, export,
+                        line_map, root, now - 10, now + 10, ("iPhone", "phone"),
+                    )
+
+    def test_llvm_provenance_rejects_same_total_wrong_lcov_locations(self):
+        """A rewritten LCOV map fails even when its line totals are unchanged."""
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            result = root / "result.xcresult"
+            result.mkdir()
+            binary, profile = root / "app.debug.dylib", root / "Coverage.profdata"
+            export, line_map = root / "export.json", root / "lines.lcov"
+            for path in (binary, profile, export, line_map):
+                path.write_text(path.name, encoding="utf-8")
+            now = time.time()
+            os.utime(profile, (now - 1, now - 1))
+            provenance = {
+                "schemaVersion": 2, "appFamily": "uikit", "architecture": "arm64",
+                "sourceDigest": "source", "sourceManifest": {},
+                "device": ["iPhone", "phone"], "result": {
+                    "path": str(result), "startTime": now - 10, "finishTime": now,
+                },
+                "binary": {
+                    "path": str(binary), "sha256": file_sha256(binary),
+                    "architecture": "arm64",
+                },
+                "profile": {
+                    "path": str(profile), "sha256": file_sha256(profile),
+                    "mtime": now - 1,
+                },
+                "export": {
+                    "path": str(export), "sha256": file_sha256(export),
+                    "mtime": export.stat().st_mtime,
+                },
+                "lineMap": {"path": str(line_map), "sha256": file_sha256(line_map)},
+                "llvmIdentity": {
+                    "architectures": "arm64", "uuids": "u", "profileBinaryIds": "u",
+                },
+            }
+            with patch("tools.apple_xccov_gate.source_manifest", return_value={}), \
+                    patch("tools.apple_xccov_gate.source_digest", return_value="source"), \
+                    patch("tools.apple_xccov_gate.llvm_identity",
+                          return_value=provenance["llvmIdentity"]), \
+                    patch("tools.apple_xccov_gate.subprocess.run", return_value=type(
+                        "Process", (), {"returncode": 0, "stderr": "", "stdout": "different\n"}
+                    )()):
+                with self.assertRaisesRegex(ValueError, "LCOV does not match"):
+                    validate_llvm_provenance(
+                        root / "provenance.json", provenance, result, export,
+                        line_map, root, now - 10, now, ("iPhone", "phone"),
+                    )
+
+    def test_llvm_omission_requires_source_proof(self):
+        """Only guarded macOS or declaration-only files may be absent from iOS LLVM output."""
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            shared = root / "apple/Sources/FestivalUI/Shared.swift"
+            omitted = root / "apple/Sources/FestivalUI/Missing.swift"
+            shared.parent.mkdir(parents=True)
+            shared.write_text("let x = 1\n", encoding="utf-8")
+            omitted.write_text("func realWork() {}\n", encoding="utf-8")
+            export = {"data": [{"files": [{
+                "filename": str(shared),
+                "summary": {"lines": {"count": 1, "covered": 1}},
+            }]}]}
+            lcov = f"SF:{shared}\nDA:1,1\nend_of_record\n"
+            with self.assertRaisesRegex(ValueError, "executable owned source"):
+                llvm_line_map(export, lcov, root, {"omittedSources": {}})
+
+    def test_source_omission_proof_rejects_computed_and_mixed_platform_code(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            mac = root / "apple/Sources/FestivalUI/Mac/Mixed.swift"
+            computed = root / "apple/Sources/FestivalUI/Computed.swift"
+            dotted = root / "apple/Sources/FestivalUI/Dotted.swift"
+            mac.parent.mkdir(parents=True)
+            mac.write_text("#if os(macOS)\nlet x = 1\n#else\nlet x = 2\n#endif\n", encoding="utf-8")
+            computed.write_text("var value: Int { get { 1 } }\n", encoding="utf-8")
+            dotted.write_text("let value = Factory.make()\n", encoding="utf-8")
+            self.assertIsNone(source_omission_reason(mac, root))
+            self.assertIsNone(source_omission_reason(computed, root))
+            self.assertIsNone(source_omission_reason(dotted, root))
 
 
 if __name__ == "__main__":

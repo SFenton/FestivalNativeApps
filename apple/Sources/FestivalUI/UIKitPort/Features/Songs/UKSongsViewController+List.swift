@@ -90,7 +90,7 @@ extension UKSongsViewController {
         ) { [weak self] header, _, indexPath in
             guard let self, case let ids = self.dataSource.snapshot().sectionIdentifiers, ids.indices.contains(indexPath.section), case let id = ids[indexPath.section],
                   case let .group(key) = id, let group = self.groups?.first(where: { "\($0.id)" == key }) else { return }
-            header.configure(group: group)
+            header.configure(group: group, trailingReserve: self.scrubberExtraInset)
         }
         dataSource.supplementaryViewProvider = { collection, _, indexPath in
             collection.dequeueConfiguredReusableSupplementary(using: headerRegistration, for: indexPath)
@@ -152,6 +152,7 @@ extension UKSongsViewController {
         guard case let .loaded(payload) = state, let song = songsById[songId] else { return }
         let row = makeRowContext(pipeline: makePipeline(), payload: payload)
         cell.configure(rowInput(for: song, context: row), width: cellWidth(), traits: collectionView.traitCollection)
+        cell.bindDetailSelection(.songDetail(song), context: context)
         cell.onOpen = { [weak self] in self?.open(song) }
         cell.onInvalidScore = { [weak self] warning in self?.explain(warning) }
     }
@@ -162,17 +163,17 @@ extension UKSongsViewController {
 
     private func explain(_ warning: InvalidScoreWarning) {
         let alert = UIAlertController(title: InvalidScoreWarning.title, message: warning.message, preferredStyle: .alert)
-        let ok = UIAlertAction(title: "OK", style: .cancel)
+        let ok = alert.ukAction(title: "OK", style: .cancel)
         ok.accessibilityIdentifier = "fst.songs.invalid-score.ok"
         alert.addAction(ok)
         if context.navigator != nil {
-            let settingsAction = UIAlertAction(title: InvalidScoreWarning.settingsAction, style: .default) { [weak self] _ in
+            let settingsAction = alert.ukAction(title: InvalidScoreWarning.settingsAction, style: .default) { [weak self] in
                 self?.context.navigator?.select(.settings)
             }
             settingsAction.accessibilityIdentifier = "fst.songs.invalid-score.settings"
             alert.addAction(settingsAction)
         }
-        present(alert, animated: true)
+        UKPresentationCoordinator.shared(for: self).presentRelated(alert, from: self)
     }
 
     // MARK: Recompute

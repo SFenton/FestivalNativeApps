@@ -20,7 +20,7 @@ final class UKRankHistoryPlotView: UIView {
     static let height = RankHistoryCharts.plotHeight
     /// Width of each value-axis label column (two of them make ``RankHistoryCharts``' axis overhead).
     static let labelColumn: CGFloat = 48
-    private static let bottomAxis: CGFloat = 22
+    private static let minimumDateAxisHeight: CGFloat = 22
     private static let topInset: CGFloat = 6
 
     private(set) var points: [RankHistoryCharts.Point] = []
@@ -90,8 +90,12 @@ final class UKRankHistoryPlotView: UIView {
         CGRect(
             x: Self.labelColumn, y: Self.topInset,
             width: max(0, bounds.width - 2 * Self.labelColumn),
-            height: max(0, bounds.height - Self.topInset - Self.bottomAxis)
+            height: max(0, bounds.height - Self.topInset - dateAxisHeight)
         )
+    }
+
+    private var dateAxisHeight: CGFloat {
+        max(Self.minimumDateAxisHeight, UKFont.font(.caption2).lineHeight + 8)
     }
 
     private func x(forIndex index: Int, in plot: CGRect) -> CGFloat {
@@ -165,61 +169,17 @@ final class UKRankHistoryPlotView: UIView {
         context.setLineCap(.round)
         context.setLineJoin(.round)
         if visible.count > 1 {
-            context.addPath(Self.monotonePath(xs: xs, ys: ys).cgPath)
-            context.strokePath()
+            let points = zip(xs, ys).map { CGPoint(x: $0.0, y: $0.1) }
+            if let path = UKChartMath.monotonePath(points) {
+                context.addPath(path)
+                context.strokePath()
+            }
         }
         context.setFillColor(line.cgColor)
         let radius = (30 / CGFloat.pi).squareRoot()
         for (px, py) in zip(xs, ys) {
             context.fillEllipse(in: CGRect(x: px - radius, y: py - radius, width: radius * 2, height: radius * 2))
         }
-    }
-
-    /// A monotone cubic through the points (Fritsch-Carlson), the `.monotone` interpolation.
-    ///
-    /// - Parameters:
-    ///   - xs: Increasing x positions.
-    ///   - ys: Y positions.
-    /// - Returns: The curve.
-    static func monotonePath(xs: [CGFloat], ys: [CGFloat]) -> UIBezierPath {
-        let path = UIBezierPath()
-        guard let firstX = xs.first, let firstY = ys.first else { return path }
-        path.move(to: CGPoint(x: firstX, y: firstY))
-        let n = xs.count
-        guard n > 1 else { return path }
-        var secants: [CGFloat] = []
-        for k in 0 ..< n - 1 { secants.append((ys[k + 1] - ys[k]) / max(0.0001, xs[k + 1] - xs[k])) }
-        var tangents = [CGFloat](repeating: 0, count: n)
-        tangents[0] = secants[0]
-        tangents[n - 1] = secants[n - 2]
-        if n > 2 {
-            for k in 1 ..< n - 1 {
-                tangents[k] = secants[k - 1] * secants[k] <= 0 ? 0 : (secants[k - 1] + secants[k]) / 2
-            }
-        }
-        for k in 0 ..< n - 1 {
-            if secants[k] == 0 {
-                tangents[k] = 0
-                tangents[k + 1] = 0
-                continue
-            }
-            let a = tangents[k] / secants[k], b = tangents[k + 1] / secants[k]
-            let s = a * a + b * b
-            if s > 9 {
-                let t = 3 / s.squareRoot()
-                tangents[k] = t * a * secants[k]
-                tangents[k + 1] = t * b * secants[k]
-            }
-        }
-        for k in 0 ..< n - 1 {
-            let h = xs[k + 1] - xs[k]
-            path.addCurve(
-                to: CGPoint(x: xs[k + 1], y: ys[k + 1]),
-                controlPoint1: CGPoint(x: xs[k] + h / 3, y: ys[k] + tangents[k] * h / 3),
-                controlPoint2: CGPoint(x: xs[k + 1] - h / 3, y: ys[k + 1] - tangents[k + 1] * h / 3)
-            )
-        }
-        return path
     }
 
     private func drawAxisLabels(plot: CGRect) {
@@ -242,14 +202,21 @@ final class UKRankHistoryPlotView: UIView {
             let rect = CGRect(x: plot.maxX + 6, y: yy - height / 2, width: Self.labelColumn - 6, height: height)
             ("#\(rank.formatted())" as NSString).draw(in: rect, withAttributes: [.font: font, .foregroundColor: white, .paragraphStyle: left])
         }
-        var lastMax = -CGFloat.infinity
-        for point in points where range.contains(point.index) {
-            let centreX = x(forIndex: point.index, in: plot)
-            let width = (point.label as NSString).size(withAttributes: [.font: font]).width + 4
-            guard centreX - width / 2 > lastMax else { continue }
-            lastMax = centreX + width / 2
-            let rect = CGRect(x: centreX - width / 2, y: plot.maxY + 4, width: width, height: height)
-            (point.label as NSString).draw(in: rect, withAttributes: [.font: font, .foregroundColor: white, .paragraphStyle: centre])
+        let visible = points.filter { range.contains($0.index) }
+        let centres = visible.map { x(forIndex: $0.index, in: plot) }
+        let widths = visible.map { ($0.label as NSString).size(withAttributes: [.font: font]).width + 4 }
+        let frames = UKChartDateAxis.labelFrames(
+            centres: centres, widths: widths,
+            bounds: CGRect(x: plot.minX, y: plot.maxY + 4, width: plot.width, height: height), height: height
+        )
+        let shown = UKChartDateAxis.visibleIndices(
+            centres: centres, widths: widths, bounds: CGRect(x: plot.minX, y: 0, width: plot.width, height: 0),
+            minimumGap: 6
+        )
+        for index in shown {
+            guard visible.indices.contains(index) else { continue }
+            let point = visible[index]
+            (point.label as NSString).draw(in: frames[index], withAttributes: [.font: font, .foregroundColor: white, .paragraphStyle: centre])
         }
     }
 
@@ -563,9 +530,15 @@ final class UKRankHistoryChartView: UIView, UKWidthDependent {
         let update = {
             self.plot.show(points: self.points, valueKind: self.valueKind, title: self.title, range: range)
         }
-        if animated, !UKAccessibility.reduceMotion {
-            UIView.transition(with: plot, duration: 0.25, options: [.transitionCrossDissolve, .allowUserInteraction], animations: update)
+        if animated, UKMotionVisibility.permitsAnimation(in: plot) {
+            plot.layer.removeAllAnimations()
+            UIView.transition(
+                with: plot, duration: 0.25,
+                options: [.transitionCrossDissolve, .allowUserInteraction, .beginFromCurrentState],
+                animations: update
+            )
         } else {
+            plot.layer.removeAllAnimations()
             update()
         }
         pager.isHidden = !paging.needsPagination
@@ -736,7 +709,14 @@ final class UKPlayerRankHistoryCardView: UIView, UKWidthDependent {
                 self.phase = .failed(ServiceIssue(error))
             }
             self.render()
-            if self.showsChart { UKFadeIn.fadeIn(self.host) }
+            if self.showsChart {
+                if UKMotionVisibility.permitsAnimation(in: self.host) {
+                    UKFadeIn.fadeIn(self.host)
+                } else {
+                    self.host.alpha = 1
+                    self.host.transform = .identity
+                }
+            }
         }
     }
 }

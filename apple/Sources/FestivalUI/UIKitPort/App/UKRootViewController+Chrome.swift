@@ -118,6 +118,28 @@ extension UKRootViewController {
             }
         }
         updateFloatingTools()
+        #if DEBUG
+        debugMenuMirror?.update(
+            commands: currentPageMenuCommands, blocked: sheetOpen,
+            trace: (frontPage as? UKPageToolsProviding)?.ukDebugMenuTrace,
+            dispatch: debugLastMenuDispatch
+        )
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let mirror = self.debugMenuMirror else { return }
+            mirror.update(
+                commands: self.currentPageMenuCommands, blocked: self.sheetOpen,
+                trace: (self.frontPage as? UKPageToolsProviding)?.ukDebugMenuTrace,
+                dispatch: self.debugLastMenuDispatch
+            )
+        }
+        #endif
+        UIMenuSystem.main.setNeedsRebuild()
+    }
+
+    /// The current front page's command tree. Native menus and the debug projection read
+    /// this same value; it is intentionally not cached in a second registry.
+    var currentPageMenuCommands: [UKPageMenuCommand] {
+        (frontPage as? UKPageToolsProviding)?.ukPageMenuCommands ?? []
     }
 
     /// Observation hook: re-installs the bars when the player, avatar or unread count change.

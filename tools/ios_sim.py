@@ -53,6 +53,7 @@ import signal
 import hashlib
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -448,12 +449,320 @@ def source_hash(roots: Iterable[Path] | None = None) -> str:
     return digest.hexdigest()
 
 
-def driver_build_stale(derived: Path, current_hash: str) -> bool:
+def _coverage_source_manifest(root: Path) -> dict[str, str]:
+    """Hash production sources by content for retained device coverage evidence."""
+    roots = (
+        root / "apple/Sources",
+        root / "apple/Apps/iOS",
+        root / "apple/Apps/iOSUIKit",
+        root / "apple/Apps/iOSUITests",
+        root / "apple/Apps/iPadOSUITests",
+        root / "apple/project.yml",
+    )
+    manifest: dict[str, str] = {}
+    for base in roots:
+        files = [base] if base.is_file() else sorted(base.rglob("*"))
+        for path in files:
+            if path.is_file():
+                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                manifest[path.relative_to(root).as_posix()] = digest
+    return manifest
+
+
+def _coverage_source_digest(manifest: dict[str, str]) -> str:
+    """Hash a deterministic content-bound source manifest."""
+    digest = hashlib.sha256()
+    for path, content in sorted(manifest.items()):
+        digest.update(path.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(content.encode("ascii"))
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def _require_coverage_sources(manifest: dict[str, str], phase: str) -> None:
+    """Fail closed if source contents changed during a coverage collection."""
+    current = _coverage_source_manifest(REPO_ROOT)
+    if current != manifest:
+        raise RuntimeError(f"coverage source manifest changed {phase}; rebuild and rerun")
+
+
+def _coverage_profile(derived: Path, udid: str) -> Path:
+    """Return the profile written for this exact simulator batch."""
+    profile = derived / "Build/ProfileData" / udid / "Coverage.profdata"
+    if not profile.is_file():
+        raise RuntimeError(f"{profile}: no profile was produced for this simulator")
+    return profile
+
+
+def _coverage_binary(derived: Path) -> Path:
+    """Return the UIKit app debug dylib containing the linked static UI product."""
+    candidates = sorted(
+        (derived / "Build/Products/Debug-iphonesimulator").glob(
+            f"{product().app_name}.app/{product().app_name}.debug.dylib"
+        )
+    )
+    if len(candidates) != 1:
+        raise RuntimeError(f"expected one UIKit debug dylib, found {len(candidates)}")
+    return candidates[0]
+
+
+def _source_omission_reason(path: Path, root: Path) -> str | None:
+    """Prove an uninstrumented source is outside iOS or declaration-only."""
+    relative = path.relative_to(root).as_posix()
+    text = path.read_text(encoding="utf-8")
+    code = _strip_swift_comments(text)
+    first = next((line.strip() for line in code.splitlines() if line.strip()), "")
+    if "/Mac/" in f"/{relative}" and _is_macos_only(code, first):
+        return "macOS-only compilation guard"
+    if (
+        re.search(r"\b(func|init|subscript|get|set|if|for|switch|guard|while|repeat|defer|catch)\b", code)
+        or re.search(r"\b(var|let)\b[^{=\n]*\{", code)
+        or re.search(r"=\s*[^;\n]*[\({]", code)
+    ):
+        return None
+    return "declaration-only source"
+
+
+def _strip_swift_comments(text: str) -> str:
+    """Remove Swift comments without treating URL markers inside strings as comments."""
+    out: list[str] = []
+    index = 0
+    block = 0
+    quoted = False
+    escaped = False
+    while index < len(text):
+        pair = text[index:index + 2]
+        char = text[index]
+        if quoted:
+            out.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                quoted = False
+            index += 1
+        elif block:
+            if pair == "/*":
+                block += 1
+                index += 2
+            elif pair == "*/":
+                block -= 1
+                index += 2
+            else:
+                out.append("\n" if char == "\n" else " ")
+                index += 1
+        elif pair == "//":
+            while index < len(text) and text[index] != "\n":
+                index += 1
+        elif pair == "/*":
+            block = 1
+            index += 2
+        else:
+            out.append(char)
+            quoted = char == '"'
+            index += 1
+    return "".join(out)
+
+
+def _is_macos_only(code: str, first: str) -> bool:
+    """Require the whole file to be enclosed by one macOS-only conditional."""
+    if first != "#if os(macOS)":
+        return False
+    depth = 0
+    closed = False
+    for line in code.splitlines():
+        directive = line.strip()
+        if directive.startswith("#if "):
+            depth += 1
+        elif directive == "#endif":
+            depth -= 1
+            if depth == 0:
+                closed = True
+        elif depth == 1 and (directive == "#else" or directive.startswith("#elseif")):
+            return False
+        elif closed and directive:
+            return False
+    return closed and depth == 0
+
+
+def _parse_lcov(text: str, root: Path) -> tuple[str, set[str]]:
+    """Validate LLVM's exact LCOV line records before retaining the raw output."""
+    files: set[str] = set()
+    current: set[int] | None = None
+    for raw in text.splitlines():
+        if raw.startswith("SF:"):
+            path = Path(raw[3:]).resolve()
+            try:
+                relative = path.relative_to(root.resolve()).as_posix()
+            except ValueError:
+                current = None
+                continue
+            if not relative.startswith("apple/Sources/FestivalUI/"):
+                current = None
+                continue
+            if relative in files:
+                raise RuntimeError(f"LLVM LCOV source is duplicated: {relative}")
+            current = set()
+            files.add(relative)
+        elif raw.startswith("DA:") and current is not None:
+            fields = raw[3:].split(",")
+            if len(fields) < 2:
+                raise RuntimeError(f"invalid LLVM LCOV line record: {raw}")
+            line, count = int(fields[0]), int(fields[1])
+            if line <= 0 or count < 0 or line in current:
+                raise RuntimeError(f"invalid LLVM LCOV line number: {raw}")
+            current.add(line)
+        elif raw == "end_of_record":
+            current = None
+    if not files:
+        raise RuntimeError("LLVM LCOV export contained no FestivalUI sources")
+    return text, files
+
+
+def _llvm_identity(binary: Path, profile: Path) -> dict[str, str]:
+    """Capture architecture/UUID identity from the frozen binary and profile."""
+    identity = {}
+    for key, command in {
+        "architectures": ["xcrun", "lipo", "-archs", str(binary)],
+        "uuids": ["xcrun", "dwarfdump", "--uuid", str(binary)],
+        "profileBinaryIds": ["xcrun", "llvm-profdata", "show", "--binary-ids", str(profile)],
+    }.items():
+        process = _run(command, capture_output=True, text=True)
+        if process.stderr.strip():
+            raise RuntimeError(f"LLVM identity query warned: {key}")
+        output = process.stdout.strip()
+        if not output:
+            raise RuntimeError(f"LLVM identity query returned no output: {key}")
+        identity[key] = output
+    if "arm64" not in identity["architectures"].split():
+        raise RuntimeError("frozen UIKit binary does not contain arm64")
+    uuids = {
+        token.replace("-", "").lower()
+        for token in re.findall(r"\b[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}\b",
+                               identity["uuids"])
+    }
+    profile_ids = {
+        token.lower()
+        for token in re.findall(r"\b[0-9A-Fa-f]{16,}\b", identity["profileBinaryIds"])
+    }
+    if uuids and profile_ids and not any(uuid in profile_id or profile_id in uuid
+                                         for uuid in uuids for profile_id in profile_ids):
+        raise RuntimeError("frozen profile binary IDs do not match the dylib UUID")
+    return identity
+
+
+def collect_llvm_coverage(
+    result_bundle: Path, derived: Path, summary: dict, device: tuple[str, str],
+) -> tuple[Path, Path, Path]:
+    """Freeze and export UIKit LLVM coverage before the next batch can overwrite it.
+
+    Returns the retained JSON export, generated exact line map, and provenance paths.
+    """
+    if not summary.get("startTime") or not summary.get("finishTime"):
+        raise RuntimeError("passing result summary has no start/finish interval")
+    root = REPO_ROOT
+    artifact_dir = result_bundle.with_name(result_bundle.name + ".llvm")
+    artifact_dir.mkdir(parents=True, exist_ok=False)
+    profile = _coverage_profile(derived, device[1])
+    binary = _coverage_binary(derived)
+    frozen_profile = artifact_dir / "Coverage.profdata"
+    frozen_binary = artifact_dir / binary.name
+    shutil.copy2(profile, frozen_profile)
+    shutil.copy2(binary, frozen_binary)
+    export_process = _run([
+        "xcrun", "llvm-cov", "export", str(frozen_binary),
+        "--instr-profile", str(frozen_profile), "--format=text", "--arch=arm64",
+    ], capture_output=True, text=True)
+    if export_process.stderr.strip():
+        raise RuntimeError("LLVM JSON export emitted a warning")
+    export = export_process.stdout
+    export_path = artifact_dir / "llvm-export.json"
+    export_path.write_text(export, encoding="utf-8")
+    lcov_process = _run([
+        "xcrun", "llvm-cov", "export", str(frozen_binary),
+        "--instr-profile", str(frozen_profile), "--format=lcov", "--arch=arm64",
+    ], capture_output=True, text=True)
+    if lcov_process.stderr.strip():
+        raise RuntimeError("LLVM LCOV export emitted a warning")
+    lcov = lcov_process.stdout
+    line_map_path = artifact_dir / "llvm-line-map.lcov"
+    lcov, compiled_sources = _parse_lcov(lcov, root)
+    line_map_path.write_text(lcov, encoding="utf-8")
+    llvm_identity = _llvm_identity(frozen_binary, frozen_profile)
+    manifest = _coverage_source_manifest(root)
+    expected_sources = {
+        path.relative_to(root).as_posix()
+        for path in (root / "apple/Sources/FestivalUI").rglob("*.swift")
+    }
+    omitted_sources = {}
+    for relative in sorted(expected_sources - compiled_sources):
+        reason = _source_omission_reason(root / relative, root)
+        if reason is None:
+            raise RuntimeError(f"LLVM omitted owned executable source: {relative}")
+        omitted_sources[relative] = reason
+    if compiled_sources | set(omitted_sources) != expected_sources:
+        raise RuntimeError("LLVM source scope does not cover all owned FestivalUI sources")
+    provenance = {
+        "schemaVersion": 2,
+        "appFamily": "uikit",
+        "architecture": "arm64",
+        "device": list(device),
+        "sourceDigest": _coverage_source_digest(manifest),
+        "sourceManifest": manifest,
+        "omittedSources": omitted_sources,
+        "result": {
+            "path": str(result_bundle),
+            "startTime": summary["startTime"],
+            "finishTime": summary["finishTime"],
+        },
+        "profileFlushGraceSeconds": 5,
+        "llvmIdentity": llvm_identity,
+    }
+    for key, path in (("binary", frozen_binary), ("profile", frozen_profile),
+                      ("export", export_path), ("lineMap", line_map_path)):
+        provenance[key] = {
+            "path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "mtime": path.stat().st_mtime,
+        }
+    provenance["binary"]["architecture"] = "arm64"
+    provenance_path = artifact_dir / "llvm-provenance.json"
+    provenance_path.write_text(json.dumps(provenance, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return export_path, line_map_path, provenance_path
+
+
+def _result_device_identity(summary: dict, expected_udid: str) -> tuple[str, str]:
+    """Derive the retained result's device family and verify its exact simulator ID."""
+    entries = summary.get("devicesAndConfigurations")
+    if not isinstance(entries, list) or len(entries) != 1:
+        raise RuntimeError("coverage result must identify exactly one simulator")
+    device = entries[0].get("device", {})
+    model = device.get("modelName")
+    identifier = device.get("deviceId")
+    if device.get("platform") != "iOS Simulator" or not isinstance(model, str):
+        raise RuntimeError("coverage result has no supported simulator model")
+    if identifier != expected_udid:
+        raise RuntimeError(
+            f"coverage result device mismatch: expected {expected_udid}, got {identifier}"
+        )
+    if model.startswith("iPhone"):
+        return "iPhone", identifier
+    if model.startswith("iPad"):
+        return "iPad", identifier
+    raise RuntimeError(f"coverage result has unsupported simulator model: {model}")
+
+
+def driver_build_stale(
+    derived: Path, current_hash: str, coverage: bool = False,
+    coverage_digest: str | None = None,
+) -> bool:
     """Decide whether the cached UI-test build can be reused.
 
     Args:
         derived: The driver's DerivedData directory.
         current_hash: Fresh ``source_hash()`` of the worktree.
+        coverage: Whether the cached product must be instrumented for coverage.
 
     Returns:
         True if a rebuild is needed (missing product, missing/mismatched marker).
@@ -465,18 +774,28 @@ def driver_build_stale(derived: Path, current_hash: str) -> bool:
     marker = derived / ".driver-source-hash"
     if not runner.exists() or not marker.exists():
         return True
-    return marker.read_text(encoding="utf-8").strip() != current_hash
+    expected = current_hash
+    if coverage:
+        expected = f"{current_hash}\ncoverage=1\ncontent={coverage_digest or current_hash}"
+    return marker.read_text(encoding="utf-8").strip() != expected
 
 
-def write_driver_hash(derived: Path, value: str) -> None:
+def write_driver_hash(
+    derived: Path, value: str, coverage: bool = False,
+    coverage_digest: str | None = None,
+) -> None:
     """Record the source hash a successful driver build was built from.
 
     Args:
         derived: The driver's DerivedData directory.
         value: ``source_hash()`` at build time.
+        coverage: Whether the successful build was instrumented for coverage.
     """
     derived.mkdir(parents=True, exist_ok=True)
-    (derived / ".driver-source-hash").write_text(value, encoding="utf-8")
+    marker = value
+    if coverage:
+        marker = f"{value}\ncoverage=1\ncontent={coverage_digest or value}"
+    (derived / ".driver-source-hash").write_text(marker, encoding="utf-8")
 
 
 
@@ -1767,17 +2086,24 @@ def cmd_drive(args: argparse.Namespace) -> int:
     derived = driver_derived_data()
 
     current_hash = source_hash()
-    if args.rebuild or driver_build_stale(derived, current_hash):
+    coverage = getattr(args, "coverage", False)
+    coverage_manifest = _coverage_source_manifest(REPO_ROOT) if coverage else None
+    coverage_digest = _coverage_source_digest(coverage_manifest) if coverage_manifest else None
+    if args.rebuild or driver_build_stale(derived, current_hash, coverage, coverage_digest):
         _run(["xcodegen", "generate", "-q"], cwd=APPLE_DIR)
         with build_lock():
             build = _run([
                 "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", product().scheme,
                 "-configuration", "Debug", "-destination", "generic/platform=iOS Simulator",
-                "-derivedDataPath", str(derived), "build-for-testing", "-quiet",
+                "-derivedDataPath", str(derived),
+                *([ "-enableCodeCoverage", "YES"] if coverage else []),
+                "build-for-testing", "-quiet",
             ], cwd=APPLE_DIR, check=False)
         if build.returncode:
             return build.returncode
-        write_driver_hash(derived, current_hash)
+        if coverage:
+            _require_coverage_sources(coverage_manifest or {}, "after build")
+        write_driver_hash(derived, current_hash, coverage, coverage_digest)
     else:
         print(f"driver build up to date ({current_hash[:12]}); skipping rebuild", file=sys.stderr)
 
@@ -1823,22 +2149,52 @@ def cmd_drive(args: argparse.Namespace) -> int:
                 "-destination", f"platform=iOS Simulator,id={udid}",
                 "-derivedDataPath", str(derived), "-resultBundlePath", str(result_bundle),
                 f"-only-testing:{product().uitest_target}/DriverTests/testDrive",
+                *([ "-enableCodeCoverage", "YES"] if coverage else []),
                 "test-without-building", "-quiet",
             ]
             print("+", " ".join(cmd), file=sys.stderr)
             with open(log_path, "w") as log, ScreenRecording(udid, args.record, args.display), \
                     HostBridge(udid, host_dir):
-                try:
-                    process = subprocess.run(
-                        cmd, cwd=APPLE_DIR, env=launch_env,
-                        stdout=log, stderr=subprocess.STDOUT, check=False,
-                        timeout=args.timeout,
-                    )
-                except subprocess.TimeoutExpired:
-                    # Never let a hung run hold the shared simulator lock.
-                    terminate_app(udid)
-                    process = subprocess.CompletedProcess(cmd, 124)
-                    log.write(f"\nTIMEOUT after {args.timeout}s; killed.\n")
+                process = None
+                if coverage and coverage_manifest is not None:
+                    try:
+                        _require_coverage_sources(coverage_manifest, "before test")
+                    except RuntimeError as error:
+                        log.write(f"{error}\n")
+                        process = subprocess.CompletedProcess(cmd, 1)
+                if process is None:
+                    try:
+                        process = subprocess.run(
+                            cmd, cwd=APPLE_DIR, env=launch_env,
+                            stdout=log, stderr=subprocess.STDOUT, check=False,
+                            timeout=args.timeout,
+                        )
+                    except subprocess.TimeoutExpired:
+                        # Never let a hung run hold the shared simulator lock.
+                        terminate_app(udid)
+                        process = subprocess.CompletedProcess(cmd, 124)
+                        log.write(f"\nTIMEOUT after {args.timeout}s; killed.\n")
+                if process.returncode == 0 and coverage and coverage_manifest is not None:
+                    try:
+                        _require_coverage_sources(coverage_manifest, "after test")
+                    except RuntimeError as error:
+                        process = subprocess.CompletedProcess(cmd, 1)
+                        log.write(f"\n{error}\n")
+                if process.returncode == 0 and coverage and product().app_name == "FestivalMobileUIKit":
+                    summary = _result_summary(result_bundle)
+                    try:
+                        family, result_udid = _result_device_identity(summary or {}, udid)
+                        artifacts = collect_llvm_coverage(
+                            result_bundle, derived, summary or {}, (family, result_udid)
+                        )
+                    except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
+                        process = subprocess.CompletedProcess(cmd, 1)
+                        log.write(f"\ncoverage artifact freeze failed: {error}\n")
+                    else:
+                        print(
+                            "coverage artifacts: " + " ".join(str(path) for path in artifacts),
+                            file=sys.stderr,
+                        )
     finally:
         steps_path.unlink(missing_ok=True)
         shutil.rmtree(host_dir, ignore_errors=True)
@@ -1853,7 +2209,8 @@ def cmd_drive(args: argparse.Namespace) -> int:
 
     print(f"drive OK in {elapsed:.1f}s ({len(steps)} step(s))", file=sys.stderr)
     log_path.unlink(missing_ok=True)
-    shutil.rmtree(result_bundle, ignore_errors=True)
+    if not coverage:
+        shutil.rmtree(result_bundle, ignore_errors=True)
     for out in outputs:
         print(f"{'ok' if Path(out).exists() else 'MISSING'}: {out}")
     return 0
@@ -1896,6 +2253,12 @@ def cmd_uitest(args: argparse.Namespace) -> int:
     if code := scripting_preflight(bool(getattr(args, "set_pose", False))):
         return code
     udid = resolve_device(args.device)
+    if getattr(args, "owned_device", False):
+        try:
+            uuid.UUID(args.device)
+        except ValueError:
+            print("--owned-device requires an explicitly owned simulator UUID, not an alias", file=sys.stderr)
+            return 2
     if getattr(args, "rotate", None) and getattr(args, "set_pose", False):
         # Rotations are relative: start from a fresh boot so they land on the default
         # orientation (the Duo boots closed, in its default orientation).
@@ -1906,17 +2269,24 @@ def cmd_uitest(args: argparse.Namespace) -> int:
     derived = driver_derived_data()
 
     current_hash = source_hash()
-    if args.rebuild or driver_build_stale(derived, current_hash):
+    coverage = getattr(args, "coverage", False)
+    coverage_manifest = _coverage_source_manifest(REPO_ROOT) if coverage else None
+    coverage_digest = _coverage_source_digest(coverage_manifest) if coverage_manifest else None
+    if args.rebuild or driver_build_stale(derived, current_hash, coverage, coverage_digest):
         _run(["xcodegen", "generate", "-q"], cwd=APPLE_DIR)
         with build_lock():
             build = _run([
                 "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", product().scheme,
                 "-configuration", "Debug", "-destination", "generic/platform=iOS Simulator",
-                "-derivedDataPath", str(derived), "build-for-testing", "-quiet",
+                "-derivedDataPath", str(derived),
+                *([ "-enableCodeCoverage", "YES"] if coverage else []),
+                "build-for-testing", "-quiet",
             ], cwd=APPLE_DIR, check=False)
         if build.returncode:
             return build.returncode
-        write_driver_hash(derived, current_hash)
+        if coverage:
+            _require_coverage_sources(coverage_manifest or {}, "after build")
+        write_driver_hash(derived, current_hash, coverage, coverage_digest)
     else:
         print(f"driver build up to date ({current_hash[:12]}); skipping rebuild", file=sys.stderr)
 
@@ -1944,6 +2314,9 @@ def cmd_uitest(args: argparse.Namespace) -> int:
                 a11y=getattr(args, "a11y", None), pose=getattr(args, "pose", None),
                 set_pose=getattr(args, "set_pose", False), rotate=getattr(args, "rotate", None),
                 diagnostics=not getattr(args, "no_test_diagnostics", False),
+                owned_device=getattr(args, "owned_device", False),
+                coverage=getattr(args, "coverage", False),
+                coverage_manifest=coverage_manifest,
             )
             if (returncode and not rebooted and getattr(args, "reboot_wedged", False)
                     and (wedge := simulator_wedged(log_path.read_text(encoding="utf-8", errors="replace")))):
@@ -1986,7 +2359,7 @@ def cmd_uitest(args: argparse.Namespace) -> int:
         else:
             print(f"uitest {label} OK in {elapsed:.1f}s ({len(batch)} selector(s)){_result_counts(summary)}",
                   file=sys.stderr)
-            if os.environ.get("FST_UITEST_KEEP_RESULTS") == "1":
+            if coverage or os.environ.get("FST_UITEST_KEEP_RESULTS") == "1":
                 # Keep green evidence too (attachments, per-test results): an all-skipped
                 # or zero-test batch also exits 0.
                 print(f"kept: {log_path} {result_bundle}", file=sys.stderr)
@@ -2253,10 +2626,23 @@ def should_retry_batch(returncode: int, attempt: int, retries: int) -> bool:
     return returncode == EXIT_TEST_FAILED and attempt < retries
 
 
+@contextmanager
+def _uitest_device(udid: str, owned_device: bool) -> Iterator[None]:
+    """Release an explicitly owned device without touching any other simulator."""
+    with sim_lock(udid, "uitest batch"):
+        try:
+            yield
+        finally:
+            if owned_device:
+                _shutdown_simulator(udid)
+
+
 def _run_uitest_batch(
     *, udid: str, derived: Path, selectors: list[str], timeout: float,
     a11y: list[str] | None = None, pose: str | None = None, set_pose: bool = False,
     rotate: list[str] | None = None, diagnostics: bool = True,
+    owned_device: bool = False, coverage: bool = False,
+    coverage_manifest: dict[str, str] | None = None,
 ) -> tuple[int, float, Path, Path]:
     """Run one bounded batch of ``-only-testing:`` selectors under one lock hold.
 
@@ -2277,6 +2663,7 @@ def _run_uitest_batch(
         diagnostics: Let ``xcodebuild`` collect its sysdiagnose-like failure
             diagnostics (False passes ``-collect-test-diagnostics never``: on a CI
             runner that collection alone has waited 600 s after a failure).
+        coverage: Add ``-enableCodeCoverage YES`` to this test action.
 
     Returns:
         ``(returncode, elapsed_seconds, log_path, result_bundle_path)``.
@@ -2286,11 +2673,25 @@ def _run_uitest_batch(
     log_path = Path(tempfile.gettempdir()) / f"fst-uitest-log-{uuid.uuid4().hex}.txt"
 
     start = time.time()
-    with sim_lock(udid, "uitest batch"):
+    if coverage and coverage_manifest is not None:
+        try:
+            _require_coverage_sources(coverage_manifest, "before test")
+        except RuntimeError as error:
+            log_path.write_text(f"{error}\n", encoding="utf-8")
+            return 1, time.time() - start, log_path, result_bundle
+    with _uitest_device(udid, owned_device):
         state = _run(["xcrun", "simctl", "list", "devices", udid], check=False, capture_output=True, text=True)
         was_booted = "(Booted)" in (state.stdout or "")
-        boot_exclusive(udid)
-        _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
+        if owned_device:
+            with log_path.open("w") as log:
+                run_bounded(["xcrun", "simctl", "boot", udid], 90, stdout=log, stderr=log)
+                ready = run_bounded(["xcrun", "simctl", "bootstatus", udid, "-b"],
+                                    min(timeout, 150), stdout=log, stderr=log)
+            if ready != 0:
+                return ready if ready is not None else 124, time.time() - start, log_path, result_bundle
+        else:
+            boot_exclusive(udid)
+            _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
         if pose:
             # Inside this batch's lock hold: another lane's run between batches shuts the
             # Duo down, and it boots closed in its default orientation.
@@ -2320,6 +2721,8 @@ def _run_uitest_batch(
         ]
         for selector in selectors:
             cmd.append(f"-only-testing:{product().uitest_target}/{selector}")
+        if coverage:
+            cmd += ["-enableCodeCoverage", "YES"]
         if not diagnostics:
             cmd += ["-collect-test-diagnostics", "never"]
         cmd += ["test-without-building", "-quiet"]
@@ -2337,6 +2740,27 @@ def _run_uitest_batch(
                 log.write(f"\n{TIMEOUT_MARKER} {timeout}s; killed.\n")
             elif returncode == EXIT_NO_DESTINATION:
                 log.write("\nxcodebuild cannot see the simulator; stopped (no test ran).\n")
+            if returncode == 0 and coverage and product().app_name == "FestivalMobileUIKit":
+                if coverage_manifest is not None:
+                    try:
+                        _require_coverage_sources(coverage_manifest, "after test")
+                    except RuntimeError as error:
+                        returncode = 1
+                        log.write(f"\n{error}\n")
+                if returncode == 0:
+                    summary = _result_summary(result_bundle)
+                    try:
+                        family, result_udid = _result_device_identity(summary or {}, udid)
+                        artifacts = collect_llvm_coverage(
+                            result_bundle, derived, summary or {}, (family, result_udid)
+                        )
+                        print(
+                            "coverage artifacts: " + " ".join(str(path) for path in artifacts),
+                            file=sys.stderr,
+                        )
+                    except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
+                        returncode = 1
+                        log.write(f"\ncoverage artifact freeze failed: {error}\n")
     elapsed = time.time() - start
     return returncode, elapsed, log_path, result_bundle
 
@@ -2609,6 +3033,10 @@ def main(argv: list[str] | None = None) -> int:
     drive.add_argument(
         "--rebuild", action="store_true", help="force a fresh build-for-testing"
     )
+    drive.add_argument(
+        "--coverage", action="store_true",
+        help="instrument build and test actions; keep the .xcresult for xccov gating",
+    )
     drive.add_argument("--app", choices=sorted(PRODUCTS), default=None,
                        help="UI-test product (default: ipad for the ipad alias, else phone)")
     drive.set_defaults(func=cmd_drive)
@@ -2631,6 +3059,10 @@ def main(argv: list[str] | None = None) -> int:
         "--rebuild", action="store_true", help="force a fresh build-for-testing"
     )
     uitest.add_argument(
+        "--coverage", action="store_true",
+        help="instrument build and test actions; keep the .xcresult for xccov gating",
+    )
+    uitest.add_argument(
         "--no-test-diagnostics", action="store_true",
         help="skip xcodebuild's failure diagnostics collection (-collect-test-diagnostics never), "
              "which can hold a CI batch for 600 s after a failure",
@@ -2651,6 +3083,9 @@ def main(argv: list[str] | None = None) -> int:
     uitest.add_argument("--fail-on-skip", action="store_true",
                         help="fail a batch in which any test skipped or none ran (CI: a journey that "
                              "cannot find its fixture skips, and an all-skipped batch otherwise passes)")
+    uitest.add_argument("--owned-device", action="store_true",
+                        help="require an owned UUID, never stop other devices, and shut this device "
+                             "down after each batch, including failures")
     uitest.add_argument("--reboot-wedged", action="store_true",
                         default=os.environ.get("FST_UITEST_REBOOT_WEDGED") == "1",
                         help="CI: when a batch reached no verdict (its test runner failed to initialize, or it "

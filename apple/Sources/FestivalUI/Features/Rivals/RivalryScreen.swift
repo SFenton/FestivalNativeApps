@@ -195,6 +195,9 @@ struct RivalryScreen: View {
                         }
                         .padding(.horizontal, 16)
                         .festivalFadeIn(isLoaded: true)
+                        #if DEBUG && os(iOS)
+                        .onAppear { FirstContentProbe.markFirstContent(rows: category.songs.count) }
+                        #endif
                     }
                     .padding(.vertical, 12)
                 }

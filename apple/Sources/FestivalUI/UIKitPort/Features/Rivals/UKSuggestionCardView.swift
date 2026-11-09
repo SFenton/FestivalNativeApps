@@ -3,158 +3,6 @@ import FestivalCore
 import FestivalDesign
 import UIKit
 
-// MARK: - Metadata pills (lane-local)
-
-/// The Songs-metadata pills Suggestions rows draw (``SongMetadataFieldView``): accuracy,
-/// season and percentile, each one element spoken as its ``SongMetadataField/announcement``
-/// with the `fst.songs.metadata.<kind>.<songId>` identifier. Lane-local until the Songs lane's
-/// shared pills land; merge them then.
-final class UKSuggestionMetadataPill: UIView {
-    /// Creates a pill.
-    ///
-    /// - Parameters:
-    ///   - field: The field (accuracy without full combo, percentile or season).
-    ///   - songId: The song, for the identifier.
-    init(field: SongMetadataField, songId: String) {
-        super.init(frame: .zero)
-        translatesAutoresizingMaskIntoConstraints = false
-        let accessibilitySize = UKFont.isAccessibilitySize(traitCollection)
-        let height: CGFloat = accessibilitySize ? 44 : 28
-        let label = UKLabel(style: .callout, weight: .bold, alignment: .center)
-        var minWidth: CGFloat = 0
-        var fixedWidth: CGFloat?
-        layer.cornerRadius = 6
-        layer.cornerCurve = .continuous
-        switch field {
-        case let .accuracy(value, fullCombo, percentageVisible, tint):
-            if !fullCombo && value != nil && tint == nil {
-                label.text = "Accuracy display unavailable"
-            } else if percentageVisible, let value {
-                label.text = "\(ScoreFormatting.accuracy(value))%"
-            } else {
-                label.text = fullCombo ? "FC" : "Accuracy unavailable"
-            }
-            label.numberOfLines = 1
-            label.adjustsFontSizeToFitWidth = true
-            label.minimumScaleFactor = 0.8
-            fixedWidth = UKFont.scaled(66, relativeTo: .callout, traits: traitCollection)
-            if let tint {
-                backgroundColor = UIColor(red: CGFloat(tint.red) / 255, green: CGFloat(tint.green) / 255, blue: CGFloat(tint.blue) / 255, alpha: 0.25)
-            } else {
-                backgroundColor = BrandUIColors.statusRed
-            }
-        case let .percentile(text, tier):
-            label.text = text
-            if tier == .topOne { label.font = UKFont.font(.callout, weight: .bold, italic: true) }
-            let highlighted = tier != .ordinary
-            label.textColor = highlighted ? BrandUIColors.gold : BrandUIColors.textPrimary
-            label.numberOfLines = accessibilitySize ? 2 : 1
-            minWidth = 80
-            backgroundColor = highlighted ? BrandUIColors.cardBackground : BrandUIColors.surfaceMuted
-            layer.borderWidth = highlighted ? 2 : 0
-            layer.borderColor = BrandUIColors.goldStroke.cgColor
-        case let .season(number, current):
-            label.text = "S\(number)"
-            label.textColor = current ? BrandUIColors.surfaceSubtle : BrandUIColors.textPrimary
-            minWidth = 42
-            backgroundColor = current ? BrandUIColors.textSecondary : BrandUIColors.surfaceSubtle
-        default:
-            break
-        }
-        label.isUserInteractionEnabled = false
-        addSubview(label)
-        var constraints = [
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4), label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
-            label.topAnchor.constraint(equalTo: topAnchor), label.bottomAnchor.constraint(equalTo: bottomAnchor),
-            heightAnchor.constraint(greaterThanOrEqualToConstant: height),
-        ]
-        if let fixedWidth { constraints.append(widthAnchor.constraint(equalToConstant: fixedWidth)) }
-        if minWidth > 0 { constraints.append(widthAnchor.constraint(greaterThanOrEqualToConstant: minWidth)) }
-        NSLayoutConstraint.activate(constraints)
-        setContentHuggingPriority(.required, for: .horizontal)
-        setContentCompressionResistancePriority(.required, for: .horizontal)
-        isAccessibilityElement = true
-        accessibilityLabel = field.announcement
-        accessibilityIdentifier = "fst.songs.metadata.\(field.id.rawValue).\(songId)"
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-}
-
-/// The per-chart status circles of an instrument-status row (``SongInstrumentStatusChips``):
-/// each chart's icon in a circle filled and stroked by its score status, wrapped into
-/// balanced rows, spoken as one element listing every chart's status.
-final class UKSuggestionStatusChips: UIView {
-    /// Creates the chips.
-    ///
-    /// - Parameters:
-    ///   - songId: The song, for the identifier.
-    ///   - badges: One badge per enabled chart.
-    ///   - keyboard: The song's keys variant of Lead and Pro Lead.
-    ///   - traits: The row's traits, for sizing and the row width.
-    init(songId: String, badges: [SongInstrumentBadge], keyboard: Bool, traits: UITraitCollection) {
-        super.init(frame: .zero)
-        translatesAutoresizingMaskIntoConstraints = false
-        let accessibilitySize = UKFont.isAccessibilitySize(traits)
-        let side = min(max(UKFont.scaled(34, relativeTo: .body, traits: traits), accessibilitySize ? 48 : 34), 64)
-        let perRow = max(1, min(badges.count, traits.horizontalSizeClass == .regular ? 9 : 5))
-        let rowCount = max(1, (badges.count + perRow - 1) / perRow)
-        let base = badges.count / rowCount
-        let extra = badges.count % rowCount
-        var start = 0
-        let rows = UIStackView()
-        rows.axis = .vertical
-        rows.spacing = 4
-        rows.alignment = .trailing
-        for row in 0..<rowCount {
-            let end = start + base + (row < extra ? 1 : 0)
-            let line = UIStackView(arrangedSubviews: badges[start..<end].map { Self.chip($0, keyboard: keyboard, side: side) })
-            line.spacing = 4
-            rows.addArrangedSubview(line)
-            start = end
-        }
-        rows.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(rows)
-        rows.ukPin(to: self)
-        isAccessibilityElement = true
-        accessibilityLabel = badges.map(\.announcement).joined(separator: "; ")
-        accessibilityIdentifier = "fst.songs.instrument-status.\(songId)"
-        setContentHuggingPriority(.required, for: .horizontal)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    private static func chip(_ badge: SongInstrumentBadge, keyboard: Bool, side: CGFloat) -> UIView {
-        let usesKeys = keyboard && (badge.instrument == .lead || badge.instrument == .proLead)
-        let circle = UIView()
-        circle.translatesAutoresizingMaskIntoConstraints = false
-        circle.layer.cornerRadius = side / 2
-        circle.layer.borderWidth = 2
-        let (fill, stroke) = colors(badge.status)
-        circle.backgroundColor = fill
-        circle.layer.borderColor = stroke.cgColor
-        let icon = UKInstrumentIconView(badge.instrument, keyboard: usesKeys, size: side * 0.7, hidesFromAccessibility: true)
-        circle.addSubview(icon)
-        NSLayoutConstraint.activate([
-            circle.widthAnchor.constraint(equalToConstant: side), circle.heightAnchor.constraint(equalToConstant: side),
-            icon.centerXAnchor.constraint(equalTo: circle.centerXAnchor), icon.centerYAnchor.constraint(equalTo: circle.centerYAnchor),
-        ])
-        return circle
-    }
-
-    private static func colors(_ status: SongInstrumentStatus) -> (UIColor, UIColor) {
-        switch status {
-        case .fullCombo: (BrandUIColors.gold, BrandUIColors.goldStroke)
-        case .scored: (BrandUIColors.statusGreen, BrandUIColors.statusGreenStroke)
-        case .noScore: (BrandUIColors.statusRed, BrandUIColors.statusRedStroke)
-        case .inconsistentFullCombo: (BrandUIColors.statusAmber, BrandUIColors.statusAmberStroke)
-        case .unavailable: (BrandUIColors.surfaceMuted, BrandUIColors.textDisabled)
-        }
-    }
-}
-
 // MARK: - Song row
 
 /// One flat row inside a category's material card (``SuggestionSongRowView``): album art,
@@ -288,17 +136,34 @@ final class UKSuggestionSongRowView: UIControl {
         case .unfcAccuracy:
             guard let accuracy = SuggestionRowLayout.unfcAccuracy(percent: item.percent) else { return (nil, []) }
             let field = SongMetadataField.accuracy(accuracy, fullCombo: false, percentageVisible: true, tint: try? ScoreFormatting.accuracyTint(accuracy))
-            return (UKSuggestionMetadataPill(field: field, songId: songId), [field.announcement])
+            return (
+                UKSongMetadataFieldView(
+                    field: field, traits: traitCollection,
+                    accessibilityIdentifier: "fst.songs.metadata.\(field.id.rawValue).\(songId)"
+                ),
+                [field.announcement]
+            )
         case .season:
             guard let season = seasonAchieved, season > 0 else { return (nil, []) }
             let field = SongMetadataField.season(season, current: season == currentSeason)
-            return (UKSuggestionMetadataPill(field: field, songId: songId), [field.announcement])
+            return (
+                UKSongMetadataFieldView(
+                    field: field, traits: traitCollection,
+                    accessibilityIdentifier: "fst.songs.metadata.\(field.id.rawValue).\(songId)"
+                ),
+                [field.announcement]
+            )
         case .percentile:
             var views: [UIView] = []
             var spoken: [String] = []
             if let display = item.percentileDisplay {
                 let field = SongMetadataField.percentile(display, tier: Self.tier(display))
-                views.append(UKSuggestionMetadataPill(field: field, songId: songId))
+                views.append(
+                    UKSongMetadataFieldView(
+                        field: field, traits: traitCollection,
+                        accessibilityIdentifier: "fst.songs.metadata.\(field.id.rawValue).\(songId)"
+                    )
+                )
                 spoken.append(field.announcement)
             }
             if let icon = instrumentIcon() { views.append(icon); spoken.append(rowInstrument?.label ?? "") }
@@ -318,7 +183,10 @@ final class UKSuggestionSongRowView: UIControl {
             let badges = SongInstrumentStatusPolicy.badges(
                 for: item.song, visibleInstruments: visibleInstruments, scores: session.selectedPlayerScores[songId] ?? [:]
             )
-            let chips = UKSuggestionStatusChips(songId: songId, badges: badges, keyboard: item.song.usesKeyboardIcon, traits: traitCollection)
+            let chips = UKSongStatusChipsView(
+                badges: badges, keyboard: item.song.usesKeyboardIcon, traits: traitCollection,
+                accessibilityIdentifier: "fst.songs.instrument-status.\(songId)"
+            )
             return (chips, [badges.map(\.announcement).joined(separator: "; ")])
         }
     }

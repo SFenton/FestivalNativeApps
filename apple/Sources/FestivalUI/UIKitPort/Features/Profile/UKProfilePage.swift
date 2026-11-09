@@ -1,6 +1,7 @@
 #if os(iOS)
 import FestivalCore
 import FestivalDesign
+import FentonUIKit
 import UIKit
 
 // MARK: - Scrolling page
@@ -13,7 +14,7 @@ import UIKit
 /// A section that depends on its width conforms to ``UKWidthDependent``; the page passes the
 /// column width to every section before Auto Layout sizes it and again when the width changes.
 @MainActor
-class UKProfileScrollViewController: UIViewController, UIScrollViewDelegate, UKPageToolsProviding {
+class UKProfileScrollViewController: UKPageViewController, UIScrollViewDelegate, UKPageToolsProviding {
     /// The screen's context.
     let context: UKContext
     /// The scrolling surface.
@@ -26,7 +27,6 @@ class UKProfileScrollViewController: UIViewController, UIScrollViewDelegate, UKP
     private(set) var quickLinkViews: [(section: QuickLinkSection, view: UIView)] = []
     /// Window layout and observation helpers.
     let observations = UKObservationBag()
-    private var stateView: UIView?
     private var centreOffset: NSLayoutConstraint?
     private var widthConstraint: NSLayoutConstraint?
     private var cappedConstraint: NSLayoutConstraint?
@@ -51,6 +51,11 @@ class UKProfileScrollViewController: UIViewController, UIScrollViewDelegate, UKP
     /// The window layout this page adapts to.
     var layout: DeviceLayout { ukLayout }
 
+    /// Page-owned iPadOS command families. Subclasses override the hook rather than
+    /// redeclaring the protocol witness, so the shell sees the concrete page's commands.
+    var ukPageMenuCommands: [UKPageMenuCommand] { pageMenuCommands }
+    var pageMenuCommands: [UKPageMenuCommand] { [] }
+
     // MARK: Lifecycle
 
     override func viewDidLoad() {
@@ -59,15 +64,7 @@ class UKProfileScrollViewController: UIViewController, UIScrollViewDelegate, UKP
         scrollView.delegate = self
         scrollView.alwaysBounceVertical = true
         scrollView.backgroundColor = .clear
-        scrollView.contentInsetAdjustmentBehavior = .automatic
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(scrollView)
-        NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-        ])
+        installPageContent(scrollView, scrollView: scrollView)
         column.onLayout = { [weak self] in self?.columnDidLayout() }
         column.axis = .vertical
         column.alignment = .fill
@@ -163,23 +160,13 @@ class UKProfileScrollViewController: UIViewController, UIScrollViewDelegate, UKP
     ///
     /// - Parameter state: The placeholder, filling the page.
     func showState(_ state: UIView) {
-        stateView?.removeFromSuperview()
         scrollView.isHidden = true
-        state.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(state)
-        NSLayoutConstraint.activate([
-            state.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            state.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            state.topAnchor.constraint(equalTo: view.topAnchor),
-            state.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-        ])
-        stateView = state
+        showPageState(state, edgeToEdge: true)
     }
 
     /// Removes the state placeholder and shows the column.
     func hideState() {
-        stateView?.removeFromSuperview()
-        stateView = nil
+        clearPageState()
         scrollView.isHidden = false
     }
 

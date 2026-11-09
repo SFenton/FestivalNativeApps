@@ -6,7 +6,7 @@ import UIKit
 
 /// A screen not ported to UIKit yet: the page title over the shared background and a
 /// short note, so the shell and navigation can be exercised before every lane lands.
-final class UKPlaceholderViewController: UIViewController {
+final class UKPlaceholderViewController: UKPageViewController {
     private let context: UKContext
 
     /// Creates a placeholder.
@@ -25,6 +25,7 @@ final class UKPlaceholderViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        installPageBody()
         view.backgroundColor = .clear
         navigationItem.largeTitleDisplayMode = .always
         let label = UILabel()
@@ -36,11 +37,11 @@ final class UKPlaceholderViewController: UIViewController {
         label.textAlignment = .center
         label.accessibilityIdentifier = "fst.uikit.placeholder"
         label.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(label)
+        pageBodyView.addSubview(label)
         NSLayoutConstraint.activate([
-            label.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor),
-            label.leadingAnchor.constraint(greaterThanOrEqualTo: view.layoutMarginsGuide.leadingAnchor),
+            label.centerXAnchor.constraint(equalTo: pageBodyView.safeAreaLayoutGuide.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: pageBodyView.safeAreaLayoutGuide.centerYAnchor),
+            label.leadingAnchor.constraint(greaterThanOrEqualTo: pageBodyView.layoutMarginsGuide.leadingAnchor),
         ])
     }
 }

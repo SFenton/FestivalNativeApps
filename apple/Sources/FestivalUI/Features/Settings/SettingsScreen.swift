@@ -127,9 +127,17 @@ struct SettingsScreen: View {
             // its panes' sections into two balanced columns (pattern `wide-columns` R7).
             WideColumnStack(columns: columns, spacing: 28) {
                 if let pane {
+                    #if DEBUG && os(iOS)
+                    paneContent(pane).modifier(SettingsPerfLoadedMarker())
+                    #else
                     paneContent(pane)
+                    #endif
                 } else if let topic {
+                    #if DEBUG && os(iOS)
+                    topicContent(topic).modifier(SettingsPerfLoadedMarker())
+                    #else
                     topicContent(topic)
+                    #endif
                 } else if isList {
                     listPage
                 } else {
@@ -173,6 +181,7 @@ struct SettingsScreen: View {
                     + "Your profile, song filters and navigation history will remain."
             )
         }
+
         .sheet(isPresented: $showingPrivacyPolicy) {
             PrivacyPolicySheet()
         }
@@ -180,6 +189,41 @@ struct SettingsScreen: View {
             // Applies its own `.festivalSheet`, widening while its photo library is open.
             FeedbackFormSheet(kind: kind, session: session) { feedbackSent.formFinished($0) }
         }
+        #if DEBUG && os(iOS)
+        .onAppear {
+            PerfNavigationHooks.registerModal(
+                "feedback",
+                present: { feedbackForm = .bug },
+                dismiss: { feedbackForm = nil },
+                isPresented: { feedbackForm != nil }
+            )
+            PerfNavigationHooks.registerModal(
+                "privacy-policy",
+                present: { showingPrivacyPolicy = true },
+                dismiss: { showingPrivacyPolicy = false },
+                isPresented: { showingPrivacyPolicy }
+            )
+        }
+        .onDisappear {
+            PerfNavigationHooks.unregisterModal("feedback")
+            PerfNavigationHooks.unregisterModal("privacy-policy")
+        }
+        #endif
+        #if DEBUG && os(iOS)
+        .onAppear {
+            let original = filterInvalidScores
+            PerfNavigationHooks.registerComponent(
+                "accordion",
+                start: { filterInvalidScores = true },
+                stop: { filterInvalidScores = original },
+                isReady: { leewayAccordion.phase.isOpen && leewayAccordion.phase.showsContent },
+                isRestored: { filterInvalidScores == original }
+            )
+        }
+        .onDisappear {
+            PerfNavigationHooks.unregisterComponent("accordion")
+        }
+        #endif
         .alert(
             feedbackSent.shown?.title ?? "", isPresented: feedbackSentShowing,
             presenting: feedbackSent.shown
@@ -204,6 +248,24 @@ struct SettingsScreen: View {
             await features
         }
     }
+
+    #if DEBUG && os(iOS)
+    private struct SettingsPerfLoadedMarker: ViewModifier {
+        func body(content: Content) -> some View {
+            content.background(
+                GeometryReader { proxy in
+                    Color.clear
+                        .onAppear {
+                            if proxy.size.height > 1 { FirstContentProbe.markFirstContent() }
+                        }
+                        .onChange(of: proxy.size.height) { _, height in
+                            if height > 1 { FirstContentProbe.markFirstContent() }
+                        }
+                }
+            )
+        }
+    }
+    #endif
 
     // MARK: - Page and panes
 

@@ -74,7 +74,8 @@ struct PerfProbeTests {
         let config = PerfConfig(environment: ["FST_PERF_AUTORUN": "9"])
         #expect(config?.settle == 9)
         #expect(config?.seconds == 8 && config?.speed == 900 && config?.horizontal == false)
-        #expect(config?.navRoutes == [] && config?.navCycles == 6)
+        #expect(config?.navRoutes == [] && config?.modalRoutes == [] && config?.componentRoutes == [])
+        #expect(config?.mode == "scroll" && config?.navCycles == 6)
         #expect(config?.file == nil && config?.name == "surface")
     }
 
@@ -89,6 +90,15 @@ struct PerfProbeTests {
         #expect(config?.speed == 450 && config?.horizontal == true)
         #expect(config?.navRoutes == ["leaderboards", "rivals"])
         #expect(config?.navCycles == 1)  // clamped
+    }
+
+    @Test func configSelectsModalAndComponentFamilies() {
+        let modal = PerfConfig(environment: ["FST_PERF_AUTORUN": "3", "FST_PERF_MODAL": "songs-filter"])
+        #expect(modal?.mode == "modal" && modal?.modalRoutes == ["songs-filter"])
+        let component = PerfConfig(environment: ["FST_PERF_AUTORUN": "3", "FST_PERF_COMPONENT": "edge-fade"])
+        #expect(component?.mode == "component" && component?.componentRoutes == ["edge-fade"])
+        let latency = PerfConfig(environment: ["FST_PERF_AUTORUN": "3", "FST_PERF_MODE": "latency"])
+        #expect(latency?.mode == "latency")
     }
 
     @Test func resultRowsAreOneTabSeparatedLine() {

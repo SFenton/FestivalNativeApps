@@ -11,7 +11,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from tools.mock_service import (
-    DEMO_SONGS, FEEDBACK_SLOW_READS, FEEDBACK_SLOW_UPLOAD_S, FixtureHandler, FixtureServer, ROOT,
+    DEMO_SONGS, FEEDBACK_SLOW_READS, FEEDBACK_SLOW_UPLOAD_S, LONG_TITLE, FixtureHandler, FixtureServer, ROOT,
     fixture_artwork, fixture_path_image,
     _band_detail, _band_ranking_entry, _ranking_entry, _song_band_leaderboard_entry,
 )
@@ -349,6 +349,27 @@ class MockServiceTests(unittest.TestCase):
                     self.assertEqual(titles[song["songId"]], song["title"])
             with urlopen(base + "/api/leaderboard/fixture-pulse/Solo_Guitar?top=25") as response:
                 self.assertGreaterEqual(len(json.load(response)["entries"]), 20)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+    def test_long_titles_overlay_survives_large_catalogue_mode(self):
+        """The perf fixture combines its padded catalogue and overflowing target title."""
+        server = FixtureServer(
+            ("127.0.0.1", 0), FixtureHandler, large_catalogue=True, long_titles=True
+        )
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{server.server_port}"
+        try:
+            with urlopen(base + "/api/songs") as response:
+                body = json.load(response)
+                etag = response.headers["ETag"]
+            titles = {song["songId"]: song["title"] for song in body["songs"]}
+            self.assertGreaterEqual(body["count"], 100)
+            self.assertEqual(titles["fixture-pulse"], LONG_TITLE)
+            self.assertEqual(etag, '"fst-fixture-large-catalogue-long-titles-v1"')
         finally:
             server.shutdown()
             server.server_close()

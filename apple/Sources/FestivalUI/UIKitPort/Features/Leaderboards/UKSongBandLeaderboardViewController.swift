@@ -222,7 +222,8 @@ final class UKSongBandLeaderboardViewController: UKSongBoardViewController {
                     )
                     rows.append((entry.id, UKLeaderboardRow(
                         kind: .songBand, make: { UKSongBandCardView() }, apply: { ($0 as? UKSongBandCardView)?.apply(model) },
-                        isSelectedBand: highlighted, onTap: { [weak self] in self?.context.navigator?.push(route) }
+                        isSelectedBand: highlighted, onTap: { [weak self] in self?.context.navigator?.push(route) },
+                        detailSelection: (route, context)
                     )))
                 }
             }

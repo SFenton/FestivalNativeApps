@@ -17,8 +17,12 @@ final class UKCardRowControl: UIControl {
     /// - Parameters:
     ///   - content: The row content.
     ///   - selectedBand: Fill with the player's purple.
+    ///   - detailSelection: The split destination represented by this row.
     ///   - onTap: The row's action; nil makes it read-only.
-    init(content: UIView, selectedBand: Bool, onTap: (() -> Void)?) {
+    init(
+        content: UIView, selectedBand: Bool,
+        detailSelection: (route: AppRoute, context: UKContext)? = nil, onTap: (() -> Void)?
+    ) {
         self.onTap = onTap
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
@@ -37,6 +41,9 @@ final class UKCardRowControl: UIControl {
         isUserInteractionEnabled = onTap != nil
         addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .touchUpInside)
         accessibilityElements = [content]
+        if let detailSelection {
+            content.ukBindDetailSelection(detailSelection.route, context: detailSelection.context)
+        }
     }
 
     @available(*, unavailable)
@@ -55,7 +62,7 @@ final class UKCardRowControl: UIControl {
 /// shared Rank By page tool and Quick Links. The page shows a spinner until every card's
 /// read settles, then the cards fade in.
 @MainActor
-final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding {
+final class UKLeaderboardsViewController: UKPageViewController, UKPageToolsProviding {
     private let context: UKContext
     private var session: FestivalSession { context.session }
     private let scroll = UIScrollView()
@@ -139,10 +146,8 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
         scroll.addSubview(content)
         gate.contentView.addSubview(scroll)
         gate.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(gate)
+        installPageContent(gate, scrollView: scroll)
         NSLayoutConstraint.activate([
-            gate.leadingAnchor.constraint(equalTo: view.leadingAnchor), gate.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            gate.topAnchor.constraint(equalTo: view.topAnchor), gate.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             scroll.leadingAnchor.constraint(equalTo: gate.contentView.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: gate.contentView.trailingAnchor),
             scroll.topAnchor.constraint(equalTo: gate.contentView.topAnchor), scroll.bottomAnchor.constraint(equalTo: gate.contentView.bottomAnchor),
             content.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor),
@@ -447,7 +452,7 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
                     let row = UKRankingRowView()
                     row.apply(UKRankingRowModels.account(entry: entry, metric: metric, isSelected: selected, columns: columns))
                     let route = AccountRankingRow.route(entry)
-                    rows.append(UKCardRowControl(content: row, selectedBand: selected, onTap: entry.hasAccount ? { [weak self] in
+                    rows.append(UKCardRowControl(content: row, selectedBand: selected, detailSelection: entry.hasAccount ? (route, context) : nil, onTap: entry.hasAccount ? { [weak self] in
                         self?.context.navigator?.selectDetail(route)
                     } : nil))
                 }
@@ -458,6 +463,7 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
                     identifier: "fst.leaderboards.card.\(instrument.rawValue).view-all"
                 )
                 button.onTap = { [weak self] in self?.context.navigator?.selectDetail(route) }
+                button.ukBindDetailSelection(route, context: context)
                 action = button
             }
         }
@@ -506,7 +512,7 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
             let row = UKRankingRowView()
             row.apply(model)
             let route = AccountRankingRow.route(entry)
-            return [UKCardRowControl(content: row, selectedBand: true, onTap: entry.hasAccount ? { [weak self] in
+            return [UKCardRowControl(content: row, selectedBand: true, detailSelection: entry.hasAccount ? (route, context) : nil, onTap: entry.hasAccount ? { [weak self] in
                 self?.context.navigator?.selectDetail(route)
             } : nil)]
         }
@@ -540,7 +546,7 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
                     let row = UKRankingRowView()
                     row.apply(UKRankingRowModels.band(entry: entry, metric: metric, columns: columns))
                     let route = BandRankingRow.route(entry, bandType: bandType)
-                    rows.append(UKCardRowControl(content: row, selectedBand: false) { [weak self] in
+                    rows.append(UKCardRowControl(content: row, selectedBand: false, detailSelection: (route, context)) { [weak self] in
                         self?.context.navigator?.selectDetail(route)
                     })
                 }
@@ -549,6 +555,7 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
                     identifier: "fst.leaderboards.band-card.\(bandType.rawValue).view-all"
                 )
                 button.onTap = { [weak self] in self?.context.navigator?.selectDetail(.bandRankings(bandType: bandType.rawValue)) }
+                button.ukBindDetailSelection(.bandRankings(bandType: bandType.rawValue), context: context)
                 action = button
             }
         }

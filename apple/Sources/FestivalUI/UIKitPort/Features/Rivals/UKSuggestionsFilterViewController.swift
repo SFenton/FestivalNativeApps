@@ -9,7 +9,7 @@ import UIKit
 /// global switch per ``SuggestionCategoryType`` and, under the instrument selector, one
 /// switch per type for the chosen chart. Every switch applies at once (no Cancel or Apply),
 /// Reset Filters sits at the end, and Close dismisses.
-final class UKSuggestionsFilterViewController: UIViewController, UKModalScrollProviding {
+final class UKSuggestionsFilterViewController: UKPageViewController, UKModalScrollProviding {
     private var draft: SuggestionFilterSettings
     private let visibleInstruments: [Instrument]
     private let onChange: (SuggestionFilterSettings) -> Void
@@ -43,8 +43,7 @@ final class UKSuggestionsFilterViewController: UIViewController, UKModalScrollPr
         scrollView.alwaysBounceVertical = true
         scrollView.accessibilityIdentifier = "fst.suggestions.filter.form"
         scrollView.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(scrollView)
-        scrollView.ukPin(to: view)
+        installPageContent(scrollView, scrollView: scrollView)
         stack.axis = .vertical
         stack.spacing = 20
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -193,7 +192,7 @@ final class UKSuggestionsFilterViewController: UIViewController, UKModalScrollPr
         toggle.addAction(UIAction { [weak toggle] _ in onToggle(toggle?.isOn ?? false) }, for: .valueChanged)
         switches.append { [weak toggle] in
             let value = isOn()
-            if toggle?.isOn != value { toggle?.setOn(value, animated: true) }
+            if toggle?.isOn != value { toggle?.setOn(value, animated: !UKAccessibility.reduceMotion) }
         }
         let text = UIStackView(arrangedSubviews: [UKLabel(title, style: .body)])
         text.axis = .vertical
@@ -210,7 +209,7 @@ final class UKSuggestionsFilterViewController: UIViewController, UKModalScrollPr
         toggle.setContentHuggingPriority(.required, for: .horizontal)
         // The whole row is the switch's target, as a SwiftUI `Toggle` row is.
         toggle.row = row
-        row.addGestureRecognizer(UITapGestureRecognizer(target: toggle, action: #selector(UKRowSwitch.flip)))
+        toggle.installRowTap(on: row)
         return row
     }
 }

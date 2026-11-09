@@ -192,6 +192,19 @@ struct SongDetailScreen: View {
                 )
             }
         }
+        #if DEBUG && os(iOS)
+        .onAppear {
+            PerfNavigationHooks.registerModal(
+                "song-paths",
+                present: { pathsPresented = true },
+                dismiss: { pathsPresented = false },
+                isPresented: { pathsPresented }
+            )
+        }
+        .onDisappear {
+            PerfNavigationHooks.unregisterModal("song-paths")
+        }
+        #endif
         .task(id: gateKey) { await loadGate() }
         // The first Shop read belongs to the gate (#585); this covers later changes
         // (new publication, Hide Item Shop turned off) once the page shows.

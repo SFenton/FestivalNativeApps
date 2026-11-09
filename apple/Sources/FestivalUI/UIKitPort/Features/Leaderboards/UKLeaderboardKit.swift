@@ -192,6 +192,8 @@ struct UKLeaderboardRow {
     var bare = false
     /// Runs when the row is tapped or activated; nil for a read-only row.
     var onTap: (() -> Void)?
+    /// The split destination represented by the row's accessible content.
+    var detailSelection: (route: AppRoute, context: UKContext)?
 }
 
 /// The one collection-view cell every leaderboard board uses: a segment of the board's
@@ -205,14 +207,19 @@ final class UKLeaderboardRowCell: UKSelfSizingCell {
     private let band = UIView()
     private let hairline = UKHairlineView(leadingInset: UKLeaderboardMetrics.horizontalPadding)
     private var content: UIView?
+    private var contentConstraints: [NSLayoutConstraint] = []
     private var kind: UKLeaderboardRow.Kind?
     private var topInset: NSLayoutConstraint!
     private var pressedDim = false
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        isAccessibilityElement = false
+        contentView.isAccessibilityElement = false
         backgroundColor = .clear
         contentView.backgroundColor = .clear
+        card.isAccessibilityElement = false
+        card.contentView.isAccessibilityElement = false
         card.clipsContent = true
         card.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(card)
@@ -240,6 +247,10 @@ final class UKLeaderboardRowCell: UKSelfSizingCell {
     override func prepareForReuse() {
         super.prepareForReuse()
         contentView.alpha = 1
+        accessibilityElements = nil
+        contentView.accessibilityElements = nil
+        card.contentView.accessibilityElements = nil
+        content?.ukClearDetailSelection()
         layer.removeAllAnimations()
         alpha = 1
         transform = .identity
@@ -260,22 +271,41 @@ final class UKLeaderboardRowCell: UKSelfSizingCell {
         hairline.isHidden = segment.isFirst || row.bare
         band.isHidden = !row.isSelectedBand
         if kind != row.kind || content == nil {
+            NSLayoutConstraint.deactivate(contentConstraints)
+            contentConstraints = []
             content?.removeFromSuperview()
             let made = row.make()
             made.translatesAutoresizingMaskIntoConstraints = false
-            card.contentView.addSubview(made)
-            card.contentView.bringSubviewToFront(hairline)
-            NSLayoutConstraint.activate([
-                made.leadingAnchor.constraint(equalTo: card.contentView.leadingAnchor),
-                made.trailingAnchor.constraint(equalTo: card.contentView.trailingAnchor),
-                made.topAnchor.constraint(equalTo: card.contentView.topAnchor),
-                made.bottomAnchor.constraint(equalTo: card.contentView.bottomAnchor),
-            ])
             content = made
             kind = row.kind
         }
-        if let content { row.apply(content) }
+        if let content {
+            let host = row.bare ? contentView : card.contentView
+            if content.superview !== host {
+                NSLayoutConstraint.deactivate(contentConstraints)
+                content.removeFromSuperview()
+                host.addSubview(content)
+                contentConstraints = [
+                    content.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+                    content.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+                    content.topAnchor.constraint(equalTo: host.topAnchor),
+                    content.bottomAnchor.constraint(equalTo: host.bottomAnchor),
+                ]
+                NSLayoutConstraint.activate(contentConstraints)
+                card.contentView.bringSubviewToFront(hairline)
+            }
+            content.ukClearDetailSelection()
+            row.apply(content)
+            (content as? UKSongScoreRowView)?.onTap = row.onTap
+            if let selection = row.detailSelection {
+                content.ukBindDetailSelection(selection.route, context: selection.context)
+            }
+        }
         content?.alpha = 1
+        let hosted = content.map { [$0] }
+        accessibilityElements = hosted
+        contentView.accessibilityElements = hosted
+        card.contentView.accessibilityElements = row.bare ? nil : hosted
     }
 }
 
@@ -331,7 +361,7 @@ final class UKRankingRowView: UIView {
         ratingColumn.alignment = .trailing
         ratingColumn.addArrangedSubview(ratingLabel)
         ratingColumn.addArrangedSubview(bayesianLabel)
-        ratingLabel.adjustsFontSizeToFitWidth = true
+        ratingLabel.adjustsFontSizeToFitWidth = false
         ratingLabel.minimumScaleFactor = 0.5
         nameMarquee.setContentHuggingPriority(UILayoutPriority(1), for: .horizontal)
         nameWrapping.setContentHuggingPriority(UILayoutPriority(1), for: .horizontal)
@@ -366,6 +396,11 @@ final class UKRankingRowView: UIView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil, let model { apply(model) }
+    }
+
     override func accessibilityActivate() -> Bool {
         guard model?.opensSomething == true else { return false }
         return super.accessibilityActivate()
@@ -378,6 +413,7 @@ final class UKRankingRowView: UIView {
         self.model = model
         let stacked = UKFont.isAccessibilitySize(traitCollection)
         let hidesSongs = model.columns?.showsSongs == false && !stacked
+        ratingLabel.adjustsFontSizeToFitWidth = !stacked
         rankLabel.text = "#\(model.rank.formatted())"
         nameMarquee.text = model.name
         nameMarquee.font = UKFont.font(.body, weight: model.emphasized ? .bold : nil)
@@ -417,13 +453,18 @@ final class UKRankingRowView: UIView {
             head.axis = .horizontal
             head.alignment = .firstBaseline
             head.spacing = 8
+            valuesLine.axis = .vertical
+            valuesLine.alignment = .leading
+            valuesLine.spacing = 4
             valuesLine.addArrangedSubview(songsSlot)
-            valuesLine.addArrangedSubview(UIView())
             valuesLine.addArrangedSubview(ratingSlot)
             accessibilityLine.addArrangedSubview(head)
             accessibilityLine.addArrangedSubview(valuesLine)
             // The AX row has no template columns: the slots shrink to their content.
         } else {
+            valuesLine.axis = .horizontal
+            valuesLine.alignment = .firstBaseline
+            valuesLine.spacing = 8
             line.addArrangedSubview(rankSlot)
             line.addArrangedSubview(nameHolder)
             if !hidesSongs { line.addArrangedSubview(songsSlot) }

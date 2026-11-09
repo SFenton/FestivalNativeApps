@@ -13,6 +13,7 @@ final class UKSongsSectionHeaderView: UICollectionReusableView {
     static let topPadding: CGFloat = 8
     static let bottomPadding: CGFloat = 2
     private let label = UILabel()
+    private var trailingReserve: CGFloat = 0
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -29,7 +30,8 @@ final class UKSongsSectionHeaderView: UICollectionReusableView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     /// Sets the title.
-    func configure(group: SongsListGroup) {
+    func configure(group: SongsListGroup, trailingReserve: CGFloat = 0) {
+        self.trailingReserve = trailingReserve
         label.text = group.label
         accessibilityLabel = group.spokenLabel ?? group.label
         accessibilityIdentifier = group.accessibilityID
@@ -38,14 +40,22 @@ final class UKSongsSectionHeaderView: UICollectionReusableView {
 
     override func preferredLayoutAttributesFitting(_ layoutAttributes: UICollectionViewLayoutAttributes) -> UICollectionViewLayoutAttributes {
         let attributes = layoutAttributes.copy() as! UICollectionViewLayoutAttributes
-        let text = label.sizeThatFits(CGSize(width: layoutAttributes.size.width - 40, height: .greatestFiniteMagnitude))
+        let text = label.sizeThatFits(CGSize(width: max(0, layoutAttributes.size.width - 40 - trailingReserve), height: .greatestFiniteMagnitude))
         attributes.size.height = ceil(text.height) + Self.topPadding + Self.bottomPadding
         return attributes
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        label.frame = CGRect(x: 20, y: Self.topPadding, width: max(0, bounds.width - 40), height: max(0, bounds.height - Self.topPadding - Self.bottomPadding))
+        label.frame = CGRect(x: 20, y: Self.topPadding, width: max(0, bounds.width - 40 - trailingReserve), height: max(0, bounds.height - Self.topPadding - Self.bottomPadding))
+    }
+
+    override var accessibilityFrame: CGRect {
+        get {
+            guard let window else { return .zero }
+            return label.convert(label.bounds, to: window.screen.coordinateSpace)
+        }
+        set { super.accessibilityFrame = newValue }
     }
 }
 

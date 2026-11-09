@@ -29,7 +29,7 @@ final class UKShopBreathingGlyphView: UIView {
     private let status = CALayer()
     private let tone: ShopStatusTone
     private var observer: UKAccessibilityObserver?
-    nonisolated(unsafe) private var sceneObservers: [NSObjectProtocol] = []
+    private var visibilityObserver: UKMotionVisibilityObserver?
 
     /// Creates the glyph.
     ///
@@ -57,18 +57,11 @@ final class UKShopBreathingGlyphView: UIView {
         ])
         isAccessibilityElement = false
         observer = UKAccessibilityObserver { [weak self] in self?.refresh() }
-        let center = NotificationCenter.default
-        for name in [UIScene.didActivateNotification, UIScene.willDeactivateNotification, UIApplication.didBecomeActiveNotification, UIApplication.willResignActiveNotification] {
-            sceneObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.refresh() }
-            })
-        }
+        visibilityObserver = UKMotionVisibilityObserver { [weak self] in self?.refresh() }
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    deinit { sceneObservers.forEach(NotificationCenter.default.removeObserver) }
 
     override func layoutSubviews() {
         super.layoutSubviews()
@@ -82,7 +75,7 @@ final class UKShopBreathingGlyphView: UIView {
 
     private func refresh() {
         status.removeAnimation(forKey: "breathe")
-        let active = window != nil && UIApplication.shared.applicationState == .active
+        let active = UKMotionVisibility.permitsAnimation(in: self)
         guard ShopStatusBreathe.animates(reduceMotion: UKAccessibility.reduceMotion, sceneActive: active, still: DebugAnimationOverride.stillBackground) else {
             status.opacity = Float(ShopStatusTone.peakOpacity)
             return

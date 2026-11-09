@@ -2,6 +2,18 @@ import UIKit
 import Vision
 import XCTest
 
+#if FST_UIKIT_PORT
+private let scoreHistoryDestination = ["fst.history.header"]
+private let scoreHistoryContent = ["fst.history.header", "fst.history.row.0"]
+private let scoreHistoryDestinationLabel: String? = "Lead · Score History"
+private let scoreHistoryDismissal: String? = "fst.song-detail.intensity"
+#else
+private let scoreHistoryDestination = ["fst.history"]
+private let scoreHistoryContent: [String] = []
+private let scoreHistoryDestinationLabel: String? = nil
+private let scoreHistoryDismissal: String? = nil
+#endif
+
 // MARK: - In-card View All at AX5 (issue #382, backfilled by #500)
 
 /// The purple "View All" buttons #382 moved inside their group cards, on a real iPhone or
@@ -28,7 +40,7 @@ import XCTest
 /// HIG Typography: "Keep text truncation to a minimum as font size increases"; HIG
 /// Accessibility: "Strive for the platform's recommended minimum control size" (iOS 44×44 pt).
 final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
-    private static let origin = ProcessInfo.processInfo.environment["FST_FIXTURE_URL"] ?? "http://127.0.0.1:8765"
+    private static let origin = SongsUITestSupport.fixtureURL
     private static let ax5 = UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue
 
     /// One in-card button and how to reach it.
@@ -55,6 +67,12 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
         /// Elements the full list shows, any one of which proves it opened (a song board is
         /// titled by the song header on iPhone and by its chart beside Song Detail).
         let destination: [String]
+        /// Additional content that must be present after navigation.
+        var content: [String] = []
+        /// Text that must remain attached to the destination's selected content.
+        var destinationLabel: String? = nil
+        /// An element on the source page that must return after native dismissal.
+        var dismissal: String? = nil
     }
 
     private static let leaderboards = Card(
@@ -93,7 +111,10 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
         name: "score-history", env: songDetail, openRow: songRow, ready: "fst.song-detail.intensity",
         id: "fst.song-detail.history.view-all",
         nameFormat: #"^View All Scores, .+ Score History$"#, words: ["view", "all", "scores"],
-        destination: ["fst.history"]
+        destination: scoreHistoryDestination,
+        content: scoreHistoryContent,
+        destinationLabel: scoreHistoryDestinationLabel,
+        dismissal: scoreHistoryDismissal
     )
 
     // MARK: - Journeys
@@ -192,6 +213,31 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
         let destination = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier IN %@", card.destination)).firstMatch
         XCTAssertTrue(destination.waitForExistence(timeout: FestivalApp.budget(20)), "\(card.name): opens its full list")
+        if let expectedLabel = card.destinationLabel {
+            XCTAssertTrue(
+                destination.label.contains(expectedLabel),
+                "\(card.name): selected content is preserved in '\(destination.label)'"
+            )
+        }
+        for identifier in card.content {
+            XCTAssertTrue(
+                app.descendants(matching: .any).matching(identifier: identifier)
+                    .firstMatch
+                    .waitForExistence(timeout: FestivalApp.budget(10)),
+                "\(card.name): full-list content \(identifier)"
+            )
+        }
+        if let dismissal = card.dismissal {
+            let back = app.buttons["BackButton"]
+            XCTAssertTrue(back.waitForExistence(timeout: FestivalApp.budget(5)), "\(card.name): native back button")
+            back.tap()
+            XCTAssertTrue(
+                app.descendants(matching: .any).matching(identifier: dismissal)
+                    .firstMatch
+                    .waitForExistence(timeout: FestivalApp.budget(10)),
+                "\(card.name): native dismissal returns to source page"
+            )
+        }
     }
 
     // MARK: - Launch and reveal

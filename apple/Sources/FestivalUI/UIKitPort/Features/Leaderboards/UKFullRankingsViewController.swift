@@ -9,7 +9,7 @@ import UIKit
 /// instrument (or a within-group combo) and metric, 25 rows a page, the selected player's
 /// row pinned above the pager on every page, instrument and Rank By page tools.
 @MainActor
-final class UKFullRankingsViewController: UIViewController, UKPageToolsProviding {
+final class UKFullRankingsViewController: UKPageViewController, UKPageToolsProviding {
     private struct BoardSummary: Equatable {
         let totalAccounts: Int
         let totalPages: Int
@@ -133,10 +133,9 @@ final class UKFullRankingsViewController: UIViewController, UKPageToolsProviding
 
     // MARK: Lifecycle
 
-    override func loadView() { view = boardView }
-
     override func viewDidLoad() {
         super.viewDidLoad()
+        installPageContent(boardView, scrollView: boardView.collectionView)
         view.backgroundColor = .clear
         ukInstallAccountItems()
         ukSetPageTitle(pageTitle, mode: .inline)
@@ -193,6 +192,27 @@ final class UKFullRankingsViewController: UIViewController, UKPageToolsProviding
             tools.append(UKPageTool(order: PageToolOrder.secondary, item: item))
         }
         return tools
+    }
+
+    var ukPageMenuCommands: [UKPageMenuCommand] {
+        let instruments = combo == nil ? visibleInstruments.map { chart in
+            UKPageMenuCommand(
+                identifier: "instrument.\(chart.rawValue)", title: chart.label,
+                state: instrument == chart ? .on : .off,
+                perform: { [weak self] in self?.select(instrument: chart) }
+            )
+        } : []
+        let metrics = RankingMetric.enabled(experimentalRanks: experimental).map { metric in
+            UKPageMenuCommand(
+                identifier: "rank.\(metric.rawValue)", title: metric.label,
+                state: rankBy == metric ? .on : .off,
+                perform: { [weak self] in self?.select(rankBy: metric) }
+            )
+        }
+        return [
+            UKPageMenuCommand(identifier: "instrument", title: "Instrument", children: instruments),
+            UKPageMenuCommand(identifier: "rankBy", title: "Rank By", children: metrics),
+        ]
     }
 
     // MARK: Selection
@@ -450,6 +470,7 @@ final class UKFullRankingsViewController: UIViewController, UKPageToolsProviding
                 let route = AccountRankingRow.route(entry)
                 rows.append((entry.id, UKRankingRowModels.row(
                     model, selectedBand: isSelectedAccount(entry.accountId),
+                    detailSelection: entry.hasAccount ? (route, context) : nil,
                     onTap: entry.hasAccount ? { [weak self] in self?.context.navigator?.selectDetail(route) } : nil
                 )))
             }

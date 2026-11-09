@@ -28,6 +28,9 @@ final class UKSongScoreHistoryView: UIView {
     private var displayed: Instrument
     private var chartWidth: CGFloat = 0
     private var swap: Task<Void, Never>?
+    private var swapGeneration = 0
+    private var motionObserver: UKAccessibilityObserver?
+    private var visibilityObserver: UKMotionVisibilityObserver?
     private var heightPin: NSLayoutConstraint?
     private var listViews: [UIView] = []
     private var actionView: UIView?
@@ -86,6 +89,8 @@ final class UKSongScoreHistoryView: UIView {
         ])
         accessibilityContainerType = .semanticGroup
         accessibilityIdentifier = Self.anchor
+        motionObserver = UKAccessibilityObserver { [weak self] in self?.motionSettingsChanged() }
+        visibilityObserver = UKMotionVisibilityObserver { [weak self] in self?.motionSettingsChanged() }
         render(for: shown)
     }
 
@@ -169,6 +174,7 @@ final class UKSongScoreHistoryView: UIView {
                 guard let self else { return }
                 self.context.navigator?.selectDetail(.playerHistory(self.song, self.displayed))
             }
+            action.ukBindDetailSelection(.playerHistory(song, instrument), context: context)
             actionView = action
             section.setAction(action)
         } else {
@@ -183,17 +189,26 @@ final class UKSongScoreHistoryView: UIView {
 
     private func choose(_ target: Instrument) {
         chosen = target
-        switch ScoreHistorySwap.plan(displayed: displayed, target: target, reduceMotion: UKAccessibility.reduceMotion) {
+        swapGeneration += 1
+        let generation = swapGeneration
+        swap?.cancel()
+        swap = nil
+        fadingViews.forEach { $0.layer.removeAllAnimations() }
+        let reduceMotion = UKAccessibility.reduceMotion || !UKMotionVisibility.permitsAnimation(in: self)
+        switch ScoreHistorySwap.plan(displayed: displayed, target: target, reduceMotion: reduceMotion) {
         case .none:
             return
         case .settle:
-            swap?.cancel()
-            swap = nil
-            UIView.animate(withDuration: ScoreHistorySwap.fadeInSeconds, delay: 0, options: .curveEaseOut) { self.fadingViews.forEach { $0.alpha = 1 } }
+            if reduceMotion {
+                fadingViews.forEach { $0.alpha = 1 }
+            } else {
+                UIView.animate(
+                    withDuration: ScoreHistorySwap.fadeInSeconds, delay: 0,
+                    options: [.curveEaseOut, .beginFromCurrentState]
+                ) { self.fadingViews.forEach { $0.alpha = 1 } }
+            }
             releasePin()
         case .instant:
-            swap?.cancel()
-            swap = nil
             displayed = target
             render(for: target)
             fadingViews.forEach { $0.alpha = 1 }
@@ -203,24 +218,47 @@ final class UKSongScoreHistoryView: UIView {
             pinHeight()
             swap = Task { @MainActor [weak self] in
                 guard let self else { return }
-                UIView.animate(withDuration: ScoreHistorySwap.fadeOutSeconds, delay: 0, options: .curveEaseIn) { self.fadingViews.forEach { $0.alpha = 0 } }
+                UIView.animate(
+                    withDuration: ScoreHistorySwap.fadeOutSeconds, delay: 0,
+                    options: [.curveEaseIn, .beginFromCurrentState]
+                ) { self.fadingViews.forEach { $0.alpha = 0 } }
                 try? await Task.sleep(for: .seconds(ScoreHistorySwap.fadeOutSeconds))
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, self.swapGeneration == generation else { return }
                 self.displayed = target
                 self.render(for: target)
                 self.fadingViews.forEach { $0.alpha = 0 }
                 await Task.yield()
-                guard !Task.isCancelled else { return }
-                UIView.animate(withDuration: ScoreHistorySwap.fadeInSeconds, delay: 0, options: .curveEaseOut) { self.fadingViews.forEach { $0.alpha = 1 } }
+                guard !Task.isCancelled, self.swapGeneration == generation else { return }
+                UIView.animate(
+                    withDuration: ScoreHistorySwap.fadeInSeconds, delay: 0,
+                    options: [.curveEaseOut, .beginFromCurrentState]
+                ) { self.fadingViews.forEach { $0.alpha = 1 } }
                 try? await Task.sleep(for: .seconds(ScoreHistorySwap.fadeInSeconds))
-                guard !Task.isCancelled else { return }
-                UIView.animate(withDuration: ScoreHistorySwap.fadeInSeconds, delay: 0, options: .curveEaseOut) {
+                guard !Task.isCancelled, self.swapGeneration == generation else { return }
+                UIView.animate(
+                    withDuration: ScoreHistorySwap.fadeInSeconds, delay: 0,
+                    options: [.curveEaseOut, .beginFromCurrentState]
+                ) {
                     self.releasePin()
                     self.layoutIfNeeded()
                 }
                 self.swap = nil
             }
         }
+    }
+
+    private func motionSettingsChanged() {
+        guard swap != nil else { return }
+        swapGeneration += 1
+        swap?.cancel()
+        swap = nil
+        fadingViews.forEach { $0.layer.removeAllAnimations(); $0.alpha = 1 }
+        if displayed != chosen {
+            displayed = chosen
+            render(for: displayed)
+            fadingViews.forEach { $0.alpha = 1 }
+        }
+        releasePin()
     }
 
     /// Holds the graph row at its current height for the swap, so the card keeps its size.
