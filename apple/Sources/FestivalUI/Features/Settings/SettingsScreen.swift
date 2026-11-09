@@ -127,9 +127,17 @@ struct SettingsScreen: View {
             // its panes' sections into two balanced columns (pattern `wide-columns` R7).
             WideColumnStack(columns: columns, spacing: 28) {
                 if let pane {
+                    #if DEBUG && os(iOS)
                     paneContent(pane).modifier(SettingsPerfLoadedMarker())
+                    #else
+                    paneContent(pane)
+                    #endif
                 } else if let topic {
+                    #if DEBUG && os(iOS)
                     topicContent(topic).modifier(SettingsPerfLoadedMarker())
+                    #else
+                    topicContent(topic)
+                    #endif
                 } else if isList {
                     listPage
                 } else {

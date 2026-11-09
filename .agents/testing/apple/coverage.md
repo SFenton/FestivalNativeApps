@@ -6,6 +6,7 @@
 
 - Iterate: `DEVELOPER_DIR=… swift test --package-path apple --filter <names>`.
 - Gate: `bash tools/apple_coverage.sh` — runs all three SwiftPM test bundles, merges real LLVM line coverage per binary, checks `apple/Sources` for missing/nested files, requires **95% logic / 90% UX**, and runs `python3 -m tools.contrast_gate`. Re-run after compiled-source edits; targeted tests cannot certify a new source state.
+- Match iOS-only probe definitions and call sites with `#if DEBUG && os(iOS)`. Validate host SwiftPM compilation and true Release with no `DEBUG` condition; an optimized Release-plus-DEBUG performance build cannot detect missing guards in either path.
 - Exclusions (`contracts/coverage-rules.json`'s `swift.exclude`): generated `BrandTokens.swift`, plus `App/AppRoute.swift` and `Features/Settings/LicenseManifest.swift` — all three have **zero executable lines** (pure `enum`/`struct` declarations and array literals with no function bodies or control flow), so `llvm-cov export` omits them entirely rather than reporting 0 covered/0 executable; the gate's completeness check otherwise reports them as "missing coverage" once correctly classified. Never exclude a file that has real logic; the gate fails loudly (`executable source cannot be excluded`) if an excluded file ever gains one.
 
 ### Fixed 2026-09-28 (Lane C): non-recursive glob undercounted UX by ~25,800 lines
