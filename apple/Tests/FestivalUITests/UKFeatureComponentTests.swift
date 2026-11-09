@@ -267,6 +267,69 @@ struct UKFeatureComponentTests {
     }
 
     @Test
+    func boardRowsSelfSizeInTwoColumnsAtNormalAndAX5TextSizes() async throws {
+        let model = UKRankingRowView.Model(
+            rank: 1, name: "Fixture Team One", songs: "79 / 100", spokenSongs: "79 songs",
+            rating: "178,000,000", bayesian: nil, columns: nil, identifier: "fst.feature-board-row",
+            opensSomething: true
+        )
+        let row = UKLeaderboardRow(
+            kind: .ranking,
+            make: { UKRankingRowView() },
+            apply: { ($0 as? UKRankingRowView)?.apply(model) }
+        )
+        let categories: [(UIContentSizeCategory, CGFloat)] = [
+            (.large, 44),
+            (.accessibilityExtraExtraExtraLarge, UIFont.preferredFont(
+                forTextStyle: .body,
+                compatibleWith: UITraitCollection(preferredContentSizeCategory: .accessibilityExtraExtraExtraLarge)
+            ).lineHeight * 2),
+        ]
+
+        for (category, minimumHeight) in categories {
+            let board = UKBoardView(
+                gateKey: "board-row-sizing-\(category.rawValue)", isLoading: false,
+                spinnerLabel: "Loading", spinnerIdentifier: nil, retainsFrame: false
+            )
+            board.setColumns(2)
+            board.setContent(
+                headViews: [],
+                rowItems: [("row-1", row), ("row-2", row)]
+            )
+            let content = UIViewController()
+            content.view.addSubview(board)
+            board.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                board.leadingAnchor.constraint(equalTo: content.view.leadingAnchor),
+                board.trailingAnchor.constraint(equalTo: content.view.trailingAnchor),
+                board.topAnchor.constraint(equalTo: content.view.topAnchor),
+                board.bottomAnchor.constraint(equalTo: content.view.bottomAnchor),
+            ])
+            let container = UKTraitContentContainer(child: content, traits: UITraitCollection(
+                preferredContentSizeCategory: category
+            ))
+            let hosted = try await UKHostedWindow.make()
+            defer { hosted.close() }
+            try await hosted.present(container)
+            board.reconfigureRows()
+            try await UKHostedWindow.wait {
+                board.collectionView.layoutIfNeeded()
+                let cells = board.collectionView.visibleCells.compactMap { $0 as? UKLeaderboardRowCell }
+                return cells.count == 2 && cells.allSatisfy { $0.bounds.height >= minimumHeight }
+            }
+
+            let cells = board.collectionView.visibleCells.compactMap { $0 as? UKLeaderboardRowCell }
+            try #require(cells.count == 2)
+            #expect(cells.allSatisfy { $0.bounds.height >= minimumHeight }, "\(category.rawValue): \(cells.map(\.bounds))")
+            for cell in cells {
+                let frame = cell.convert(cell.bounds, to: board.collectionView)
+                #expect(frame.minX >= 0, "\(category.rawValue): \(frame)")
+                #expect(frame.maxX <= board.collectionView.bounds.width, "\(category.rawValue): \(frame)")
+            }
+        }
+    }
+
+    @Test
     func songLeaderboardRowsKeepAX5HeightAndCellOwnedInteraction() {
         let entry = LeaderboardEntry(
             accountId: "fixture-player-1", displayName: "Fixture Player 1", score: 178_000_000,

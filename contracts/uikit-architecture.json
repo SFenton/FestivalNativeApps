@@ -1229,7 +1229,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKBoardView.swift",
-      "sourceHash": "e8cc906b73f84e0d08661f5f5c8140feda16ba06716e7bf2d521a10f5ecd775b",
+      "sourceHash": "df494940c0e47696221ce911d77727ed887b467578a0e6bd9dd45d7d69cc43f5",
       "classes": [
         {
           "name": "UKBoardHostCell",
@@ -1244,11 +1244,11 @@
       "disposition": "shared-component",
       "owner": "UKBoardView / UKReloadGate",
       "verification": [
-        ".agents/platforms/apple/uikit-architecture.md",
-        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
-        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        "apple/Apps/iOSUITests/WideBoardColumnsJourneyTests.swift",
+        ".agents/patterns/leaderboard-row.md"
       ],
-      "note": "One native compositional collection/gate/footer scaffold serves all paginated board families with weak layout/data-source ownership. Runtime/coverage/performance gates remain independent."
+      "note": "Canonical collection board uses estimated row height and fractional per-column widths; source-reviewed centralized repair. Actual SDK, 66 hosted tests/69 invocations on phone, Duo and iPad and both real iPad AX5 ranking journeys passed; whole-product gates remain separate."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKChartDateAxis.swift",
