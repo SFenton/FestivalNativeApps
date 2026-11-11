@@ -75,6 +75,38 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         let frame: CGRect
     }
 
+    /// One accessibility snapshot of the app, retried when it throws
+    /// (`FestivalApp.snapshot(of:within:until:)`).
+    ///
+    /// The journey reads every frame, label and wait from snapshots like this, never from a
+    /// live `XCUIElement`: on the folded Duo's starved runner a live `exists` (the pinned
+    /// title inside the audit) or `.any` wait (Song Detail after the row tap) hung past
+    /// XCTest's retries on both attempts of release 2611.09's apple-ci (#698; #693, #694).
+    ///
+    /// - Parameter app: The running app.
+    /// - Returns: The app's snapshot.
+    /// - Throws: The snapshot error once its retries run out.
+    @MainActor
+    private func tree(_ app: XCUIApplication) throws -> any XCUIElementSnapshot {
+        try FestivalApp.snapshot(of: app, within: FestivalApp.budget(10)) { _ in true }
+    }
+
+    /// The window's frame in a snapshot, as `app.windows.firstMatch` would report it.
+    ///
+    /// - Parameter root: The app's snapshot.
+    /// - Returns: The first window's frame.
+    /// - Throws: When the snapshot holds no window.
+    @MainActor
+    private func windowFrame(in root: any XCUIElementSnapshot) throws -> CGRect {
+        try XCTUnwrap(FestivalApp.nodes(in: root) { $0.elementType == .window }.first, "the app's window").frame
+    }
+
+    /// The first row's frame in a snapshot, or nil when it is not in the tree.
+    @MainActor
+    private func firstRowFrame(in root: any XCUIElementSnapshot) -> CGRect? {
+        FestivalApp.nodes(in: root) { $0.elementType == .button && $0.label == Self.firstRow }.first?.frame
+    }
+
     /// The app's accessibility tree depth first, as VoiceOver stops on it (reading order).
     ///
     /// A button is one stop: XCUITest lists the views inside its label (a row's instrument
@@ -82,6 +114,12 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     /// visits them, so the walk does not descend into buttons.
     @MainActor
     private func readingOrder(_ app: XCUIApplication) throws -> [Node] {
+        readingOrder(of: try tree(app))
+    }
+
+    /// The reading order of a snapshot already taken.
+    @MainActor
+    private func readingOrder(of root: any XCUIElementSnapshot) -> [Node] {
         var nodes: [Node] = []
         func walk(_ snapshot: any XCUIElementSnapshot) {
             nodes.append(Node(
@@ -91,7 +129,7 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
             guard snapshot.elementType != .button else { return }
             snapshot.children.forEach(walk)
         }
-        walk(try app.snapshot())
+        walk(root)
         return nodes
     }
 
@@ -110,23 +148,27 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     /// Wait until the rebuilt comparison shows its first row and has settled: the cards
     /// stagger in (`load-transition`), and on the CI runner a row that already exists can
     /// still be fading in, with its card's frames still moving.
+    ///
+    /// - Returns: The settled snapshot, to read the page's names, order and frames from.
     @MainActor
-    private func waitForRows(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) throws {
-        let first = app.buttons[Self.firstRow].firstMatch
-        XCTAssertTrue(
-            first.waitForExistence(timeout: FestivalApp.budget(30)),
-            "the frozen detail was not rebuilt from /rivals/all", file: file, line: line
-        )
+    @discardableResult
+    private func waitForRows(
+        _ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line
+    ) throws -> any XCUIElementSnapshot {
+        let shown = try FestivalApp.snapshot(of: app, within: FestivalApp.budget(30)) { firstRowFrame(in: $0) != nil }
+        XCTAssertNotNil(firstRowFrame(in: shown), "the frozen detail was not rebuilt from /rivals/all", file: file, line: line)
         // Settled once two snapshots in a row agree on every row and View All frame.
         var previous = ""
         for _ in 0..<10 {
-            let nodes = try readingOrder(app)
+            let root = try tree(app)
+            let nodes = readingOrder(of: root)
             let signature = (rows(nodes) + viewAlls(nodes)).map { "\($0.label)\($0.frame)" }.joined()
-            if signature == previous { return }
+            if signature == previous { return root }
             previous = signature
             Thread.sleep(forTimeInterval: FestivalApp.budget(0.25))
         }
         XCTFail("the rows never settled", file: file, line: line)
+        return shown
     }
 
     /// Tap the first row in the middle of its part between the bars and wait for Song Detail:
@@ -134,6 +176,7 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     /// unobscured row on the CI iPad runtime (apple-ci run 37896597940), so the journey taps
     /// like a user instead. Not at the row's centre: an AX5 row is about 440 pt tall, and
     /// below #604's page title its centre sits under the iPhone's floating page tools.
+    /// The row, the bars and Song Detail are read from retried snapshots (#698).
     ///
     /// - Parameters:
     ///   - app: Rival Detail, its rows shown.
@@ -145,11 +188,18 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         _ app: XCUIApplication, restingAt top: CGFloat, _ message: String,
         file: StaticString = #filePath, line: UInt = #line
     ) throws {
-        let row = app.buttons[Self.firstRow].firstMatch
-        for _ in 0..<8 where row.frame.minY < top - 0.5 { app.swipeDown() }
-        XCTAssertEqual(row.frame.minY, top, accuracy: 1, "\(message): back where it rested", file: file, line: line)
-        let band = try screenTexts(app)
-        let frame = row.frame
+        let isBack = { (root: any XCUIElementSnapshot) in self.firstRowFrame(in: root).map { $0.minY >= top - 0.5 } ?? false }
+        for _ in 0..<8 {
+            if try isBack(tree(app)) { break }
+            app.swipeDown()
+        }
+        // A swipe can still be settling: wait briefly for the row to rest, then assert where it is.
+        let root = try FestivalApp.snapshot(of: app, within: FestivalApp.budget(5)) {
+            self.firstRowFrame(in: $0).map { abs($0.minY - top) <= 1 } ?? false
+        }
+        let frame = try XCTUnwrap(firstRowFrame(in: root), "\(message): the row is shown", file: file, line: line)
+        XCTAssertEqual(frame.minY, top, accuracy: 1, "\(message): back where it rested", file: file, line: line)
+        let band = try screenTexts(in: root)
         let visible = (max(frame.minY, band.top), min(frame.maxY, band.bottom))
         XCTAssertGreaterThanOrEqual(
             visible.1 - visible.0, 44 - 0.5, "\(message): a 44 pt part of the row between the bars \(frame)",
@@ -157,10 +207,10 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         )
         let point = CGPoint(x: frame.midX, y: (visible.0 + visible.1) / 2)
         app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x, dy: point.y)).tap()
-        let songDetail = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier IN %@", ["fst.song-detail.hero-title", "fst.song-detail.loading"])
-        ).firstMatch
-        XCTAssertTrue(songDetail.waitForExistence(timeout: FestivalApp.budget(20)), message, file: file, line: line)
+        let songDetail = ["fst.song-detail.hero-title", "fst.song-detail.loading"]
+        let opened = { (root: any XCUIElementSnapshot) in songDetail.contains { FestivalApp.contains($0, in: root) } }
+        let after = try FestivalApp.snapshot(of: app, within: FestivalApp.budget(20), until: opened)
+        XCTAssertTrue(opened(after), message, file: file, line: line)
     }
 
     /// Wait until `element` exists and takes a tap (`SongDetailJourneyTests`' `waitHittable`).
@@ -207,7 +257,15 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     /// - Returns: The texts and the band's top and bottom, in window points.
     @MainActor
     private func screenTexts(_ app: XCUIApplication) throws -> (texts: [ScreenText], top: CGFloat, bottom: CGFloat) {
-        let window = app.windows.firstMatch.frame
+        try screenTexts(in: tree(app))
+    }
+
+    /// ``screenTexts(_:)`` of a snapshot already taken.
+    @MainActor
+    private func screenTexts(
+        in root: any XCUIElementSnapshot
+    ) throws -> (texts: [ScreenText], top: CGFloat, bottom: CGFloat) {
+        let window = try windowFrame(in: root)
         var top = window.minY, bottom = window.maxY
         var seen: Set<String> = []
         var texts: [ScreenText] = []
@@ -225,7 +283,7 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
             }
             node.children.forEach { walk($0, inChrome: inChrome || isChrome) }
         }
-        walk(try app.snapshot(), inChrome: false)
+        walk(root, inChrome: false)
         return (texts, top, bottom)
     }
 
@@ -260,14 +318,15 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     /// - Returns: Texts below 4.5:1 or never measured; empty when the floor holds.
     @MainActor
     private func pageContrastFloor(_ app: XCUIApplication) throws -> [String] {
-        let window = app.windows.firstMatch.frame
         var problems: [String] = []
         var measured = 0
         var previous = ""
         for step in 0..<24 {
             let image = try XCTUnwrap(app.screenshot().image.cgImage)
-            let (texts, top, bottom) = try screenTexts(app)
-            let signature = texts.map { "\($0.label)\($0.frame)" }.joined()
+            let root = try tree(app)
+            let window = try windowFrame(in: root)
+            let (texts, top, bottom) = try screenTexts(in: root)
+            let signature = Self.floorSignature(texts.map { ($0.identifier, $0.label, $0.frame) })
             let atEnd = signature == previous
             // Once the page has scrolled, content within the top bar's scroll-edge depth is dimmed
             // by design (system soft edge + `TopEdgeScrim`, `scroll-edge` R6). Each drag moves the
@@ -295,6 +354,21 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         }
         if measured == 0 { problems.append("no text to measure") }
         return problems
+    }
+
+    /// Where the page rests, for `pageContrastFloor`'s end check: each text by its identifier
+    /// (its label when it has none) and vertical extent, which a drag that still scrolls moves.
+    ///
+    /// The retry state's countdown changes its label, and so its width, every second: keyed
+    /// by label and whole frame, two captures never matched, the floor dragged all 24 times
+    /// (85 s on the CI iPad) and outlived the state's 60 s auto-retry, whose fade-in left
+    /// every text unmeasured (release 2611.09, #698).
+    ///
+    /// - Parameter texts: Each static text's identifier, label and frame, in tree order.
+    /// - Returns: A string equal for two captures of the same resting page.
+    static func floorSignature(_ texts: [(identifier: String, label: String, frame: CGRect)]) -> String {
+        texts.map { "\($0.identifier.isEmpty ? $0.label : $0.identifier)@\($0.frame.minY),\($0.frame.height)" }
+            .joined(separator: "|")
     }
 
     /// Run `performAccessibilityAudit` with the iPad lane's per-issue evidence rules
@@ -331,20 +405,28 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         file: StaticString = #filePath, line: UInt = #line
     ) throws -> [Growth] {
         let image = try XCTUnwrap(app.screenshot().image.cgImage)
-        let window = app.windows.firstMatch.frame
-        let band = try screenTexts(app)
+        let root = try tree(app)
+        let window = try windowFrame(in: root)
+        let band = try screenTexts(in: root)
         // `system-bar-title-size`: the pinned title (#604) is bar text, which UIKit caps.
         // Read when each issue is raised, not before the audit: the leading title (#632)
         // can settle a few points after the screenshot (#659), so a stale frame missed it.
-        let pinned = app.descendants(matching: .any).matching(identifier: Self.pinnedTitle).firstMatch
-        let pinnedFrame = { pinned.exists ? pinned.frame.intersection(app.navigationBars.firstMatch.frame.insetBy(dx: 0, dy: -1)) : .null }
+        // Read from a fresh snapshot, never a live `exists` (#698); an unreadable title is
+        // not shown, so the flag needs the stricter growth proof.
+        let pinnedFrame = { () -> CGRect in
+            guard let now = try? self.tree(app), let title = FestivalApp.node(Self.pinnedTitle, in: now) else { return .null }
+            let bar = FestivalApp.nodes(in: now) { $0.elementType == .navigationBar }.first?.frame ?? .null
+            return title.frame.intersection(bar.insetBy(dx: 0, dy: -1))
+        }
         var evidence: [String] = []
         var open: [String] = []
         var unattributedContrast = 0
         var pending: [Growth] = []
         try app.performAccessibilityAudit(for: types) { issue in
-            let element = issue.element
+            // Snapshot the flagged element once (testing/apple/xcuitest.md, #500).
+            let element = try issue.element.map { try FestivalApp.snapshot(of: $0, within: FestivalApp.budget(10)) { _ in true } }
             let summary = "\(issue.compactDescription): '\(element?.label ?? "")' \(element?.frame ?? .zero)"
+            let pinned = issue.auditType == .dynamicType && element?.elementType == .staticText ? pinnedFrame() : .null
             switch (issue.auditType, element) {
             case (.contrast, nil):
                 unattributedContrast += 1
@@ -369,10 +451,10 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
                 pending.append(Growth(key: "", height: 0, summary: summary, rule: Self.predictedClipping))
                 return true
             case (.dynamicType, let element?) where element.elementType == .staticText
-                && Self.contains(pinnedFrame(), element.frame):
+                && Self.contains(pinned, element.frame):
                 // UIKit caps the text a bar hosts; the pinned copy offers the Large Content Viewer
                 // (testing/apple/accessibility.md `system-bar-title-size`, as `RivalsJourneyTests`).
-                evidence.append("system-bar-title-size: \(summary), inside the pinned title \(pinnedFrame())")
+                evidence.append("system-bar-title-size: \(summary), inside the pinned title \(pinned)")
                 return true
             case (.textClipped, let element?), (.dynamicType, let element?):
                 var summary = summary
@@ -536,7 +618,13 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     /// keys a flag by its element's identifier.
     @MainActor
     private func textHeights(_ app: XCUIApplication) throws -> [String: CGFloat] {
-        let heights: [String: CGFloat] = try screenTexts(app).texts.reduce(into: [:]) { heights, text in
+        try textHeights(in: tree(app))
+    }
+
+    /// ``textHeights(_:)`` of a snapshot already taken.
+    @MainActor
+    private func textHeights(in root: any XCUIElementSnapshot) throws -> [String: CGFloat] {
+        let heights: [String: CGFloat] = try screenTexts(in: root).texts.reduce(into: [:]) { heights, text in
             let key = text.identifier.isEmpty ? text.label : text.identifier
             heights[key] = min(heights[key] ?? .infinity, text.frame.height)
         }
@@ -547,7 +635,7 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
             }
             node.children.forEach(walk)
         }
-        walk(try app.snapshot())
+        walk(root)
         return heights.merging(buttons) { text, _ in text }
     }
 
@@ -565,12 +653,13 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     func testFrozenRivalDetailNamesOrdersSizesAndGrowsItsRows() throws {
         continueAfterFailure = false
         let app = launch(player: "fixture-riv-frozen")
-        try waitForRows(app)
-        let baseline = try textHeights(app)
-        let regularFrame = app.buttons[Self.firstRow].firstMatch.frame
+        // Every name, order and frame below comes from the one settled snapshot (#698).
+        let settled = try waitForRows(app)
+        let baseline = try textHeights(in: settled)
+        let regularFrame = try XCTUnwrap(firstRowFrame(in: settled))
         let regularHeight = regularFrame.height
-        let window = app.windows.firstMatch.frame
-        let nodes = try readingOrder(app)
+        let window = try windowFrame(in: settled)
+        let nodes = readingOrder(of: settled)
 
         XCTAssertFalse(nodes.contains { $0.label == "Loading rival detail" }, "no spinner left")
         XCTAssertFalse(nodes.contains { $0.identifier.hasPrefix("fst.service-status") }, "no error state")
@@ -630,31 +719,35 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         app.terminate()
 
         let large = launch(player: "fixture-riv-frozen", contentSize: Self.ax5)
-        try waitForRows(large)
-        try growsAtTheLargestTextSize(large, regularHeight: regularHeight, baseline: baseline, pending: pending)
+        let settledLarge = try waitForRows(large)
+        try growsAtTheLargestTextSize(
+            large, settled: settledLarge, regularHeight: regularHeight, baseline: baseline, pending: pending
+        )
     }
 
     /// The AX5 half of the rows journey, on the page relaunched at AX5.
     ///
     /// - Parameters:
     ///   - app: Rival Detail launched at AX5, its rows shown.
+    ///   - settled: Its settled snapshot (`waitForRows`).
     ///   - regularHeight: The first row's height at the default size.
     ///   - baseline: Text heights at the default size.
     ///   - pending: The default-size audit's flags still to grow.
     @MainActor
     private func growsAtTheLargestTextSize(
-        _ app: XCUIApplication, regularHeight: CGFloat, baseline: [String: CGFloat], pending: [Growth]
+        _ app: XCUIApplication, settled: any XCUIElementSnapshot, regularHeight: CGFloat,
+        baseline: [String: CGFloat], pending: [Growth]
     ) throws {
-        resolveGrowth(pending, at: try textHeights(app))
-        let window = app.windows.firstMatch.frame
-        let row = app.buttons[Self.firstRow].firstMatch
-        let restingTop = row.frame.minY
+        resolveGrowth(pending, at: try textHeights(in: settled))
+        let window = try windowFrame(in: settled)
+        let row = try XCTUnwrap(firstRowFrame(in: settled))
+        let restingTop = row.minY
         XCTAssertGreaterThan(
-            row.frame.height, regularHeight * 1.35, "the row grows with its text: \(regularHeight) → \(row.frame.height)"
+            row.height, regularHeight * 1.35, "the row grows with its text: \(regularHeight) → \(row.height)"
         )
-        XCTAssertGreaterThanOrEqual(row.frame.minX, window.minX - 0.5)
-        XCTAssertLessThanOrEqual(row.frame.maxX, window.maxX + 0.5)
-        let found = rows(try readingOrder(app))
+        XCTAssertGreaterThanOrEqual(row.minX, window.minX - 0.5)
+        XCTAssertLessThanOrEqual(row.maxX, window.maxX + 0.5)
+        let found = rows(readingOrder(of: settled))
         XCTAssertTrue(Set(found.map(\.label)).isSubset(of: Self.rowNames), "AX5 rows keep their names: \(found.map(\.label))")
         for target in found {
             XCTAssertGreaterThanOrEqual(target.frame.height, 44 - 0.5, "\(target.label) target height")
@@ -678,20 +771,30 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         var pending: [Growth] = []
         for contentSize in [nil, Self.ax5] {
             let app = launch(player: "fixture-riv-503", contentSize: contentSize)
-            let title = app.staticTexts["fst.service-status.title"]
-            XCTAssertTrue(title.waitForExistence(timeout: FestivalApp.budget(30)), "the retry state shows")
+            // The first waits after launch poll retried snapshots, not live queries (#690, #698).
+            let ids = ["fst.service-status.title", "fst.service-status.countdown", "fst.service-status.retry"]
+            let waits: [(String, TimeInterval, String)] = [
+                (ids[0], 30, "the retry state shows"), (ids[1], 10, "the freeze counts down"), (ids[2], 10, "Retry Now shows"),
+            ]
+            for (id, budget, message) in waits {
+                XCTAssertTrue(FestivalApp.waitForElement(id, in: app, timeout: FestivalApp.budget(budget)), message)
+            }
+            let shown = try tree(app)
+            let title = try XCTUnwrap(FestivalApp.node(ids[0], in: shown))
+            XCTAssertEqual(title.elementType, .staticText)
             XCTAssertEqual(title.label, "Scores are updating")
-            let countdown = app.staticTexts["fst.service-status.countdown"]
-            XCTAssertTrue(countdown.waitForExistence(timeout: FestivalApp.budget(10)), "the freeze counts down")
+            let countdown = try XCTUnwrap(FestivalApp.node(ids[1], in: shown))
+            XCTAssertEqual(countdown.elementType, .staticText)
             XCTAssertTrue(
                 countdown.label.hasPrefix("Trying again automatically in "), "countdown reads as a sentence: \(countdown.label)"
             )
-            let retry = app.buttons["fst.service-status.retry"]
-            XCTAssertTrue(retry.waitForExistence(timeout: FestivalApp.budget(10)))
-            let heights = try textHeights(app)
-            XCTAssertEqual(retry.label, "Retry Now")
-            XCTAssertGreaterThanOrEqual(retry.frame.height, 44 - 0.5, "Retry Now target height")
-            XCTAssertGreaterThanOrEqual(retry.frame.width, 44, "Retry Now target width")
+            let retryNode = try XCTUnwrap(FestivalApp.node(ids[2], in: shown))
+            XCTAssertEqual(retryNode.elementType, .button)
+            let heights = try textHeights(in: shown)
+            XCTAssertEqual(retryNode.label, "Retry Now")
+            XCTAssertGreaterThanOrEqual(retryNode.frame.height, 44 - 0.5, "Retry Now target height")
+            XCTAssertGreaterThanOrEqual(retryNode.frame.width, 44, "Retry Now target width")
+            let retry = app.buttons[ids[2]]
             // At AX5 the state is taller than the screen: Retry Now must scroll clear of the bars.
             // At the default size it only has to finish fading in.
             if contentSize == nil { _ = waitUntilHittable(retry, timeout: FestivalApp.budget(5)) }
@@ -699,12 +802,11 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
             XCTAssertTrue(retry.isHittable, "Retry Now takes a tap")
 
             let nodes = try readingOrder(app)
-            let order = ["fst.service-status.title", "fst.service-status.countdown", "fst.service-status.retry"]
-                .compactMap { id in nodes.firstIndex { $0.identifier == id } }
+            let order = ids.compactMap { id in nodes.firstIndex { $0.identifier == id } }
             XCTAssertEqual(order.count, 3)
             XCTAssertEqual(order, order.sorted(), "heading → countdown → Retry Now")
             XCTAssertFalse(nodes.contains { $0.label.contains(", you rank ") }, "no rows without a snapshot")
-            retryHeights.append(retry.frame.height)
+            retryHeights.append(try XCTUnwrap(nodes.first { $0.identifier == ids[2] }).frame.height)
 
             record(app, name: "rival-detail-frozen-retry-a11y-\(contentSize == nil ? "default" : "ax5")")
             if contentSize == nil {
