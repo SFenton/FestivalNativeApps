@@ -101,6 +101,31 @@ final class UITestHarnessTests: XCTestCase {
         XCTAssertNil(FestivalApp.node("fst.history.row.1", in: tree))
     }
 
+    // MARK: - Contrast floor
+
+    /// The contrast floor's resting-page signature ignores a ticking countdown's label and
+    /// width, so the floor stops on a page that no longer scrolls, but still sees a drag
+    /// that moved the page (#698).
+    func testFloorSignatureIgnoresATickingCountdownButNotAScroll() {
+        typealias Text = (identifier: String, label: String, frame: CGRect)
+        func page(_ seconds: Int, width: CGFloat, offset: CGFloat = 0) -> [Text] {
+            [
+                ("fst.service-status.title", "Scores are updating", CGRect(x: 314, y: 586 - offset, width: 205, height: 26)),
+                ("fst.service-status.countdown", "Trying again automatically in \(seconds) seconds",
+                 CGRect(x: 417 - width / 2, y: 665 - offset, width: width, height: 20)),
+                ("", "Fixture Riv", CGRect(x: 20, y: 120 - offset, width: 90, height: 20)),
+            ]
+        }
+        let signature = RivalDetailFrozenAccessibilityJourneyTests.floorSignature
+        XCTAssertEqual(signature(page(41, width: 150.5)), signature(page(40, width: 148)), "a tick is the same page")
+        XCTAssertNotEqual(signature(page(41, width: 150.5)), signature(page(40, width: 148, offset: 300)), "a scroll is not")
+        XCTAssertNotEqual(
+            signature(page(41, width: 150.5)),
+            signature(page(41, width: 150.5).map { ($0.identifier, $0.label, $0.frame.insetBy(dx: 0, dy: -10)) }),
+            "a text that grew taller is not"
+        )
+    }
+
     // MARK: - Switch taps
 
     /// The bare-track point sits `switchBareTrackInset` in from the end the thumb has left,
