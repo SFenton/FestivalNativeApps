@@ -25,7 +25,8 @@ jobs:
       - name: Enable KVM
         run: sudo chmod a+rw /dev/kvm
       - name: Build app and test APKs
-        run: bash android/gradlew -p android :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
+        # ci_gradle.py retries a transient dependency download failure with --refresh-dependencies (#697).
+        run: python3 tools/android/ci_gradle.py :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
       - name: Install the system image (retried; the download sometimes arrives corrupt)
         run: |
           set +o pipefail  # `yes` dies of SIGPIPE once sdkmanager exits
@@ -54,10 +55,10 @@ jobs:
           # on the test command. ci_settle_emulator.sh wakes and unlocks without injecting keys, closes
           # a foreign ANR dialog (#692: a boot-time "Pixel Launcher isn't responding" returned over every
           # test) and waits until a window has held focus for 20 s, so the first test owns a resumed,
-          # focused window.
+          # focused window. ci_gradle.py retries only a dependency download failure (#697), never a test failure.
           script: |
             bash tools/android/ci_settle_emulator.sh
-            bash android/gradlew -p android :app:connectedDebugAndroidTest --no-daemon --stacktrace -Pandroid.testInstrumentationRunnerArguments.timeout_msec=180000 || (adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/android-device-logcat.txt"; exit 1)
+            python3 tools/android/ci_gradle.py :app:connectedDebugAndroidTest --no-daemon --stacktrace -Pandroid.testInstrumentationRunnerArguments.timeout_msec=180000 || (adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/android-device-logcat.txt"; exit 1)
       - name: Upload Android device test reports
         if: failure()
         uses: actions/upload-artifact@v4

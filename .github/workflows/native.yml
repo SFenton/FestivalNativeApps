@@ -55,7 +55,8 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
       - name: Android unit tests
-        # gradlew is committed without the executable bit (Windows hosts), so run it through bash.
-        run: bash android/gradlew -p android testDebugUnitTest --no-daemon
+        # ci_gradle.py runs gradlew through bash (it is committed without the executable bit) and
+        # retries a transient dependency download failure with --refresh-dependencies (#697).
+        run: python3 tools/android/ci_gradle.py testDebugUnitTest --no-daemon
       - name: Licenses manifest is current
         run: python3 tools/android/licenses.py --check
