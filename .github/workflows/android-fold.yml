@@ -27,7 +27,8 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Build app and test APKs
-        run: bash android/gradlew -p android :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
+        # ci_gradle.py retries a transient dependency download failure with --refresh-dependencies (#697).
+        run: python3 tools/android/ci_gradle.py :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
       - name: Install cmdline-tools 23.0 (pixel_9_pro_fold profile) and the system image
         run: |
           set +o pipefail  # `yes` dies of SIGPIPE once sdkmanager exits
@@ -67,7 +68,7 @@ jobs:
             bash tools/android/ci_settle_emulator.sh
             adb shell dumpsys device_state | grep -i -m 3 'state' || true
             adb shell wm size
-            bash android/gradlew -p android :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.festivalscoretracker.android.journeys.HalfOpenFoldJourney -Pandroid.testInstrumentationRunnerArguments.fstRequireHinge=true --no-daemon || { adb logcat -d -v threadtime -s FST_ATF:V FST_A11Y:V TestRunner:V AndroidRuntime:E > android-fold-logcat.txt; exit 1; }
+            python3 tools/android/ci_gradle.py :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.festivalscoretracker.android.journeys.HalfOpenFoldJourney -Pandroid.testInstrumentationRunnerArguments.fstRequireHinge=true --no-daemon || { adb logcat -d -v threadtime -s FST_ATF:V FST_A11Y:V TestRunner:V AndroidRuntime:E > android-fold-logcat.txt; exit 1; }
             adb logcat -d -v threadtime -s FST_ATF:V FST_A11Y:V TestRunner:V > android-fold-logcat.txt
       - name: Upload reports and logcat
         if: always()
