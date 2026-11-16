@@ -23,6 +23,15 @@ import FestivalCore
     #expect(ServiceStatusView.clock(-4) == "0:00")
 }
 
+/// The freeze's perpetual pulse holds still under Reduce Motion and the Debug UI-test
+/// still override, so XCUITest can idle on the retry state (#699, `empty-error-states`).
+@Test func serviceStatusPulseHoldsStillForReduceMotionAndUITests() {
+    #expect(ServiceStatusView.pulses(retriesAutomatically: true, reduceMotion: false, still: false))
+    #expect(!ServiceStatusView.pulses(retriesAutomatically: true, reduceMotion: false, still: true))
+    #expect(!ServiceStatusView.pulses(retriesAutomatically: true, reduceMotion: true, still: false))
+    #expect(!ServiceStatusView.pulses(retriesAutomatically: false, reduceMotion: false, still: false))
+}
+
 // MARK: - Hosted behavior
 
 @MainActor
