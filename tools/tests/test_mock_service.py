@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 
 from tools.mock_service import (
     DEMO_SONGS, FEEDBACK_SLOW_READS, FEEDBACK_SLOW_UPLOAD_S, FixtureHandler, FixtureServer, ROOT,
+    RIVALS_FREEZE_RETRY_AFTER,
     fixture_artwork, fixture_path_image,
     _band_detail, _band_ranking_entry, _ranking_entry, _song_band_leaderboard_entry,
 )
@@ -132,6 +133,10 @@ class MockServiceTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as error:
             urlopen(self.base + "/api/player/fixture-riv-503/rivals/all")
         self.assertEqual(error.exception.code, 503)
+        # The retry state holds still through the journey's checks on the slow runner, and a
+        # tap's backed-off countdown (the 300 s cap) reads above the first one (#699).
+        self.assertEqual(error.exception.headers["Retry-After"], str(RIVALS_FREEZE_RETRY_AFTER))
+        self.assertGreater(RIVALS_FREEZE_RETRY_AFTER * 2, 300)
 
     def test_service_info_discovery_fixture_reports_attempt_progress(self):
         """The opt-in discovery body carries the web's schema-1 attempt counts."""

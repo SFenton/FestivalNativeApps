@@ -542,6 +542,13 @@ RIVAL_DISPLAY_NAMES = {
     "fixture-cpp": "C++",
 }
 
+#: `Retry-After` (seconds) of every Rivals freeze 503 (`-503`, `-frozen`). Sized for the slow
+#: CI runner: `RivalDetailFrozenAccessibilityJourneyTests` must finish each launch's checks,
+#: audit and Retry Now tap before the first automatic retry reloads the state; at 30 s it
+#: reloaded mid-check and XCUI lost Retry Now (#699). Above half the 300 s backoff cap, so a
+#: tap's backed-off countdown (300 s) reads higher than any first countdown.
+RIVALS_FREEZE_RETRY_AFTER = 240
+
 #: Rival the `-frozen` scenario's `/rivals/all` samples describe (#95, #444).
 FROZEN_RIVAL_ID = "frozenrival9"
 FROZEN_RIVAL_NAME = "Rival Nine"
@@ -2306,7 +2313,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
             scenario = _rivals_scenario(account_id)
             if scenario in ("unavailable", "frozen"):
                 self.send_response(503)
-                self.send_header("Retry-After", "30")
+                self.send_header("Retry-After", str(RIVALS_FREEZE_RETRY_AFTER))
                 self.send_header("X-Fst-Public-Read-Freeze-Reason", "scrape")
                 self.send_header("Cache-Control", "no-store")
                 self.send_header("Content-Length", "0")
@@ -2324,7 +2331,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 return
             if scenario == "unavailable":
                 self.send_response(503)
-                self.send_header("Retry-After", "30")
+                self.send_header("Retry-After", str(RIVALS_FREEZE_RETRY_AFTER))
                 self.send_header("X-Fst-Public-Read-Freeze-Reason", "scrape")
                 self.send_header("Cache-Control", "no-store")
                 self.send_header("Content-Length", "0")
@@ -2342,7 +2349,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
             scenario = _rivals_scenario(account_id)
             if scenario in ("unavailable", "frozen"):
                 self.send_response(503)
-                self.send_header("Retry-After", "30")
+                self.send_header("Retry-After", str(RIVALS_FREEZE_RETRY_AFTER))
                 self.send_header("X-Fst-Public-Read-Freeze-Reason", "scrape")
                 self.send_header("Cache-Control", "no-store")
                 self.send_header("Content-Length", "0")
@@ -2361,7 +2368,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
             scenario = _rivals_scenario(account_id)
             if scenario == "unavailable":
                 self.send_response(503)
-                self.send_header("Retry-After", "30")
+                self.send_header("Retry-After", str(RIVALS_FREEZE_RETRY_AFTER))
                 self.send_header("X-Fst-Public-Read-Freeze-Reason", "scrape")
                 self.send_header("Cache-Control", "no-store")
                 self.send_header("Content-Length", "0")

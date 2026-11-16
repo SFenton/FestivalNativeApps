@@ -147,17 +147,37 @@ struct ServiceStatusView: View {
 
     // MARK: - Parts
 
+    /// The state's symbol; an automatic retry's pulses until the countdown ends.
+    ///
+    /// The pulse is perpetual, so it holds still under Reduce Motion and the Debug
+    /// UI-test `FST_DEBUG_STILL_BACKGROUND=1` override, like every perpetual animation
+    /// (`empty-error-states`): otherwise XCUITest's idle wait times out before every
+    /// query on the retry state (#699).
     @ViewBuilder
     private var symbol: some View {
         let image = Image(systemName: systemImage ?? Self.symbolName(for: issue))
             .font(.largeTitle)
             .foregroundStyle(issue.retriesAutomatically ? BrandTokens.gold : FestivalText.primary)
             .accessibilityHidden(true)
-        if issue.retriesAutomatically && !reduceMotion {
+        if Self.pulses(
+            retriesAutomatically: issue.retriesAutomatically, reduceMotion: reduceMotion,
+            still: DebugAnimationOverride.stillBackground
+        ) {
             image.symbolEffect(.pulse, options: .repeating)
         } else {
             image
         }
+    }
+
+    /// Whether the symbol pulses.
+    ///
+    /// - Parameters:
+    ///   - retriesAutomatically: The issue counts down to an automatic retry.
+    ///   - reduceMotion: System or in-app Reduce Motion.
+    ///   - still: The Debug UI-test still override (`DebugAnimationOverride.stillBackground`).
+    /// - Returns: True only for an automatic retry with motion allowed and no still override.
+    nonisolated static func pulses(retriesAutomatically: Bool, reduceMotion: Bool, still: Bool) -> Bool {
+        retriesAutomatically && !reduceMotion && !still
     }
 
     private func countdown(_ seconds: Int) -> some View {

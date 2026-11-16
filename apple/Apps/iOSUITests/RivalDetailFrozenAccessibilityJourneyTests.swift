@@ -213,18 +213,87 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         XCTAssertTrue(opened(after), message, file: file, line: line)
     }
 
-    /// Wait until `element` exists and takes a tap (`SongDetailJourneyTests`' `waitHittable`).
+    /// The `Retry-After` of the mock's Rivals freeze (`mock_service.RIVALS_FREEZE_RETRY_AFTER`):
+    /// the first countdown starts there, and a retry that fails again backs off to the 300 s cap.
+    private static let freezeRetryAfter = 240
+
+    /// The seconds a countdown's spoken label counts.
+    ///
+    /// - Parameter label: "Trying again automatically in N seconds".
+    /// - Returns: N, or nil when the label holds no number.
+    static func countdownSeconds(_ label: String) -> Int? {
+        label.split(separator: " ").lazy.compactMap { Int($0) }.first
+    }
+
+    /// Bring Retry Now to rest between the bars, reading only retried snapshots: an app-rooted
+    /// drag moves the page half the band toward it, and it has arrived once it lies inside
+    /// the band and two snapshots agree on its frame.
+    ///
+    /// The journey used to wait on the live `retry.isHittable`: on the CI iPhone each live
+    /// query took 15–20 s, the state's 30 s automatic retry reloaded the page under it, and
+    /// XCUI failed with "Activation point invalid" (release 2611.09's apple-ci, #699; #682).
     ///
     /// - Parameters:
-    ///   - element: The element to wait for.
-    ///   - timeout: The wait's budget.
-    /// - Returns: Whether it became hittable in time.
+    ///   - app: The retry state, shown.
+    ///   - message: What the failure names.
+    /// - Returns: The settled snapshot, with Retry Now between the bars.
     @MainActor
-    private func waitUntilHittable(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
-        let hittable = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "exists == true AND isHittable == true"), object: element
-        )
-        return XCTWaiter().wait(for: [hittable], timeout: timeout) == .completed
+    @discardableResult
+    private func revealRetry(
+        _ app: XCUIApplication, _ message: String, file: StaticString = #filePath, line: UInt = #line
+    ) throws -> any XCUIElementSnapshot {
+        var previous: CGRect?
+        for _ in 0..<16 {
+            let root = try tree(app)
+            let window = try windowFrame(in: root)
+            let band = try screenTexts(in: root)
+            guard let frame = FestivalApp.node("fst.service-status.retry", in: root)?.frame else {
+                Thread.sleep(forTimeInterval: FestivalApp.budget(0.25))
+                previous = nil
+                continue
+            }
+            let between = frame.minY >= band.top - 0.5 && frame.maxY <= band.bottom + 0.5
+                && frame.minX >= window.minX - 0.5 && frame.maxX <= window.maxX + 0.5
+            if between, frame == previous { return root }
+            previous = frame
+            if between {
+                Thread.sleep(forTimeInterval: FestivalApp.budget(0.25))
+                continue
+            }
+            // 40 pt inside the band, never from the window edge (the system's home gesture).
+            let span = (band.bottom - band.top - 40) / 2
+            let up = frame.maxY > band.bottom
+            let start = app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: window.midX, dy: up ? band.bottom - 40 : band.top + 40))
+            let finish = start.withOffset(CGVector(dx: 0, dy: up ? -span : span))
+            start.press(forDuration: 0.05, thenDragTo: finish, withVelocity: .slow, thenHoldForDuration: 0.3)
+        }
+        XCTFail("\(message): Retry Now never rested between the bars", file: file, line: line)
+        return try tree(app)
+    }
+
+    /// Tap Retry Now like a user and prove the tap ran: still in the first countdown (at most
+    /// the freeze's `Retry-After`), the retry's 503 backs the next countdown off past it.
+    /// The mock's freeze outlasts the journey, so no automatic retry can stand in (#699).
+    ///
+    /// - Parameters:
+    ///   - app: The retry state, after its checks and audit.
+    ///   - message: The assertion's message.
+    @MainActor
+    private func retryNowTakesATap(
+        _ app: XCUIApplication, _ message: String, file: StaticString = #filePath, line: UInt = #line
+    ) throws {
+        let root = try revealRetry(app, message, file: file, line: line)
+        let seconds = { (root: any XCUIElementSnapshot) in
+            FestivalApp.node("fst.service-status.countdown", in: root).flatMap { Self.countdownSeconds($0.label) }
+        }
+        let before = try XCTUnwrap(seconds(root), "\(message): the freeze counts down", file: file, line: line)
+        XCTAssertLessThanOrEqual(before, Self.freezeRetryAfter, "\(message): still the first countdown", file: file, line: line)
+        let frame = try XCTUnwrap(FestivalApp.node("fst.service-status.retry", in: root)).frame
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX, dy: frame.midY)).tap()
+        let backedOff = { (root: any XCUIElementSnapshot) in (seconds(root) ?? 0) > Self.freezeRetryAfter }
+        let after = try FestivalApp.snapshot(of: app, within: FestivalApp.budget(30), until: backedOff)
+        XCTAssertTrue(backedOff(after), message, file: file, line: line)
     }
 
     /// Attach a named screenshot that the result bundle keeps.
@@ -761,8 +830,8 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     // MARK: - No snapshot: auto-retry state
 
     /// Without `/rivals/all` samples the page keeps the freeze's retry state: heading
-    /// "Scores are updating", then the countdown sentence, then a 44 pt "Retry Now", at the
-    /// default and the largest text size; the page passes the full audit.
+    /// "Scores are updating", then the countdown sentence, then a 44 pt "Retry Now" that takes
+    /// a tap, at the default and the largest text size; the page passes the full audit.
     @MainActor
     func testFrozenRivalDetailWithoutSnapshotOffersRetry() throws {
         continueAfterFailure = false
@@ -794,12 +863,8 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
             XCTAssertEqual(retryNode.label, "Retry Now")
             XCTAssertGreaterThanOrEqual(retryNode.frame.height, 44 - 0.5, "Retry Now target height")
             XCTAssertGreaterThanOrEqual(retryNode.frame.width, 44, "Retry Now target width")
-            let retry = app.buttons[ids[2]]
             // At AX5 the state is taller than the screen: Retry Now must scroll clear of the bars.
-            // At the default size it only has to finish fading in.
-            if contentSize == nil { _ = waitUntilHittable(retry, timeout: FestivalApp.budget(5)) }
-            for _ in 0..<4 where !retry.isHittable { app.swipeUp() }
-            XCTAssertTrue(retry.isHittable, "Retry Now takes a tap")
+            try revealRetry(app, "Retry Now")
 
             let nodes = try readingOrder(app)
             let order = ids.compactMap { id in nodes.firstIndex { $0.identifier == id } }
@@ -816,6 +881,7 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
                 resolveGrowth(pending, at: heights)
                 try audit(app, for: [.dynamicType, .textClipped, .hitRegion], baseline: baseline)
             }
+            try retryNowTakesATap(app, "Retry Now takes a tap")
             app.terminate()
         }
         XCTAssertGreaterThan(retryHeights[1], retryHeights[0], "Retry Now grows with its text: \(retryHeights)")
