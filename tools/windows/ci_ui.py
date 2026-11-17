@@ -13,19 +13,27 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WINDOWS_TOOLS = REPO_ROOT / "tools" / "windows"
+if str(WINDOWS_TOOLS) not in sys.path:
+    sys.path.insert(0, str(WINDOWS_TOOLS))
+import ci_guard  # noqa: E402  (sibling script)
+
 JOURNEYS = WINDOWS_TOOLS / "journeys"
 MATRIX_GROUP_SIZE = 6
 SKIP_FILE = WINDOWS_TOOLS / "ci_skip.json"
 SCROLL_SUITE = WINDOWS_TOOLS / "scroll_stress.json"
 # Scroll stress entries per CI task: each launches the app once and scrolls for about 40 s (issue #668).
 SCROLL_GROUP_SIZE = 5
+#: Wall-clock limit per task. The slowest (runner:first-run) takes about 11 minutes on the hosted runner; without a
+#: limit a runaway task held shard 3 until the runner was lost, with no log or artifact (issue #700).
+TASK_TIMEOUT_SECONDS = 20 * 60
+#: End a task when the runner's available physical memory falls under this (MB): a starved runner loses its log.
+MIN_AVAILABLE_MB = 1024
 
 
 @dataclass(frozen=True)
@@ -191,6 +199,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--shard", type=int, required=True)
     parser.add_argument("--shards", type=int, required=True)
     parser.add_argument("--retries", type=int, default=2)
+    parser.add_argument("--task-timeout", type=float, default=TASK_TIMEOUT_SECONDS,
+                        help="seconds before a task's process tree is ended as hung")
+    parser.add_argument("--min-available-mb", type=int, default=MIN_AVAILABLE_MB,
+                        help="end a task when the runner's available physical memory falls under this")
     parser.add_argument("--list", action="store_true")
     args = parser.parse_args(argv)
 
@@ -204,24 +216,36 @@ def main(argv: list[str] | None = None) -> int:
 
     args.out.mkdir(parents=True, exist_ok=True)
     failures = []
+    results = {}
     for task in selected:
         task_out = args.out / task.name.replace(":", "-")
         command = task_command(task, task_out, args.retries)
         print(f"::group::{task.name}\n{' '.join(command)}", flush=True)
         task_out.mkdir(parents=True, exist_ok=True)
-        with (task_out / "command.log").open("w", encoding="utf-8") as log:
-            result = subprocess.run(command, cwd=REPO_ROOT, stdout=log, stderr=subprocess.STDOUT)
+        result = ci_guard.run_task(command, REPO_ROOT, task_out / "command.log", task_out, args.task_timeout,
+                                   args.min_available_mb)
+        lines = (task_out / "command.log").read_text(encoding="utf-8", errors="replace").splitlines()
         if result.returncode:
-            tail = (task_out / "command.log").read_text(encoding="utf-8", errors="replace").splitlines()[-20:]
-            print("\n".join(tail), flush=True)
+            # The task's own last lines; the guard's report follows them in the log, after a blank line.
+            own = lines[:len(lines) - len(result.report) - 1] if result.report else lines
+            print("\n".join(own[-20:]), flush=True)
+        if result.report:
+            print("\n".join(result.report), flush=True)
+        print(f"{task.name}: exit {result.returncode} in {result.seconds:.0f} s, peak memory {result.peak_mb} MB",
+              flush=True)
         print("::endgroup::", flush=True)
+        if result.stopped:
+            print(f"::error::{task.name}: {result.stopped} (see {task_out.name}/command.log)", flush=True)
         if result.returncode:
             failures.append(task.name)
-    (args.out / "summary.json").write_text(
-        json.dumps({"shard": args.shard, "shards": args.shards, "tasks": [task.name for task in selected],
-                    "failures": failures}, indent=2),
-        encoding="utf-8",
-    )
+        results[task.name] = {"exit": result.returncode, "seconds": round(result.seconds),
+                              "peak_mb": result.peak_mb, "stopped": result.stopped}
+        # Written after every task, so a shard the job ends early still says how far it got.
+        (args.out / "summary.json").write_text(
+            json.dumps({"shard": args.shard, "shards": args.shards, "tasks": [task.name for task in selected],
+                        "failures": failures, "results": results}, indent=2),
+            encoding="utf-8",
+        )
     if failures:
         print(f"failed tasks: {', '.join(failures)}", file=sys.stderr)
         return 1
