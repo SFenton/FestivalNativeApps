@@ -246,6 +246,43 @@ def watch(pid: int, folder: Path, name: str) -> int:
     return 1 if kept else 0
 
 
+def snapshot(pid: int, path: Path) -> str:
+    """Write a small dump (threads, stacks, modules) of a running process without stopping it, for a hung app that
+    ``ci_ui.py`` is about to end (#700).
+
+    Args:
+        pid: Process ID.
+        path: The ``.dmp`` file to write.
+
+    Returns:
+        ``"written"`` or the reason it failed.
+    """
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    dbghelp = ctypes.WinDLL("dbghelp", use_last_error=True)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    kernel32.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+                                     wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    dbghelp.MiniDumpWriteDump.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.HANDLE, wintypes.DWORD,
+                                          ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+    process = kernel32.OpenProcess(0x0400 | 0x0010 | 0x0040, False, pid)  # query, read, duplicate handles
+    if not process:
+        return f"cannot open process: error {ctypes.get_last_error()}"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    dump = kernel32.CreateFileW(str(path), 0x40000000, 0, None, 2, 0x80, None)  # GENERIC_WRITE, CREATE_ALWAYS
+    try:
+        if dump in (None, INVALID_HANDLE):
+            return f"cannot create {path.name}: error {ctypes.get_last_error()}"
+        ok = bool(dbghelp.MiniDumpWriteDump(process, pid, dump, SMALL_DUMP_TYPE, None, None, None))
+        return "written" if ok else f"failed (error 0x{ctypes.get_last_error() & 0xFFFFFFFF:08X})"
+    finally:
+        if dump not in (None, INVALID_HANDLE):
+            kernel32.CloseHandle(dump)
+        kernel32.CloseHandle(process)
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point."""
     args = sys.argv[1:] if argv is None else argv
