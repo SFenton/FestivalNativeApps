@@ -4,8 +4,8 @@
 ``ci_ui.py`` used to run each task with a plain ``subprocess.run`` and no limit. When a shard's task ran away on the
 hosted runner (release run 44079233807: ``windows-ui-journeys (3/4)`` ran 55 minutes instead of about 17 until GitHub
 reported "The hosted runner lost communication with the server"), nothing bounded it, so the job lost its log, its
-screenshots and its artifact. :func:`run_task` puts the task and everything it starts (the app, the FstUia driver,
-fixture services) in one job object and ends that tree when the task
+screenshots and its artifact. :func:`run_task` puts the task in a job object and tracks everything it starts (the app,
+the FstUia driver, fixture services; :class:`TaskTree`), and ends that tree when the task
 
 * runs longer than its wall-clock limit (a hang), or
 * drives the runner's available physical memory under a floor (a runaway that would starve the runner),
@@ -87,6 +87,20 @@ if sys.platform == "win32":
     _psapi.GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.POINTER(_MemoryCounters), wintypes.DWORD]
     _psapi.EnumProcesses.argtypes = [ctypes.POINTER(wintypes.DWORD), wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
 
+    class _ProcessEntry(ctypes.Structure):
+        _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD), ("th32ProcessID", wintypes.DWORD),
+                    ("th32DefaultHeapID", ctypes.c_size_t), ("th32ModuleID", wintypes.DWORD),
+                    ("cntThreads", wintypes.DWORD), ("th32ParentProcessID", wintypes.DWORD),
+                    ("pcPriClassBase", wintypes.LONG), ("dwFlags", wintypes.DWORD),
+                    ("szExeFile", wintypes.WCHAR * 260)]
+
+    _kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    _kernel32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    _kernel32.Process32FirstW.argtypes = [wintypes.HANDLE, ctypes.POINTER(_ProcessEntry)]
+    _kernel32.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(_ProcessEntry)]
+    _kernel32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+    _kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+
 #: ``JobObjectBasicProcessIdList`` and ``JobObjectExtendedLimitInformation`` information classes.
 _PROCESS_ID_LIST, _EXTENDED_LIMIT = 3, 9
 #: ``JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE``: the tree ends with the job handle even if this script dies.
@@ -140,6 +154,103 @@ class TaskJob:
         if self.handle:
             _kernel32.CloseHandle(self.handle)
             self.handle = None
+
+
+# endregion
+
+# region Process tree
+
+
+def _snapshot() -> list[tuple[int, int, str]]:
+    """``(pid, parent pid, exe name)`` of every process on the runner."""
+    if sys.platform != "win32":
+        return []
+    handle = _kernel32.CreateToolhelp32Snapshot(0x2, 0)  # TH32CS_SNAPPROCESS
+    if not handle or handle == wintypes.HANDLE(-1).value:
+        return []
+    try:
+        entry = _ProcessEntry()
+        entry.dwSize = ctypes.sizeof(entry)
+        rows = []
+        ok = _kernel32.Process32FirstW(handle, ctypes.byref(entry))
+        while ok:
+            rows.append((int(entry.th32ProcessID), int(entry.th32ParentProcessID), entry.szExeFile))
+            ok = _kernel32.Process32NextW(handle, ctypes.byref(entry))
+        return rows
+    finally:
+        _kernel32.CloseHandle(handle)
+
+
+def _created(pid: int) -> int:
+    """``pid``'s creation time (FILETIME ticks), or 0 when it has exited or can't be opened; tells a live process from
+    a reused ID."""
+    if sys.platform != "win32":
+        return 0
+    handle = _kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return 0
+    try:
+        code = wintypes.DWORD()
+        if not _kernel32.GetExitCodeProcess(handle, ctypes.byref(code)) or code.value != 259:  # STILL_ACTIVE
+            return 0  # exited; the object lingers while anyone (Popen) holds a handle
+        times = [ctypes.c_uint64() for _ in range(4)]
+        return times[0].value if _kernel32.GetProcessTimes(handle, *[ctypes.byref(t) for t in times]) else 0
+    finally:
+        _kernel32.CloseHandle(handle)
+
+
+class TaskTree:
+    """The task's processes: its job, plus descendants that left the job.
+
+    A packaged parent (the Microsoft Store Python, as on dev hosts) lets non-packaged children such as FstUia and the
+    app silently break away from every job, so the guard also follows parent IDs, and adopts an orphaned app process
+    started during the task (FstUia's ``launch`` request exits after starting the app, possibly between two polls).
+    Creation times keep a reused ID out.
+    """
+
+    def __init__(self, job: TaskJob, root: int) -> None:
+        self.job = job
+        self.started = _created(root)
+        self.members: dict[int, int] = {root: self.started}
+
+    def refresh(self) -> None:
+        """Add new job members, their descendants and orphaned app processes started since the task began."""
+        for pid in self.job.pids():
+            self.members.setdefault(pid, _created(pid))
+        rows = _snapshot()
+        added = True
+        while added:
+            added = False
+            for pid, parent, name in rows:
+                if pid in self.members:
+                    continue
+                if parent in self.members or name.lower() == APP_EXE.lower():
+                    created = _created(pid)
+                    floor = self.members[parent] if parent in self.members else self.started
+                    if parent not in self.members and 0 < _created(parent) <= created:
+                        continue  # an app another live process started: not this task's
+                    if created and floor and created >= floor:
+                        self.members[pid] = created
+                        added = True
+
+    def alive(self) -> list[int]:
+        """Members still running under the same process (not a reused ID)."""
+        return [pid for pid, created in self.members.items() if created and _created(pid) == created]
+
+    def committed_mb(self) -> int:
+        """The live members' summed private memory, in MB."""
+        return sum(info.private_mb for pid in self.alive() for info in [process_info(pid)] if info)
+
+    def terminate(self) -> None:
+        """End the job and every live member outside it."""
+        self.job.terminate()
+        if sys.platform != "win32":
+            return
+        for pid in self.alive():
+            handle = _kernel32.OpenProcess(0x0001, False, pid)  # PROCESS_TERMINATE
+            if handle:
+                _kernel32.TerminateProcess(handle, 1)
+                _kernel32.CloseHandle(handle)
 
 
 # endregion
@@ -227,20 +338,21 @@ def screenshot(path: Path) -> str:
         "failed: " + " ".join((result.stderr or "").split())[-300:]
 
 
-def evidence(job: TaskJob, out: Path, dumps: bool) -> list[str]:
+def evidence(tree: TaskTree, peak_mb: int, out: Path, dumps: bool) -> list[str]:
     """Describe the task's processes and the runner, and keep a screenshot and app dumps in ``out``.
 
     Args:
-        job: The task's job.
+        tree: The task's processes.
+        peak_mb: The task's peak committed memory so far.
         out: The task's folder (uploaded by the workflow).
         dumps: Whether to write a small dump of each app process (only for a task about to be ended).
 
     Returns:
         Report lines.
     """
-    lines = [f"runner available memory: {available_mb()} MB; task peak committed memory: {job.peak_mb()} MB",
+    lines = [f"runner available memory: {available_mb()} MB; task peak committed memory: {peak_mb} MB",
              "task processes:"]
-    infos = [info for pid in job.pids() for info in [process_info(pid)] if info]
+    infos = [info for pid in tree.alive() for info in [process_info(pid)] if info]
     lines += [f"  {info.line()}" for info in infos] or ["  (none)"]
     lines += ["runner's largest processes:"] + [f"  {info.line()}" for info in largest_processes()]
     if dumps:
@@ -292,11 +404,15 @@ def run_task(command: list[str], cwd: Path, log_path: Path, out: Path, timeout: 
     job = TaskJob()
     started = time.monotonic()
     stopped = ""
+    peak = 0
     try:
         with log_path.open("w", encoding="utf-8") as log:
             proc = subprocess.Popen(command, cwd=cwd, stdout=log, stderr=subprocess.STDOUT)
             job.assign(proc)
+            tree = TaskTree(job, proc.pid)
             while proc.poll() is None:
+                tree.refresh()
+                peak = max(peak, tree.committed_mb())
                 elapsed = time.monotonic() - started
                 if elapsed > timeout:
                     stopped = f"timed out after {elapsed:.0f} s (limit {timeout:.0f} s)"
@@ -305,23 +421,24 @@ def run_task(command: list[str], cwd: Path, log_path: Path, out: Path, timeout: 
                 if stopped:
                     break
                 time.sleep(POLL_SECONDS)
+        tree.refresh()
+        peak = max(peak, job.peak_mb())
         report: list[str] = []
         if stopped:
-            report = [f"ci_guard: {stopped}; ending the task's process tree", *evidence(job, out, dumps=True)]
-            job.terminate()
+            report = [f"ci_guard: {stopped}; ending the task's process tree", *evidence(tree, peak, out, dumps=True)]
+            tree.terminate()
             proc.kill()
             proc.wait(timeout=30)
         else:
-            leftover = [info for pid in job.pids() for info in [process_info(pid)] if info]
+            leftover = [info for pid in tree.alive() for info in [process_info(pid)] if info]
             if leftover:
                 report = ["ci_guard: the task exited but left processes running; ending them",
                           *[f"  {info.line()}" for info in leftover]]
-                job.terminate()
+                tree.terminate()
         if report:
             with log_path.open("a", encoding="utf-8") as log:
                 log.write("\n" + "\n".join(report) + "\n")
-        return TaskResult(124 if stopped else proc.returncode, time.monotonic() - started, job.peak_mb(), stopped,
-                          report)
+        return TaskResult(124 if stopped else proc.returncode, time.monotonic() - started, peak, stopped, report)
     finally:
         job.close()
 

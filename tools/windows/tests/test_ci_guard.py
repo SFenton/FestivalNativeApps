@@ -10,8 +10,10 @@ from pathlib import Path
 from tools.windows import ci_guard
 
 #: A task that starts a grandchild (like the FstUia driver starting the app), prints its pid, then waits ``{wait}`` s.
+#: The grandchild is a non-packaged system executable: under the Microsoft Store Python it breaks away from every job,
+#: so the guard must also follow it by parent ID.
 SPAWNER = ("import subprocess, sys, time; "
-           "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)']); "
+           "child = subprocess.Popen(['ping', '-n', '120', '127.0.0.1'], stdout=subprocess.DEVNULL); "
            "print('grandchild', child.pid, flush=True); time.sleep({wait})")
 
 
@@ -52,7 +54,7 @@ class CiGuardTests(unittest.TestCase):
         log = self.log.read_text(encoding="utf-8")
         self.assertIn("ci_guard: timed out", log)
         self.assertIn("task processes:", log)
-        self.assertIn("python", log.lower())  # the task and its grandchild are listed with their memory
+        self.assertIn("ping", log.lower())  # the grandchild is listed with its memory
         self.assertIn("runner's largest processes:", log)
         self.assertIn("screenshot:", log)
 
@@ -63,7 +65,7 @@ class CiGuardTests(unittest.TestCase):
         self.assertEqual(result.stopped, "runner memory low: 512 MB available (floor 1024 MB)")
 
     def test_processes_a_finished_task_leaves_behind_are_reported_and_ended(self):
-        result = self.run_spawner(wait=0, timeout=600)
+        result = self.run_spawner(wait=3, timeout=600)
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stopped, "")
         self.assertIn("left processes running", result.report[0])
