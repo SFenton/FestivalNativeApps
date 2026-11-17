@@ -31,6 +31,8 @@ if str(WINDOWS_TOOLS) not in sys.path:
     sys.path.insert(0, str(WINDOWS_TOOLS))  # crash_dump, when imported as tools.windows.ci_guard
 #: Executable whose processes get a small dump before a killed task's tree ends.
 APP_EXE = "FestivalScoreTracker.exe"
+#: Executables a task's tree adopts when orphaned during the task (their launcher exited between two polls).
+ORPHAN_EXES = frozenset({APP_EXE.lower(), "fstuia.exe"})
 #: Seconds between checks of the task's time and the runner's memory.
 POLL_SECONDS = 2.0
 
@@ -203,9 +205,9 @@ class TaskTree:
     """The task's processes: its job, plus descendants that left the job.
 
     A packaged parent (the Microsoft Store Python, as on dev hosts) lets non-packaged children such as FstUia and the
-    app silently break away from every job, so the guard also follows parent IDs, and adopts an orphaned app process
-    started during the task (FstUia's ``launch`` request exits after starting the app, possibly between two polls).
-    Creation times keep a reused ID out.
+    app silently break away from every job, so the guard also follows parent IDs, and adopts an orphaned app or FstUia
+    process started during the task (FstUia's ``launch`` request exits after starting the app, and a driver's Python
+    parent can die between two polls). Creation times keep a reused ID out.
     """
 
     def __init__(self, job: TaskJob, root: int) -> None:
@@ -214,7 +216,7 @@ class TaskTree:
         self.members: dict[int, int] = {root: self.started}
 
     def refresh(self) -> None:
-        """Add new job members, their descendants and orphaned app processes started since the task began."""
+        """Add new job members, their descendants and orphaned app or driver processes started since the task began."""
         for pid in self.job.pids():
             self.members.setdefault(pid, _created(pid))
         rows = _snapshot()
@@ -224,7 +226,7 @@ class TaskTree:
             for pid, parent, name in rows:
                 if pid in self.members:
                     continue
-                if parent in self.members or name.lower() == APP_EXE.lower():
+                if parent in self.members or name.lower() in ORPHAN_EXES:
                     created = _created(pid)
                     floor = self.members[parent] if parent in self.members else self.started
                     if parent not in self.members and 0 < _created(parent) <= created:
@@ -429,6 +431,8 @@ def run_task(command: list[str], cwd: Path, log_path: Path, out: Path, timeout: 
             tree.terminate()
             proc.kill()
             proc.wait(timeout=30)
+            tree.refresh()  # children started while the evidence was being written
+            tree.terminate()
         else:
             leftover = [info for pid in tree.alive() for info in [process_info(pid)] if info]
             if leftover:
