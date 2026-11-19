@@ -56,7 +56,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Android unit tests
         # ci_gradle.py runs gradlew through bash (it is committed without the executable bit) and
-        # retries a transient dependency download failure with --refresh-dependencies (#697).
+        # retries a dependency download failure: a cached 404 with --refresh-dependencies (#697), a
+        # 429/5xx with the cache intact after a longer backoff (#702).
         run: python3 tools/android/ci_gradle.py testDebugUnitTest --no-daemon
       - name: Licenses manifest is current
         run: python3 tools/android/licenses.py --check
