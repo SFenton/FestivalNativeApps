@@ -25,7 +25,8 @@ jobs:
       - name: Enable KVM
         run: sudo chmod a+rw /dev/kvm
       - name: Build app and test APKs
-        # ci_gradle.py retries a transient dependency download failure with --refresh-dependencies (#697).
+        # ci_gradle.py retries a dependency download failure: a cached 404 with --refresh-dependencies (#697),
+        # a 429/5xx with the cache intact after a longer backoff (#702).
         run: python3 tools/android/ci_gradle.py :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
       - name: Install the system image (retried; the download sometimes arrives corrupt)
         run: |
