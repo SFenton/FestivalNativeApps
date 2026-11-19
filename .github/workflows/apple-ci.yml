@@ -40,7 +40,8 @@ concurrency:
 env:
   DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
   # `ios_sim.py uitest --reboot-wedged` on every journey run: a batch with no verdict (its test runner never
-  # started, or it was killed at its --timeout: the simulator hung) reboots the simulator and runs once more (#620).
+  # started, or it was killed at its --timeout: the simulator hung) reboots the simulator and runs once more (#620);
+  # so does one whose only failures are lost app launches ("does not have a process ID", #701).
   FST_UITEST_REBOOT_WEDGED: "1"
 # Every release-suite journey batch whose test failed runs once more (`--retries 1`), as the Songs Filter and
 # scroll-edge legs always have: the iPhone and iPad journey jobs had none, and one flaky XCUITest query on the slow
@@ -52,8 +53,9 @@ jobs:
     runs-on: xcode-27
     # A release dispatch runs some 34 journey batches at about 5 min each on the runner (#620: 2610.12 reached batch
     # 21/26 at 160 min; #636: the iPhone steps ended at 3 h 40 min), so the iPad and Rival Detail steps run in the
-    # ipad-journeys job; hosted jobs may run 360.
-    timeout-minutes: 300
+    # ipad-journeys job. By 2611.16 the job took 250-311 min, and 4 of 6 release runs were cancelled 10-30 min short
+    # of the end at 300 (#701), so it has the hosted maximum, 360: add new journeys to another job.
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
         with:
