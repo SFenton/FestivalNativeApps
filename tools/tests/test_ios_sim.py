@@ -549,6 +549,55 @@ class RebootWedgedTests(unittest.TestCase):
         code, runs, locks = self._run([""], [65], summaries=[self.AUDIT_TIMEOUT])
         self.assertEqual((code, runs, len(locks)), (65, 1, 1))
 
+    PID_LOST = {"failedTests": 1, "testFailures": [{"failureText": (
+        "Application 'com.sfenton.festivalscoretracker.native' does not have a process ID")}]}
+    LAUNCH_TIMEOUT = {"failedTests": 1, "testFailures": [{"failureText": (
+        "Failed to launch: Timed out while launching application via Xcode")}]}
+
+    def test_a_lost_launch_is_found_and_marked_when_it_is_the_only_failure(self):
+        self.assertEqual(ios_sim.launch_lost(self.PID_LOST), ("does not have a process ID", True))
+        self.assertEqual(ios_sim.launch_lost(self.LAUNCH_TIMEOUT),
+                         ("Timed out while launching application via Xcode", True))
+        mixed = {"testFailures": self.PID_LOST["testFailures"]
+                 + [{"failureText": "XCTAssertGreaterThan failed - the AX5 field did not grow"}]}
+        self.assertEqual(ios_sim.launch_lost(mixed), ("does not have a process ID", False))
+
+    def test_an_assertion_failure_or_no_summary_is_no_lost_launch(self):
+        assertion = {"testFailures": [{"failureText": "XCTAssertTrue failed - Quick Links has no Duos section"}]}
+        self.assertIsNone(ios_sim.launch_lost(assertion))
+        self.assertIsNone(ios_sim.launch_lost({"failedTests": 1}))
+        self.assertIsNone(ios_sim.launch_lost(None))
+
+    def test_a_lost_launch_reboots_and_reruns_the_batch_without_using_its_retry(self):
+        # Release 2611.16 (#701): both attempts of the folded-Duo batch lost the app's launch on the
+        # same simulator. Now the batch reruns on a fresh, warmed one and keeps its retry.
+        code, runs, locks = self._run(["", "", "ok"], [65, 65, 0], retries=1,
+                                      summaries=[self.PID_LOST, self.PID_LOST, {"passedTests": 1}])
+        self.assertEqual((code, runs), (0, 3))
+        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._restart_simulator)] * 2)
+
+    def test_lost_launches_get_one_free_rerun_then_fail_when_retries_run_out(self):
+        code, runs, locks = self._run(["", ""], [65, 65], summaries=[self.PID_LOST, self.LAUNCH_TIMEOUT])
+        self.assertEqual((code, runs), (65, 2))
+        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._restart_simulator)] * 2)
+
+    def test_a_lost_launch_beside_an_assertion_failure_reboots_before_its_retry(self):
+        mixed = {"testFailures": self.PID_LOST["testFailures"] + [{"failureText": "XCTAssertTrue failed"}]}
+        code, runs, locks = self._run(["", "ok"], [65, 0], retries=1, summaries=[mixed, {"passedTests": 1}])
+        self.assertEqual((code, runs), (0, 2))
+        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._restart_simulator)])
+        code, runs, _ = self._run([""], [65], summaries=[mixed])
+        self.assertEqual((code, runs), (65, 1))
+
+    def test_a_wedge_and_a_lost_launch_share_one_free_rerun(self):
+        code, runs, locks = self._run([self.RUNNER, ""], [65, 65], summaries=[self.PID_LOST])
+        self.assertEqual((code, runs), (65, 2))
+        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._restart_simulator)] * 2)
+
+    def test_without_the_flag_a_lost_launch_is_an_ordinary_failure(self):
+        code, runs, locks = self._run([""], [65], reboot=False, summaries=[self.PID_LOST])
+        self.assertEqual((code, runs, locks), (65, 1, []))
+
     def test_without_the_flag_a_stall_leaves_the_simulator_alone(self):
         code, runs, locks = self._run(["", ""], [65, 65], reboot=False, retries=1,
                                       summaries=[self.AUDIT_TIMEOUT, self.AUDIT_TIMEOUT])

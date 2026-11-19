@@ -1942,12 +1942,25 @@ def cmd_uitest(args: argparse.Namespace) -> int:
                       f"running the batch again; result bundle (kept): {result_bundle}", file=sys.stderr)
                 _with_sim_lock(udid, _restart_simulator)
                 continue
-            if (returncode == EXIT_TEST_FAILED and getattr(args, "reboot_wedged", False)
-                    and (stall := accessibility_stalled(_result_summary(result_bundle)))):
-                # A verdict, but the accessibility server may now hang: reboot so the retry and the
-                # next batch start on a fresh, warmed simulator (#689, #696). This adds no attempt.
-                print(f"uitest {label}: accessibility stalled ({stall}); rebooting the simulator before the "
-                      f"next run; result bundle (kept): {result_bundle}", file=sys.stderr)
+            failure_summary = (_result_summary(result_bundle)
+                               if returncode == EXIT_TEST_FAILED and getattr(args, "reboot_wedged", False)
+                               else None)
+            lost = launch_lost(failure_summary)
+            if lost and lost[1] and not rebooted:
+                # No verdict: XCTest lost the app's launch and no assertion failed. Reboot, warm the
+                # app and run the batch again, once, like a wedge, keeping this attempt's bundle (#701).
+                rebooted = True
+                print(f"uitest {label}: app launch lost ({lost[0]}) after {elapsed:.1f}s; rebooting the "
+                      f"simulator and running the batch again; result bundle (kept): {result_bundle}",
+                      file=sys.stderr)
+                _with_sim_lock(udid, _restart_simulator)
+                continue
+            if stall := accessibility_stalled(failure_summary) or (lost and lost[0]):
+                # A verdict, but the accessibility server may now hang, or a launch was lost beside an
+                # assertion failure: reboot so the retry and the next batch start on a fresh, warmed
+                # simulator (#689, #696, #701). This adds no attempt.
+                print(f"uitest {label}: accessibility stalled or launch lost ({stall}); rebooting the "
+                      f"simulator before the next run; result bundle (kept): {result_bundle}", file=sys.stderr)
                 _with_sim_lock(udid, _restart_simulator)
             if not should_retry_batch(returncode, attempt, retries):
                 break
@@ -2235,6 +2248,37 @@ def accessibility_stalled(summary: dict | None) -> str | None:
     failures = (summary or {}).get("testFailures") or []
     texts = [str(failure.get("failureText", "")) for failure in failures if isinstance(failure, dict)]
     return next((s for s in ACCESSIBILITY_STALL_SIGNATURES if any(s in text for text in texts)), None)
+
+
+#: Failure texts from ``XCUIApplication.launch()`` that mean XCTest lost the app's launch on a slow
+#: simulator, not that the app failed. In release 2611.16 (#701) a folded-Duo batch failed both attempts
+#: with "Application '…' does not have a process ID": the spindumps show the app spawned and idle in
+#: its run loop, and the second attempt had passed every check before its relaunch. #696's cold
+#: simulator missed the launch deadline instead ("Timed out while launching application via Xcode").
+LAUNCH_LOST_SIGNATURES = (
+    "does not have a process ID",
+    "Timed out while launching application via Xcode",
+)
+
+
+def launch_lost(summary: dict | None) -> tuple[str, bool] | None:
+    """Find a lost app launch in a failed batch's result summary.
+
+    Args:
+        summary: The batch's ``_result_summary``, or ``None`` when unreadable.
+
+    Returns:
+        ``(signature, only)``: the first ``LAUNCH_LOST_SIGNATURES`` entry a failure's text contains,
+        and whether every failure is a lost launch (no assertion verdict). ``None`` when no failure
+        is a lost launch (an unreadable summary or ordinary assertion failures).
+    """
+    failures = (summary or {}).get("testFailures") or []
+    texts = [str(failure.get("failureText", "")) for failure in failures if isinstance(failure, dict)]
+    lost = [text for text in texts if any(s in text for s in LAUNCH_LOST_SIGNATURES)]
+    if not lost:
+        return None
+    signature = next(s for s in LAUNCH_LOST_SIGNATURES if any(s in text for text in lost))
+    return signature, len(lost) == len(texts)
 
 
 def _shutdown_simulator(udid: str) -> int:
@@ -2755,11 +2799,12 @@ def main(argv: list[str] | None = None) -> int:
                              "cannot find its fixture skips, and an all-skipped batch otherwise passes)")
     uitest.add_argument("--reboot-wedged", action="store_true",
                         default=os.environ.get("FST_UITEST_REBOOT_WEDGED") == "1",
-                        help="CI: when a batch reached no verdict (its test runner failed to initialize, or it "
-                             "was killed at --timeout: the simulator hung), reboot the simulator and run that "
-                             "batch once more; "
+                        help="CI: when a batch reached no verdict (its test runner failed to initialize, it "
+                             "was killed at --timeout: the simulator hung, or its only failures are lost app "
+                             "launches), reboot the simulator and run that batch once more; "
                              "test failures are never rerun, but one whose failure shows an accessibility stall "
-                             "(an audit or UI query timed out) reboots the simulator before the next run "
+                             "(an audit or UI query timed out) or a lost launch reboots the simulator before "
+                             "the next run "
                              "(default on when FST_UITEST_REBOOT_WEDGED=1, as "
                              "apple-ci sets it)")
     uitest.add_argument("--retries", type=int, default=0,
