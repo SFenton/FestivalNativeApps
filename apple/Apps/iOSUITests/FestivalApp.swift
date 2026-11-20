@@ -172,6 +172,23 @@ enum FestivalApp {
         }
     }
 
+    /// The app's current accessibility snapshot, retried on throw as
+    /// ``snapshot(of:within:until:)`` does; nil only when every attempt failed.
+    ///
+    /// Use it for a one-off read (the split's trailing pane, a row's frame before a tap)
+    /// instead of a live `exists`, `frame` or `isHittable`: on the starved CI runner a live
+    /// query whose reply is lost fails the test once XCTest's own retries run out, while a
+    /// snapshot that throws can be taken again (the iPad split journeys at AX5, #703).
+    ///
+    /// - Parameters:
+    ///   - root: The element to snapshot, usually the app.
+    ///   - timeout: How long a failed snapshot may be retried; size it with ``budget(_:inVirtualMachine:)``.
+    /// - Returns: The snapshot, or nil when every attempt threw.
+    @MainActor
+    static func currentSnapshot(of root: XCUIElement, retryFor timeout: TimeInterval = budget(5)) -> XCUIElementSnapshot? {
+        try? snapshot(of: root, within: timeout, until: { _ in true })
+    }
+
     /// Whether a snapshot holds a node with `identifier`.
     ///
     /// - Parameters:

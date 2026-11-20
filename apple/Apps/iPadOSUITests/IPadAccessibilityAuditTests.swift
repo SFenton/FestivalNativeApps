@@ -636,8 +636,15 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     /// The trailing pane's frame while a split is open, else nil: `fst.split.trailing`,
     /// or on iOS 27.1 (iPhone Duo), where that container identifier is not exposed, the
     /// navigation bar that starts right of the window's middle.
+    ///
+    /// Read from a retried snapshot: a live `exists` here stalled past XCTest's retries on
+    /// the CI runner (#703). Only when every snapshot fails is the live query asked, so a
+    /// failed read is never taken for a closed split.
     @MainActor
     static func trailingPane(_ app: XCUIApplication) -> CGRect? {
+        if let root = FestivalApp.currentSnapshot(of: app) {
+            return SplitBandUITestSupport.trailingPane(in: root, navigationBarFallback: true)
+        }
         let pane = anyElement(app, "fst.split.trailing")
         if pane.exists { return pane.frame }
         let window = app.windows.firstMatch.frame
@@ -713,10 +720,21 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     /// is on screen. Programmatic taps on offscreen rows stall the main thread
     /// (`xcuitest.md` pitfalls).
     ///
+    /// The row is found in retried snapshots and tapped at its frame, not through live
+    /// `exists`, `isHittable` and `frame` queries: those stalled past XCTest's retries on
+    /// the CI runner while the app sat idle (#703).
+    ///
     /// - Returns: `fst.split.opened` (a marker ``reachWithProof`` accepts) once the
     ///   trailing pane shows, else nil.
     @MainActor
     static func openSplit(_ app: XCUIApplication, ids: [String] = [], prefix: String? = nil) -> String? {
+        func row(in root: XCUIElementSnapshot) -> XCUIElementSnapshot? {
+            if let prefix {
+                return FestivalApp.nodes(in: root) { $0.elementType == .button && $0.identifier.hasPrefix(prefix) }.first
+            }
+            for id in ids { if let node = FestivalApp.node(id, in: root) { return node } }
+            return nil
+        }
         func row() -> XCUIElement {
             if let prefix {
                 return app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix)).firstMatch
@@ -724,14 +742,23 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             for id in ids where anyElement(app, id).exists { return anyElement(app, id) }
             return anyElement(app, ids.first ?? "")
         }
-        _ = row().waitForExistence(timeout: FestivalApp.budget(15))
-        let window = app.windows.firstMatch.frame
+        // What `isHittable` checked: no bar or floating page tools over the row's middle.
+        func covered(_ point: CGPoint, in root: XCUIElementSnapshot) -> Bool {
+            !FestivalApp.nodes(in: root) { node in
+                ([.tabBar, .navigationBar, .toolbar].contains(node.elementType) || node.identifier == "fst.page-tools")
+                    && node.frame.contains(point)
+            }.isEmpty
+        }
+        let first = try? FestivalApp.snapshot(of: app, within: FestivalApp.budget(15)) { row(in: $0) != nil }
+        let window = first.flatMap { FestivalApp.nodes(in: $0) { $0.elementType == .window }.first?.frame }
+            ?? app.windows.firstMatch.frame
         for attempt in 0..<12 {
-            let element = row()
-            if element.exists, element.isHittable, window.insetBy(dx: 0, dy: 80).contains(
-                CGPoint(x: element.frame.midX, y: element.frame.midY)
-            ) {
-                element.tap()
+            let root = FestivalApp.currentSnapshot(of: app)
+            let node = root.flatMap(row(in:))
+            if let root, let node, !node.frame.isEmpty, node.isEnabled,
+               case let middle = CGPoint(x: node.frame.midX, y: node.frame.midY),
+               window.insetBy(dx: 0, dy: 80).contains(middle), !covered(middle, in: root) {
+                screenOrigin(app).withOffset(CGVector(dx: middle.x, dy: middle.y)).tap()
                 return waitForTrailingPane(app) ? "fst.split.opened" : nil
             }
             // Screen points from the window frame: normalized app coordinates stay in the
@@ -739,13 +766,49 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             // Song Detail ignores these drags in landscape (its score-history chart spans
             // the page and takes them as bar selection); XCUITest's own scroll-to-tap
             // reaches the row there (as `IPadShellJourneyTests` does).
-            if attempt >= 4, element.exists {
+            if attempt >= 4, node != nil || root == nil, case let element = row(), element.exists {
                 element.tap()
                 return waitForTrailingPane(app) ? "fst.split.opened" : nil
             }
             // The trailing margin: a drag that starts on a chart selects a bar.
             slowDrag(app, x: dragX(window.maxX - 10, in: app), fromY: window.minY + window.height * 0.75,
                      toY: window.minY + window.height * 0.35)
+        }
+        return nil
+    }
+
+    /// Bring the node with `identifier` wholly into the page's measurable area (below its
+    /// top bar, above the tab bar and page tools) with slow drags at the column's trailing
+    /// margin, clear of Song Detail's score-history chart and the iPhone Duo bar.
+    ///
+    /// The node is read from one retried app snapshot per step, not a live query: after a
+    /// page push or a split a live `exists`/`frame` evaluation hung past XCTest's retries
+    /// on the CI runner (Score History, #693; the split journeys, #703).
+    ///
+    /// - Parameters:
+    ///   - identifier: The node's accessibility identifier.
+    ///   - app: The running app.
+    ///   - column: The page's or pane's column, where the drags start.
+    ///   - steps: How many drags to try.
+    ///   - lastFrame: Set to the node's last read frame, for the failure message.
+    /// - Returns: The node's snapshot once it is there, else nil.
+    @MainActor
+    static func reveal(
+        _ identifier: String, in app: XCUIApplication, column: CGRect, steps: Int = 8, lastFrame: inout CGRect?
+    ) -> XCUIElementSnapshot? {
+        for step in 0...steps {
+            let area = IPadAuditPageEvidence.contentRect(app)
+            guard let root = try? FestivalApp.snapshot(
+                of: app, within: FestivalApp.budget(5), until: { FestivalApp.contains(identifier, in: $0) }
+            ), let node = FestivalApp.node(identifier, in: root) else { return nil }
+            let frame = node.frame
+            lastFrame = frame
+            if area.contains(frame) { return node }
+            if step == steps { break }
+            let top = area.top(for: frame), bottom = area.bottom(for: frame)
+            let distance = frame.minY < top ? -min(400, top - frame.minY + 40) : min(400, frame.maxY - bottom + 40)
+            let x = dragX(column.maxX - 12, in: app), midY = column.midY
+            slowDrag(app, x: x, fromY: midY + distance / 2, toY: midY - distance / 2)
         }
         return nil
     }

@@ -170,7 +170,7 @@ final class ScoreHistoryAccessibilityJourneyTests: XCTestCase {
 
         // Drawn text of the best row, brought wholly into the measurable area.
         var lastFrame: CGRect?
-        guard let row = reveal(firstRow, in: app, column: column, lastFrame: &lastFrame) else {
+        guard let row = Audit.reveal(firstRow, in: app, column: column, lastFrame: &lastFrame) else {
             XCTFail("\(name): row 0 never came wholly on screen (\(lastFrame.map { "\($0)" } ?? "not in the tree"))")
             return Measure()
         }
@@ -222,39 +222,6 @@ final class ScoreHistoryAccessibilityJourneyTests: XCTestCase {
                                 toY: window.minY + window.height * 0.35)
         }
         return false
-    }
-
-    /// Bring the row with `identifier` wholly into the column's measurable area (below its
-    /// top bar, above the tab bar and page tools) with slow drags.
-    ///
-    /// The row is read from one retried app snapshot per step, not a live query: after the
-    /// page push a live `exists`/`frame` evaluation hung past XCTest's retries on the CI
-    /// runner (#693).
-    ///
-    /// - Parameters:
-    ///   - identifier: The row's accessibility identifier.
-    ///   - app: The running app.
-    ///   - column: The page's or pane's column, where the drags start.
-    ///   - lastFrame: Set to the row's last read frame, for the failure message.
-    /// - Returns: The row's snapshot once it is there, else nil.
-    @MainActor
-    private func reveal(
-        _ identifier: String, in app: XCUIApplication, column: CGRect, lastFrame: inout CGRect?
-    ) -> XCUIElementSnapshot? {
-        for _ in 0..<8 {
-            let area = IPadAuditPageEvidence.contentRect(app)
-            guard let root = try? FestivalApp.snapshot(
-                of: app, within: FestivalApp.budget(5), until: { FestivalApp.contains(identifier, in: $0) }
-            ), let row = FestivalApp.node(identifier, in: root) else { return nil }
-            let frame = row.frame
-            lastFrame = frame
-            if area.contains(frame) { return row }
-            let top = area.top(for: frame), bottom = area.bottom(for: frame)
-            let distance = frame.minY < top ? -min(400, top - frame.minY + 40) : min(400, frame.maxY - bottom + 40)
-            let x = column.maxX - 12, midY = column.midY
-            Audit.slowDrag(app, x: x, fromY: midY + distance / 2, toY: midY - distance / 2)
-        }
-        return nil
     }
 
     /// The app's last traced VoiceOver focus move once it satisfies `predicate`, read from
