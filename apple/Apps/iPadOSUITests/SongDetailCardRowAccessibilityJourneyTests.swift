@@ -93,15 +93,24 @@ final class SongDetailCardRowAccessibilityJourneyTests: XCTestCase {
         if Audit.runningOnDuo, window.width < 2 * 360 + 12 + 32 {
             throw XCTSkip("this iPhone Duo window fits one card column (\(window))")
         }
-        let lead = Audit.anyElement(app, Self.leadHeader)
-        let bass = Audit.anyElement(app, Self.bassHeader)
-        XCTAssertTrue(lead.waitForExistence(timeout: FestivalApp.budget(15)), "\(name): Lead's card")
-        XCTAssertTrue(bass.waitForExistence(timeout: FestivalApp.budget(15)), "\(name): Bass's card")
-        guard reveal(lead, in: app), bass.exists else {
-            XCTFail("\(name): the first card row never came wholly on screen (Lead \(lead.frame))")
+        // Waits and reads come from retried snapshots, the drawn text from a screen capture:
+        // live queries after the push stalled the iPad split journeys on the CI runner (#703).
+        XCTAssertTrue(FestivalApp.waitForElement(Self.leadHeader, in: app, timeout: FestivalApp.budget(15)), "\(name): Lead's card")
+        XCTAssertTrue(FestivalApp.waitForElement(Self.bassHeader, in: app, timeout: FestivalApp.budget(15)), "\(name): Bass's card")
+        var lastFrame: CGRect?
+        guard Audit.reveal(Self.leadHeader, in: app, column: window, steps: 10, lastFrame: &lastFrame) != nil else {
+            XCTFail("\(name): the first card row never came wholly on screen (Lead \(lastFrame.map { "\($0)" } ?? "not in the tree"))")
             return nil
         }
         Thread.sleep(forTimeInterval: FestivalApp.budget(2.5)) // staggered card fade-in
+        let root = try FestivalApp.snapshot(of: app, within: FestivalApp.budget(5), until: {
+            FestivalApp.contains(Self.leadHeader, in: $0) && FestivalApp.contains(Self.bassHeader, in: $0)
+        })
+        guard let lead = FestivalApp.node(Self.leadHeader, in: root),
+              let bass = FestivalApp.node(Self.bassHeader, in: root) else {
+            XCTFail("\(name): the first card row's headers left the tree")
+            return nil
+        }
 
         // Names: each header is its instrument, then its subtitle.
         XCTAssertTrue(lead.label.hasPrefix("Lead"), "\(name): Lead's header is named: '\(lead.label)'")
@@ -116,7 +125,7 @@ final class SongDetailCardRowAccessibilityJourneyTests: XCTestCase {
         XCTAssertTrue(window.contains(leadFrame) && window.contains(bassFrame), "\(name): both headers on screen")
 
         // Order: each card is one container, read whole, Lead before Bass.
-        let nodes = IPadAuditPageEvidence.flatten(try app.snapshot())
+        let nodes = IPadAuditPageEvidence.flatten(root)
         func index(_ id: String) -> Int? { nodes.firstIndex { $0.identifier == id } }
         let ids = [Self.leadCard, Self.leadHeader, Self.leadFirstRow, Self.leadViewFull, Self.bassCard, Self.bassHeader]
         let indices = ids.compactMap(index)
@@ -146,9 +155,10 @@ final class SongDetailCardRowAccessibilityJourneyTests: XCTestCase {
         }
 
         // Drawn text: each header's name whole, and Lead's line height for the growth check.
-        let leadReading = RecognizedText.recognize(lead, label: "Lead", frame: leadFrame)
-        let bassReading = RecognizedText.recognize(bass, label: "Bass", frame: bassFrame)
-        attach(app, name: name)
+        let landscape = window.width > window.height
+        let (leadReading, capture) = IPadAuditPageEvidence.reading("Lead", within: leadFrame, landscape: landscape)
+        let bassReading = IPadAuditPageEvidence.reading("Bass", within: bassFrame, landscape: landscape).reading
+        if let capture { attach(capture, name: name) }
         XCTAssertTrue(RecognizedText.showsWhole("Lead", in: leadReading.text),
                       "\(name): Lead's header is drawn whole: '\(leadReading.text ?? "")'")
         XCTAssertTrue(RecognizedText.showsWhole("Bass", in: bassReading.text),
@@ -158,29 +168,10 @@ final class SongDetailCardRowAccessibilityJourneyTests: XCTestCase {
 
     // MARK: - Helpers
 
-    /// Drag Song Detail until `element` lies wholly in the page's measurable area.
-    ///
-    /// - Returns: Whether it got there.
-    @MainActor
-    private func reveal(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
-        let window = app.windows.firstMatch.frame
-        for _ in 0..<10 {
-            let area = IPadAuditPageEvidence.contentRect(app)
-            if element.exists, area.contains(element.frame) { return true }
-            let top = area.top(for: element.frame), bottom = area.bottom(for: element.frame)
-            let distance = element.frame.minY < top ? -min(400, top - element.frame.minY + 40)
-                : min(400, element.frame.maxY - bottom + 40)
-            // Drag along the trailing margin (clear of the back-swipe edge and Duo's bar).
-            let x = Audit.dragX(window.maxX - 12, in: app)
-            Audit.slowDrag(app, x: x, fromY: window.midY + distance / 2, toY: window.midY - distance / 2)
-        }
-        return element.exists && IPadAuditPageEvidence.contentRect(app).contains(element.frame)
-    }
-
     /// Keep the screen capture with the run's results.
     @MainActor
-    private func attach(_ app: XCUIApplication, name: String) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
+    private func attach(_ capture: IPadAuditRenderedContrast.Capture, name: String) {
+        let attachment = XCTAttachment(image: UIImage(cgImage: capture.image))
         attachment.name = "song-detail-card-row-\(name)"
         attachment.lifetime = .keepAlways
         add(attachment)

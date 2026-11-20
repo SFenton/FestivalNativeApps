@@ -388,6 +388,43 @@ enum IPadAuditPageEvidence {
         return words.map(\.frame.height).max()
     }
 
+    /// The text drawn inside `frame` and its median line height, read from a crop of a
+    /// screen capture, as ``RecognizedText/recognize(_:label:frame:)`` reads an element.
+    ///
+    /// Takes a frame from a snapshot instead of a live element: resolving the element for
+    /// its own capture was one more query to stall on the CI runner (the iPad split
+    /// journeys at AX5, #703; Score History's row, #693).
+    ///
+    /// - Parameters:
+    ///   - label: The text the region should show whole.
+    ///   - frame: The region in screen points.
+    ///   - landscape: Whether the interface is landscape (the capture is turned upright).
+    /// - Returns: The best reading (the first that shows `label` whole, else the longest)
+    ///   and its capture; a capture taken while the last motion settled is retried twice.
+    @MainActor
+    static func reading(
+        _ label: String, within frame: CGRect, landscape: Bool
+    ) -> (reading: RecognizedText.Reading, capture: IPadAuditRenderedContrast.Capture?) {
+        IPadAuditRenderedContrast.interfaceIsLandscape = landscape
+        var best = RecognizedText.Reading(text: nil, lineHeight: nil)
+        var bestCapture: IPadAuditRenderedContrast.Capture?
+        for attempt in 0..<3 {
+            if attempt > 0 { RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(0.5))) }
+            guard let capture = IPadAuditRenderedContrast.Capture.screen() else { continue }
+            let lines = recognizedLines(in: capture, within: frame.insetBy(dx: -8, dy: -8))
+                .filter { frame.insetBy(dx: -4, dy: -4).contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }
+                .sorted { $0.frame.minY < $1.frame.minY }
+            bestCapture = bestCapture ?? capture
+            guard !lines.isEmpty else { continue }
+            let text = lines.map(\.text).joined(separator: " ")
+            let heights = lines.map(\.frame.height).sorted()
+            let reading = RecognizedText.Reading(text: text, lineHeight: heights[heights.count / 2])
+            if RecognizedText.showsWhole(label, in: text), heights[heights.count / 2] > 4 { return (reading, capture) }
+            if (best.text?.count ?? -1) < text.count { (best, bestCapture) = (reading, capture) }
+        }
+        return (best, bestCapture)
+    }
+
     /// Recognized text lines (and their words) with frames in screen points.
     ///
     /// Tries the accurate recognizer on Vision's default devices, then pinned to the CPU,
