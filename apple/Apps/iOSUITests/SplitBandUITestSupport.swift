@@ -45,19 +45,27 @@ enum SplitBandUITestSupport {
     @MainActor
     static func reopen(_ app: XCUIApplication, row rowID: String,
                        file: StaticString = #filePath, line: UInt = #line) -> Bool {
-        let row = app.buttons.matching(identifier: rowID).firstMatch
-        guard row.waitForExistence(timeout: FestivalApp.budget(5)) else {
+        // The list widens back to full width after Close; wait until the row settles on
+        // screen, read from retried snapshots rather than live `isHittable` polls (#703).
+        var last: CGRect?, settled = false
+        _ = try? FestivalApp.snapshot(of: app, within: FestivalApp.budget(5)) { root in
+            let frame = FestivalApp.nodes(in: root) { $0.identifier == rowID && $0.elementType == .button }.first?.frame
+            defer { last = frame }
+            guard let frame, !frame.isEmpty, root.frame.contains(CGPoint(x: frame.midX, y: frame.midY)) else { return false }
+            settled = frame == last
+            return settled
+        }
+        guard let frame = last else {
             XCTFail("reopen: no row \(rowID) after Close", file: file, line: line)
             return false
         }
-        // The list widens back to full width after Close; wait until the row settles.
-        let deadline = Date.now.addingTimeInterval(FestivalApp.budget(5))
-        while !row.isHittable, Date.now < deadline { Thread.sleep(forTimeInterval: 0.3) }
-        guard row.isHittable else {
-            XCTFail("reopen: row \(rowID) \(row.frame) is not hittable after Close", file: file, line: line)
+        guard settled else {
+            XCTFail("reopen: row \(rowID) \(frame) did not settle on screen after Close", file: file, line: line)
             return false
         }
-        row.tap()
+        // A coordinate tap at the snapshot's frame, as Close's near misses are tapped: no
+        // further live query to stall on the starved runner (#703).
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX, dy: frame.midY)).tap()
         guard waitForPane(app, open: true), trailingPane(app) != nil else {
             XCTFail("reopen: row \(rowID) did not reopen its item", file: file, line: line)
             return false
@@ -72,10 +80,55 @@ enum SplitBandUITestSupport {
     }
 
     /// The trailing pane's frame, or nil while the split is closed.
+    ///
+    /// Read from a retried snapshot (``FestivalApp/currentSnapshot(of:retryFor:)``), not a
+    /// live `exists`: polling the pane after Close stalled past XCTest's retries on the CI
+    /// runner (#703). Only when every snapshot fails is the live query asked.
     @MainActor
     static func trailingPane(_ app: XCUIApplication) -> CGRect? {
+        if let root = FestivalApp.currentSnapshot(of: app) { return trailingPane(in: root) }
         let pane = element(app, paneID)
         return pane.exists ? pane.frame : nil
+    }
+
+    /// The trailing pane's frame in one snapshot, or nil while the split is closed.
+    ///
+    /// - Parameters:
+    ///   - root: The app's snapshot.
+    ///   - navigationBarFallback: When the pane's container is not listed (iOS 27.1 on
+    ///     iPhone Duo does not expose `fst.split.trailing`), take the navigation bar that
+    ///     starts right of the window's middle, in its top half, as the pane's leading edge.
+    /// - Returns: The pane's frame, or nil.
+    @MainActor
+    static func trailingPane(in root: XCUIElementSnapshot, navigationBarFallback: Bool = false) -> CGRect? {
+        if let pane = FestivalApp.node(paneID, in: root) { return pane.frame }
+        guard navigationBarFallback else { return nil }
+        let window = FestivalApp.nodes(in: root) { $0.elementType == .window }.first?.frame ?? root.frame
+        let bars = FestivalApp.nodes(in: root) { $0.elementType == .navigationBar }.map(\.frame)
+            .filter { $0.height > 0 && $0.minX > window.midX - 40 && $0.maxY < window.midY }
+        guard let bar = bars.first else { return nil }
+        return CGRect(x: bar.minX, y: window.minY, width: window.maxX - bar.minX, height: window.height)
+    }
+
+    /// Wait for the trailing pane's Close button to be on screen in the bar, read from
+    /// retried snapshots rather than a live `waitForExistence` and `isHittable` (#703).
+    ///
+    /// - Parameters:
+    ///   - app: The app.
+    ///   - timeout: Budget on a physical Mac (``FestivalApp/budget(_:inVirtualMachine:)``).
+    /// - Returns: Close's node once its frame is on screen, or nil when it is not in the bar
+    ///   (it overflowed into More) or every snapshot failed.
+    @MainActor
+    static func waitForClose(_ app: XCUIApplication, timeout: TimeInterval) -> XCUIElementSnapshot? {
+        func close(_ root: XCUIElementSnapshot) -> XCUIElementSnapshot? {
+            FestivalApp.nodes(in: root) {
+                $0.identifier == closeID && $0.elementType == .button && !$0.frame.isEmpty
+                    && root.frame.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
+            }.first
+        }
+        guard let root = try? FestivalApp.snapshot(of: app, within: FestivalApp.budget(timeout), until: { close($0) != nil })
+        else { return nil }
+        return close(root)
     }
 
     /// Wait until the trailing pane is open (and stops sliding in) or closed.
@@ -157,9 +210,8 @@ enum SplitBandUITestSupport {
             XCTFail("\(context): no trailing pane to close", file: file, line: line)
             return false
         }
-        let close = app.buttons.matching(identifier: closeID).firstMatch
         let origin = app.coordinate(withNormalizedOffset: .zero)
-        if close.waitForExistence(timeout: FestivalApp.budget(3)), close.isHittable {
+        if var close = waitForClose(app, timeout: 3) {
             XCTAssertEqual(close.label, "Close", "\(context): Close is named", file: file, line: line)
             XCTAssertTrue(pane.contains(CGPoint(x: close.frame.midX, y: close.frame.midY)),
                           "\(context): Close \(close.frame) is in the trailing pane \(pane)", file: file, line: line)
@@ -173,17 +225,18 @@ enum SplitBandUITestSupport {
                 }
                 if index < nearMisses.count - 1 {
                     guard reopen() else { return true }
-                    guard close.waitForExistence(timeout: FestivalApp.budget(5)) else {
+                    guard waitForClose(app, timeout: 5) != nil else {
                         XCTFail("\(context): the reopened pane has no Close", file: file, line: line)
                         return true
                     }
-                    // A tap during the slide-in can land on the moving bar.
+                    // A tap during the slide-in can land on the moving bar; read Close once
+                    // the bar has settled.
                     RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(0.6)))
-                    guard close.isHittable else {
-                        XCTFail("\(context): the reopened pane's Close \(close.frame) is not hittable",
-                                file: file, line: line)
+                    guard let settled = waitForClose(app, timeout: 5) else {
+                        XCTFail("\(context): the reopened pane's Close is not on screen", file: file, line: line)
                         return true
                     }
+                    close = settled
                 }
             }
             return true

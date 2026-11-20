@@ -101,6 +101,38 @@ final class UITestHarnessTests: XCTestCase {
         XCTAssertNil(FestivalApp.node("fst.history.row.1", in: tree))
     }
 
+    /// The split's trailing pane is read from one snapshot: its container when listed;
+    /// otherwise, only where asked (iOS 27.1 on iPhone Duo), the navigation bar right of
+    /// the window's middle in its top half; a closed split is nil (#703).
+    @MainActor
+    func testTrailingPaneIsReadFromASnapshot() {
+        let window = CGRect(x: 0, y: 0, width: 1210, height: 834)
+        let open = FakeSnapshot("app", frame: window, [
+            FakeSnapshot("", frame: window, type: .window, [
+                FakeSnapshot("fst.split.trailing", frame: CGRect(x: 605, y: 0, width: 605, height: 834)),
+            ]),
+        ])
+        XCTAssertEqual(SplitBandUITestSupport.trailingPane(in: open), CGRect(x: 605, y: 0, width: 605, height: 834))
+
+        let barsOnly = FakeSnapshot("app", frame: window, [
+            FakeSnapshot("", frame: window, type: .window, [
+                FakeSnapshot("Rivals", frame: CGRect(x: 0, y: 24, width: 600, height: 50), type: .navigationBar),
+                FakeSnapshot("Rival", frame: CGRect(x: 610, y: 24, width: 600, height: 50), type: .navigationBar),
+                FakeSnapshot("Toolbar", frame: CGRect(x: 610, y: 760, width: 600, height: 50), type: .navigationBar),
+            ]),
+        ])
+        XCTAssertNil(SplitBandUITestSupport.trailingPane(in: barsOnly), "no fallback unless asked")
+        XCTAssertEqual(SplitBandUITestSupport.trailingPane(in: barsOnly, navigationBarFallback: true),
+                       CGRect(x: 610, y: 0, width: 600, height: 834))
+
+        let closed = FakeSnapshot("app", frame: window, [
+            FakeSnapshot("", frame: window, type: .window, [
+                FakeSnapshot("Rivals", frame: CGRect(x: 0, y: 24, width: 1210, height: 50), type: .navigationBar),
+            ]),
+        ])
+        XCTAssertNil(SplitBandUITestSupport.trailingPane(in: closed, navigationBarFallback: true))
+    }
+
     // MARK: - Contrast floor
 
     /// The contrast floor's resting-page signature ignores a ticking countdown's label and
@@ -148,15 +180,15 @@ final class UITestHarnessTests: XCTestCase {
     }
 }
 
-/// A hand-built accessibility snapshot node: only its identifier and children matter.
+/// A hand-built accessibility snapshot node: its identifier, frame, type and children.
 private final class FakeSnapshot: NSObject, XCUIElementSnapshot {
     let identifier: String
     let children: [any XCUIElementSnapshot]
-    let frame: CGRect = .zero
+    let frame: CGRect
     let value: Any? = nil
     let title = ""
     let label = ""
-    let elementType: XCUIElement.ElementType = .other
+    let elementType: XCUIElement.ElementType
     let isEnabled = true
     let horizontalSizeClass: XCUIElement.SizeClass = .unspecified
     let verticalSizeClass: XCUIElement.SizeClass = .unspecified
@@ -165,8 +197,11 @@ private final class FakeSnapshot: NSObject, XCUIElementSnapshot {
     let hasFocus = false
     var dictionaryRepresentation: [XCUIElement.AttributeName: Any] { [:] }
 
-    init(_ identifier: String, _ children: [FakeSnapshot] = []) {
+    init(_ identifier: String, frame: CGRect = .zero, type: XCUIElement.ElementType = .other,
+         _ children: [FakeSnapshot] = []) {
         self.identifier = identifier
+        self.frame = frame
+        self.elementType = type
         self.children = children
     }
 }

@@ -111,7 +111,8 @@ final class IPadShellAccessibilityTests: XCTestCase {
     /// Identifiers in depth-first accessibility order.
     @MainActor
     private func order(_ app: XCUIApplication) throws -> [XCUIElementSnapshot] {
-        IPadAuditPageEvidence.flatten(try app.snapshot())
+        // A retried snapshot: one that throws on the starved CI runner is taken again (#703).
+        IPadAuditPageEvidence.flatten(try FestivalApp.snapshot(of: app, within: FestivalApp.budget(5), until: { _ in true }))
     }
 
     // MARK: - Flyout
@@ -412,11 +413,13 @@ final class IPadShellAccessibilityTests: XCTestCase {
         app.launchArguments += ["-fst.accessibility.moreContrast", "YES"]
         launch(app)
         defer { app.terminate() }
-        XCTAssertTrue(element(app, page.ready).waitForExistence(timeout: 25), "Rivals loads")
+        XCTAssertTrue(FestivalApp.waitForElement(page.ready, in: app, timeout: 25), "Rivals loads")
         let window = app.windows.firstMatch.frame
         guard window.width > window.height else {
             return XCTFail("the window is not landscape (\(window)); no split to check")
         }
+        // From here every read is a retried snapshot: live queries after the split stalled
+        // on the CI runner (#703).
         guard IPadAccessibilityAuditTests.openSplit(app, prefix: page.row) != nil,
               let paneFrame = IPadAccessibilityAuditTests.trailingPane(app) else {
             return XCTFail("the trailing pane did not open at AX5 under Increase Contrast")
@@ -425,28 +428,29 @@ final class IPadShellAccessibilityTests: XCTestCase {
 
         let nodes = try order(app)
         SplitBandUITestSupport.assertBandIsSilent(nodes, "AX5, Increase Contrast")
-        let selected = app.descendants(matching: .any).matching(NSPredicate(format: "isSelected == true"))
-            .matching(NSPredicate(format: "identifier BEGINSWITH %@", page.row)).firstMatch
-        XCTAssertTrue(selected.exists, "the opened row reads selected")
-        let rowIndex = nodes.firstIndex { $0.identifier == selected.identifier }
+        let selected = nodes.first { $0.isSelected && $0.identifier.hasPrefix(page.row) }
+        XCTAssertNotNil(selected, "the opened row reads selected")
+        let rowIndex = selected.flatMap { selected in nodes.firstIndex { $0.identifier == selected.identifier } }
         let paneIndex = nodes.firstIndex { $0.identifier == "fst.split.trailing" }
             ?? nodes.firstIndex { paneFrame.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) && $0.frame.width > 0
                 && $0.frame.width < paneFrame.width + 1 }
         if let rowIndex, let paneIndex {
             XCTAssertLessThan(rowIndex, paneIndex, "the leading pane reads before the trailing pane at AX5")
         } else {
-            XCTFail("row \(selected.identifier) or trailing pane missing from the tree")
+            XCTFail("row \(selected?.identifier ?? "(none selected)") or trailing pane missing from the tree")
         }
 
         // Close: XCUITest reports a system bar button's glass (36 pt on iPadOS 26.5), not
         // its hit region, so prove 44 × 44 pt with near-miss taps (each must close the
         // pane; the row reopens it between taps), or through More when it overflows.
-        let rowID = selected.identifier
+        guard let rowID = selected?.identifier else { return }
         SplitBandUITestSupport.assertCloseHitRegion(app, "AX5, Increase Contrast") {
             SplitBandUITestSupport.reopen(app, row: rowID)
         }
         XCTAssertTrue(SplitBandUITestSupport.waitForPane(app, open: false), "Close returns to full width")
-        XCTAssertFalse(SplitBandUITestSupport.element(app, SplitBandUITestSupport.bandID).exists,
+        let closed = FestivalApp.currentSnapshot(of: app)
+        XCTAssertNotNil(closed, "a snapshot after Close")
+        XCTAssertFalse(closed.map { FestivalApp.contains(SplitBandUITestSupport.bandID, in: $0) } ?? false,
                        "no band without a split")
     }
 
