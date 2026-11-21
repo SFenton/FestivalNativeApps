@@ -781,9 +781,10 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     /// top bar, above the tab bar and page tools) with slow drags at the column's trailing
     /// margin, clear of Song Detail's score-history chart and the iPhone Duo bar.
     ///
-    /// The node is read from one retried app snapshot per step, not a live query: after a
-    /// page push or a split a live `exists`/`frame` evaluation hung past XCTest's retries
-    /// on the CI runner (Score History, #693; the split journeys, #703).
+    /// The node and the page's ``IPadAuditPageEvidence/ContentArea`` are read from one retried
+    /// app snapshot per step, not live queries: after a page push or a split a live `exists`/
+    /// `frame` evaluation hung past XCTest's retries on the CI runner (Score History, #693; the
+    /// split journeys, #703; the content area's bars, #705).
     ///
     /// - Parameters:
     ///   - identifier: The node's accessibility identifier.
@@ -797,10 +798,10 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         _ identifier: String, in app: XCUIApplication, column: CGRect, steps: Int = 8, lastFrame: inout CGRect?
     ) -> XCUIElementSnapshot? {
         for step in 0...steps {
-            let area = IPadAuditPageEvidence.contentRect(app)
             guard let root = try? FestivalApp.snapshot(
                 of: app, within: FestivalApp.budget(5), until: { FestivalApp.contains(identifier, in: $0) }
             ), let node = FestivalApp.node(identifier, in: root) else { return nil }
+            let area = IPadAuditPageEvidence.contentArea(in: root)
             let frame = node.frame
             lastFrame = frame
             if area.contains(frame) { return node }

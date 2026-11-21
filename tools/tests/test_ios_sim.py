@@ -393,6 +393,23 @@ class RebootWedgedTests(unittest.TestCase):
         self.assertEqual(ios_sim.simulator_wedged(f"Testing failed:\n\t{self.RUNNER}\n"),
                          "The test runner failed to initialize for UI testing")
 
+    BOOTSTRAP = ("FestivalMobileIPadUITests-Runner (31044) encountered an error (Early unexpected exit, operation "
+                 "never finished bootstrapping - no restart will be attempted. (Underlying Error: The test runner "
+                 "crashed while preparing to run tests: FestivalMobileIPadUITests-Runner at "
+                 "-[XCTWaiter(StallHandling) handleStalledWait:]))")
+
+    def test_a_runner_that_crashed_while_bootstrapping_is_a_hang(self):
+        self.assertEqual(ios_sim.simulator_wedged(f"Testing failed:\n\t{self.BOOTSTRAP}\n"),
+                         "operation never finished bootstrapping")
+
+    def test_a_bootstrap_crash_on_the_retry_after_a_stall_reruns_without_spending_an_attempt(self):
+        # Release 2611.16 (#705): the iPad batch's UI query timed out (stall reboot, retry 1/1), then the
+        # retry's runner crashed before any test ran and failed the batch with no verdict.
+        code, runs, locks = self._run(["", self.BOOTSTRAP, "ok"], [65, 65, 0], retries=1,
+                                      summaries=[self.QUERY_TIMEOUT, {"passedTests": 1}])
+        self.assertEqual((code, runs), (0, 3))
+        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._restart_simulator)] * 2)
+
     def test_a_test_failure_is_not_a_hang(self):
         self.assertIsNone(ios_sim.simulator_wedged("XCTAssertTrue failed - No player footer\n** TEST FAILED **"))
         self.assertIsNone(ios_sim.simulator_wedged('caught error: "Audit failed to complete in time"'))
