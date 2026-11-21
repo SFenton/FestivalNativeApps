@@ -2188,9 +2188,12 @@ def terminate_app(udid: str, *, timeout: float = TERMINATE_TIMEOUT) -> bool:
 #: ``xcodebuild`` log lines that mean the simulator's accessibility server hung before any test ran, so
 #: the batch reached no verdict: once it hangs, every later batch's runner fails to start (#620: an audit
 #: timed out, then 33 batches failed in about 90 s each). A test failure (an audit timeout included) is
-#: never a wedge.
+#: never a wedge. A runner that crashed while bootstrapping ran no test either: in release 2611.16 (#705)
+#: the iPad retry after a "Timed out while evaluating UI query" stall reboot crashed in
+#: ``-[XCTWaiter(StallHandling) handleStalledWait:]`` before its first test.
 WEDGED_SIMULATOR_SIGNATURES = (
     "The test runner failed to initialize for UI testing",
+    "operation never finished bootstrapping",
     NO_DESTINATION_SIGNATURE,
 )
 
