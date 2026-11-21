@@ -241,23 +241,44 @@ enum IPadAuditPageEvidence {
         }
     }
 
-    /// The page's ``ContentArea``.
+    /// The page's ``ContentArea``, read from one retried app snapshot.
+    ///
+    /// - Parameter app: The running app.
+    /// - Returns: The area, or an empty one (nothing measurable) when every snapshot threw.
     @MainActor
     static func contentRect(_ app: XCUIApplication) -> ContentArea {
-        let window = app.windows.firstMatch.frame
+        guard let root = FestivalApp.currentSnapshot(of: app) else { return ContentArea(rect: .zero) }
+        return contentArea(in: root)
+    }
+
+    /// The ``ContentArea`` of an app snapshot already taken.
+    ///
+    /// Everything comes from the snapshot, never a live `exists`, `isHittable` or `frame`:
+    /// one of those hung past XCTest's retries on the CI runner (Score History's split pane at
+    /// AX5, #705). A snapshot leaves out the tab bar and page tools while a sheet covers them
+    /// (live, they exist but are not hittable), so a bar in the snapshot whose middle is in
+    /// the window is one a live `exists && isHittable` accepted. All frames, the window's
+    /// included, are in the snapshot's space, like the nodes the area is compared with; in a
+    /// compact ⅓ tile that space is offset in x from live element frames.
+    ///
+    /// - Parameter root: The app's snapshot.
+    /// - Returns: The area.
+    @MainActor
+    static func contentArea(in root: XCUIElementSnapshot) -> ContentArea {
+        let window = FestivalApp.nodes(in: root) { $0.elementType == .window }.first?.frame ?? root.frame
         var bottom = window.maxY
-        // Only bars on screen: a sheet covering the tab bar leaves it in the tree but not hittable.
         // An open drawer covers the bottom bars (they stay in the tree, behind it).
-        let drawerOpen = app.descendants(matching: .any)[IPadAuditWaivers.drawerContainer].exists
-        for element in [app.tabBars.firstMatch, app.descendants(matching: .any)["fst.page-tools"]]
-            where !drawerOpen && element.exists && element.isHittable {
-            let frame = element.frame
-            if frame.minY > window.midY { bottom = min(bottom, frame.minY) }
+        let drawerOpen = FestivalApp.contains(IPadAuditWaivers.drawerContainer, in: root)
+        let bars = [FestivalApp.nodes(in: root) { $0.elementType == .tabBar }.first,
+                    FestivalApp.node("fst.page-tools", in: root)]
+        for frame in bars.compactMap({ $0?.frame })
+            where !drawerOpen && window.contains(CGPoint(x: frame.midX, y: frame.midY)) && frame.minY > window.midY {
+            bottom = min(bottom, frame.minY)
         }
         var area = ContentArea(rect: CGRect(x: window.minX, y: window.minY, width: window.width, height: bottom - window.minY))
         // The open drawer sits in front of the page's bars and pagers: its rows are
         // measurable wherever they are (the page's large-title bar reached y 198 behind it).
-        guard !drawerOpen, let root = try? app.snapshot() else { return area }
+        guard !drawerOpen else { return area }
         func walk(_ node: XCUIElementSnapshot, inBar: Bool) {
             let isBar = node.elementType == .navigationBar && node.frame.maxY < window.midY && node.frame.height > 0
             if isBar { area.topBars.append(node.frame) }
