@@ -23,13 +23,18 @@ import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.MainDispatcherRule
 import com.festivalscoretracker.android.testing.SongsFixtures
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -297,7 +302,7 @@ class SongsViewModelTest {
         var loads = 0
         val publications = MutableStateFlow<Int?>(7)
         val scope = CoroutineScope(coroutineContext + SupervisorJob())
-        val store = ShopStore({ loads++; SongsFixtures.shop(observed = publications.value ?: 0) }, publications, ServiceRetryBackoff(), scope)
+        val store = ShopStore({ loads++; SongsFixtures.shop(observed = publications.value ?: 0) }, publications, ServiceRetryBackoff(), scope, main.dispatcher)
         assertEquals(LoadState.Loading, store.state.value)
         store.ensureStarted()
         store.ensureStarted()
@@ -314,4 +319,55 @@ class SongsViewModelTest {
         assertEquals(4, loads)
         scope.cancel()
     }
+
+    // region Main-thread publication (issue #707)
+
+    /**
+     * Polls the test scheduler until [done], while real worker threads finish their part.
+     *
+     * @param done Completion check.
+     */
+    private fun kotlinx.coroutines.test.TestScope.awaitReal(done: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (!done() && System.currentTimeMillis() < deadline) {
+            advanceUntilIdle()
+            Thread.sleep(5)
+        }
+        advanceUntilIdle()
+    }
+
+    /** Current thread without the debug-mode coroutine suffix. */
+    private fun threadName(): String = Thread.currentThread().name.substringBefore(" @")
+
+    @Test
+    fun songsStateIsPublishedOnTheMainThreadNotTheComputeWorker() = runTest(main.dispatcher) {
+        val mainThread = threadName()
+        val compute = Executors.newSingleThreadExecutor { Thread(it, "songs-compute") }.asCoroutineDispatcher()
+        val inputs = Inputs()
+        val vm = SongsViewModel(
+            { payload }, inputs.settings, inputs.prefs, inputs.shop, inputs.profile, inputs.publication, ServiceRetryBackoff(),
+            computeDispatcher = compute,
+        )
+        // An unconfined collector (like the Compose test rule's) runs on whichever thread writes the state.
+        val writers = CopyOnWriteArrayList<String>()
+        backgroundScope.launch(Dispatchers.Unconfined) { vm.uiState.collect { writers += threadName() } }
+        awaitReal { vm.uiState.value.rows.size == 3 }
+        assertEquals(3, vm.uiState.value.rows.size)
+        assertTrue(writers.toString(), writers.all { it == mainThread })
+        compute.close()
+    }
+
+    @Test
+    fun shopStorePublishesOnTheMainThreadByDefault() = runTest(main.dispatcher) {
+        val mainThread = threadName()
+        val store = ShopStore({ SongsFixtures.shop(observed = 7) }, MutableStateFlow(7), ServiceRetryBackoff())
+        val writers = CopyOnWriteArrayList<String>()
+        backgroundScope.launch(Dispatchers.Unconfined) { store.state.collect { writers += threadName() } }
+        store.ensureStarted()
+        awaitReal { store.state.value is LoadState.Loaded }
+        assertTrue(store.state.value is LoadState.Loaded)
+        assertTrue(writers.toString(), writers.all { it == mainThread })
+    }
+
+    // endregion
 }

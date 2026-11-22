@@ -4,6 +4,7 @@ import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.core.shop.ShopPayload
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.RetryingLoader
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // region Shop store
 
@@ -25,15 +27,18 @@ import kotlinx.coroutines.launch
  * @param load Shop read (`FestivalApi.shop`).
  * @param publications Observed publication stream (`FestivalApi.publicationChanges`).
  * @param backoff Shared retry backoff.
- * @param scope Owner scope (process lifetime by default).
+ * @param scope Owner scope (process lifetime on the main thread by default, so [state] is
+ *   published on the main thread like a `viewModelScope` loader; issue #707).
+ * @param loadDispatcher Dispatcher the read runs on (off the main thread).
  */
 class ShopStore(
     load: suspend () -> ShopPayload,
     private val publications: Flow<Int?>,
     backoff: ServiceRetryBackoff,
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+    loadDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
-    private val loader = RetryingLoader(scope, "shop", backoff) { load() }
+    private val loader = RetryingLoader(scope, "shop", backoff) { withContext(loadDispatcher) { load() } }
     private var watching = false
 
     /** Current Shop state. */
