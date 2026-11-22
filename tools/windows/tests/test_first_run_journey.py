@@ -6,6 +6,7 @@ Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root.
 import json
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -201,6 +202,19 @@ class FailureReportTests(unittest.TestCase):
                 self.assertEqual(j._last_pid(set()), 7)
                 self.assertIsNone(j._last_pid({7}))
             self.assertEqual(j.report_failure("bump", 3, None, Path(folder), None, 0.0), "app: no launch recorded a pid")
+
+
+class ImportTests(unittest.TestCase):
+    """The runner imports on its own, as ``runner:first-run`` starts it (#706)."""
+
+    def test_the_runner_imports_in_a_fresh_interpreter(self):
+        # In this suite a sibling test may already have registered ``fst_profile_journeys``, which hid #706.
+        tools = Path(j.__file__).resolve().parent
+        result = subprocess.run(
+            [sys.executable, "-c", "import first_run_journey as j; print(j.journeys_profile.__name__)"],
+            cwd=tools, capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "fst_profile_journeys")
 
 
 class ContractTests(unittest.TestCase):
