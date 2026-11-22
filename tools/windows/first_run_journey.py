@@ -59,11 +59,13 @@ Exit code 0 when every scenario passes, 1 otherwise.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import shutil
 import sys
 import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -73,6 +75,12 @@ import a11y_matrix  # noqa: E402  (tools/windows module: fixture service)
 import fade_trace  # noqa: E402
 import journey_exe  # noqa: E402
 import uiwin  # noqa: E402
+
+# The profile journeys' failure report (#680), loaded by path: a plain ``import profile`` is the standard library's.
+_PROFILE_SPEC = importlib.util.spec_from_file_location(
+    "fst_profile_journeys", Path(__file__).resolve().parent / "journeys" / "profile.py")
+journeys_profile = importlib.util.module_from_spec(_PROFILE_SPEC)
+_PROFILE_SPEC.loader.exec_module(journeys_profile)
 
 Seen = dict[str, Any]
 
@@ -811,6 +819,56 @@ def _close_last() -> None:
         pass
 
 
+def _last_pid(closed: set[int]) -> int | None:
+    """The pid this worktree's last ``uiwin launch`` recorded, unless it is one the scenario already closed.
+
+    A launch whose steps fail prints no pid, but ``uiwin`` records it as soon as the window appears.
+    """
+    try:
+        pid = int(json.loads(uiwin._state_path().read_text(encoding="utf-8"))["pid"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return None if pid in closed else pid
+
+
+def report_failure(name: str, index: int, pid: int | None, data: Path, shots: Path | None, started: float,
+                   handle: int | None = None) -> str:
+    """Keeps what is known about the app when a phase failed and returns the report's first line.
+
+    Phases only shoot after their steps pass, so without this a failed phase leaves no picture of the window, no word
+    on whether the app was still running and no copy of its seen-state (#704). Like the profile journeys (#676, #680)
+    it writes ``first-run-<scenario>-<phase>-failed.png``/``.txt`` (screenshot, UIA tree) and ``-failed-app.txt``
+    (process state, Application event log, the app's ``diagnostics.log`` and ``first-run.json``) into ``shots``.
+
+    Args:
+        name: Scenario name.
+        index: Failed phase.
+        pid: App process ID, or ``None`` when no launch recorded one.
+        data: The app's data folder (``FST_DEBUG_DATA_DIR``).
+        shots: Screenshot folder (CI uploads it), or ``None`` to keep nothing.
+        started: ``time.time()`` when the scenario started.
+        handle: The app's process handle from ``journeys_profile._hold``.
+
+    Returns:
+        For example ``"app: running; window responding"``.
+    """
+    if pid is None:
+        return "app: no launch recorded a pid"
+    stem = f"first-run-{name}-{index}-failed"
+    captures = {}
+    if shots is not None:
+        captures = {
+            "shot": journeys_profile._uiwin("shot", "--pid", str(pid), str(shots / f"{stem}.png"), check=False),
+            "tree": journeys_profile._uiwin("tree", "--pid", str(pid), str(shots / f"{stem}.txt"), check=False),
+        }
+    report = journeys_profile._failure_report(pid, data, started, captures, handle)
+    seen = data / "first-run.json"
+    report += "\nfirst-run.json:\n" + (seen.read_text(encoding="utf-8", errors="replace") if seen.exists() else "(none)")
+    if shots is not None:
+        (shots / f"{stem}-app.txt").write_text(report, encoding="utf-8")
+    return report.splitlines()[0]
+
+
 def launch(exe: Path, port: int, scenario: Scenario, settings: Path, data: Path, steps: list[str],
            log: Path | None = None) -> int:
     """Launches the app for a scenario, runs a phase's steps in the same desktop-lock hold and returns its pid.
@@ -844,11 +902,16 @@ def run(scenario: Scenario, exe: Path, port: int, shots: Path | None) -> list[st
     if scenario.settings:
         settings.write_text(json.dumps(scenario.settings), encoding="utf-8")
     pid = None
+    handle = None
+    closed: set[int] = set()
+    started = time.time()
     try:
         for index, phase in enumerate(scenario.phases):
             if phase.relaunch and pid is not None:
                 _uiwin("close", "--pid", str(pid))
-                pid = None
+                closed.add(pid)
+                journeys_profile._release(handle)
+                pid, handle = None, None
             if phase.mutate is not None:
                 seen_file.write_text(json.dumps(phase.mutate(load_seen(seen_file))), encoding="utf-8")
             tree = work / f"tree-{index}.txt"
@@ -859,16 +922,18 @@ def run(scenario: Scenario, exe: Path, port: int, shots: Path | None) -> list[st
                 steps.append(f"shot:{shots / f'first-run-{scenario.name}-{index}.png'}")
             try:
                 if pid is None:
-                    try:
-                        pid = launch(exe, port, scenario, settings, data, steps, log)
-                    except RuntimeError:
-                        # The launch may have succeeded before a step failed: close the worktree's last launch.
-                        _close_last()
-                        raise
+                    pid = launch(exe, port, scenario, settings, data, steps, log)
+                    # Keep the exit code readable if the app later crashes (#680).
+                    handle = journeys_profile._hold(pid)
                 else:
                     _uiwin("drive", "--pid", str(pid), "--steps", "; ".join(steps))
             except RuntimeError as error:
                 failures.append(f"phase {index}: {error}")
+                # A launch whose steps failed returned no pid, but its app may still be running.
+                failed = pid if pid is not None else _last_pid(closed)
+                failures.append(f"phase {index}: {report_failure(scenario.name, index, failed, data, shots, started, handle)}")
+                if pid is None:
+                    _close_last()
                 break
             text = tree.read_text(encoding="utf-8", errors="replace") if tree.exists() else ""
             failures += [f"phase {index}: {f}" for f in check_tree(text, phase) + check_seen(seen_file, phase)]
@@ -885,6 +950,7 @@ def run(scenario: Scenario, exe: Path, port: int, shots: Path | None) -> list[st
                 _uiwin("close", "--pid", str(pid))
             except RuntimeError:
                 pass
+        journeys_profile._release(handle)
     if not failures:
         shutil.rmtree(work, ignore_errors=True)
     else:

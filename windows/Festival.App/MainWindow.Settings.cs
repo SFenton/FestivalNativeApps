@@ -127,6 +127,16 @@ public sealed partial class MainWindow
     private void EvaluateFirstRun()
     {
         if (!frames.TryGetValue(current, out var frame) || frame.Content is PlaceholderPage || !windowVisible || minimized) return;
+        if (RootGrid.XamlRoot is null)
+        {
+            // No event follows the shell's XamlRoot arriving, so check again shortly, like What's New (issue #704).
+            DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, async () =>
+            {
+                await Task.Delay(WhatsNewSettleDelay);
+                QueueFirstRun();
+            });
+            return;
+        }
         TrackRoutes(frame);
         // An open split pane is the page the reader just opened, so its guide shows (Score History beside Song Detail).
         var route = splits.GetValueOrDefault(current)?.PaneRoute ?? routeStacks[frame].Peek();
@@ -144,7 +154,9 @@ public sealed partial class MainWindow
         {
             await ShowDialogAsync(FirstRunCarousel.CreateDialog(carousel, RootGrid.XamlRoot));
         }
-        catch (Exception error) when (error is InvalidOperationException or System.Runtime.InteropServices.COMException)
+        // ArgumentException is WinUI's answer to a dialog it cannot host ("The parameter is incorrect."); unhandled, the
+        // carousel kept the single active slot and no guide opened for the rest of the session (issue #704).
+        catch (Exception error) when (error is InvalidOperationException or ArgumentException or System.Runtime.InteropServices.COMException)
         {
             CrashLogWrite(error);
             carousel.Complete();
