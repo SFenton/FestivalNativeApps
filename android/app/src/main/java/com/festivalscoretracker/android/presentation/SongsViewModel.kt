@@ -30,7 +30,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -38,7 +37,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 // region Songs state
 
@@ -183,18 +182,25 @@ class SongsViewModel(
 
     private data class Related(val shop: LoadState<ShopPayload>, val player: SelectedProfileState, val current: Int?, val settled: Int?)
 
-    /** Derived screen state. */
-    val uiState: StateFlow<SongsUiState> = combine(
-        loader.state,
-        searchText.debounce { if (it.isEmpty()) 0L else SEARCH_DEBOUNCE_MS },
-        settings.filterNotNull(),
-        prefs,
-        related,
-    ) { catalog, text, app, saved, (shopState, player, current, settled) ->
-        build(catalog, text, app, saved, shopState, player, current, settled)
-    }.flowOn(computeDispatcher).stateIn(viewModelScope, SharingStarted.Eagerly, SongsUiState())
+    private val mutableUiState = MutableStateFlow(SongsUiState())
+
+    /** Derived screen state, built on `computeDispatcher` and published on the main thread. */
+    val uiState: StateFlow<SongsUiState> = mutableUiState.asStateFlow()
 
     init {
+        // Not `flowOn(…).stateIn(…)`: stateIn fuses the flowOn context and would write the state from a
+        // worker, resuming unconfined collectors (Compose tests) off the main thread (issue #707).
+        viewModelScope.launch {
+            combine(
+                loader.state,
+                searchText.debounce { if (it.isEmpty()) 0L else SEARCH_DEBOUNCE_MS },
+                settings.filterNotNull(),
+                prefs,
+                related,
+            ) { catalog, text, app, saved, (shopState, player, current, settled) ->
+                build(catalog, text, app, saved, shopState, player, current, settled)
+            }.flowOn(computeDispatcher).collect { mutableUiState.value = it }
+        }
         loader.ensureStarted()
     }
 
