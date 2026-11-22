@@ -80,6 +80,7 @@ import uiwin  # noqa: E402
 _PROFILE_SPEC = importlib.util.spec_from_file_location(
     "fst_profile_journeys", Path(__file__).resolve().parent / "journeys" / "profile.py")
 journeys_profile = importlib.util.module_from_spec(_PROFILE_SPEC)
+sys.modules[_PROFILE_SPEC.name] = journeys_profile  # dataclasses resolve their module through sys.modules (#706)
 _PROFILE_SPEC.loader.exec_module(journeys_profile)
 
 Seen = dict[str, Any]
