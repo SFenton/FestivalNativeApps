@@ -5,10 +5,12 @@ Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root.
 
 import json
 import re
+import shutil
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import fade_trace as f  # noqa: E402  (sibling module)
@@ -155,6 +157,50 @@ class SeenTests(unittest.TestCase):
     def test_older_rewrites_one_version(self):
         seen = {"a": {"version": 3}, "b": {"version": 2}}
         self.assertEqual(j._older("a")(seen), {"a": {"version": 0}, "b": {"version": 2}})
+
+
+class FailureReportTests(unittest.TestCase):
+    """A failed phase keeps the window, the app's state and its seen-state (#704)."""
+
+    def test_a_failed_launch_phase_reports_the_recorded_app_before_closing_it(self):
+        scenario = j.Scenario(name="bump", state="new-slides-only", phases=[j.Phase([j.OPEN])])
+        calls: list[str] = []
+        with tempfile.TemporaryDirectory() as folder:
+            shots, state = Path(folder) / "shots", Path(folder) / "last.json"
+            shots.mkdir()
+            state.write_text(json.dumps({"pid": 4242}), encoding="utf-8")
+
+            def launch(exe, port, scenario, settings, data, steps, log):
+                (data / "first-run.json").write_text('{"songs-song-list": {"version": 0}}', encoding="utf-8")
+                raise RuntimeError("uiwin launch exited 3: no on-screen element id=fst.first-run.dialog")
+
+            def capture(*args, check=True):
+                calls.append(args[0])
+                return j.journeys_profile.subprocess.CompletedProcess(args, 0, "", "")
+
+            with mock.patch.object(j, "launch", side_effect=launch), \
+                    mock.patch.object(j.uiwin, "_state_path", return_value=state), \
+                    mock.patch.object(j.journeys_profile, "_uiwin", side_effect=capture), \
+                    mock.patch.object(j.journeys_profile, "_failure_report",
+                                      return_value="app: exited with code 0xC000027B 1.0 s ago\n...") as report, \
+                    mock.patch.object(j, "_close_last", side_effect=lambda: calls.append("close")):
+                failures = j.run(scenario, Path("app.exe"), 1, shots)
+            self.assertIn("phase 0: uiwin launch exited 3: no on-screen element id=fst.first-run.dialog", failures)
+            self.assertIn("phase 0: app: exited with code 0xC000027B 1.0 s ago", failures)
+            self.assertEqual(calls, ["shot", "tree", "close"])
+            self.assertEqual(report.call_args.args[0], 4242)
+            kept = (shots / "first-run-bump-0-failed-app.txt").read_text(encoding="utf-8")
+            self.assertIn('first-run.json:\n{"songs-song-list": {"version": 0}}', kept)
+            shutil.rmtree(Path(failures[-1].removeprefix("artifacts: ")), ignore_errors=True)
+
+    def test_a_pid_the_scenario_closed_is_not_reported_again(self):
+        with tempfile.TemporaryDirectory() as folder:
+            state = Path(folder) / "last.json"
+            state.write_text(json.dumps({"pid": 7}), encoding="utf-8")
+            with mock.patch.object(j.uiwin, "_state_path", return_value=state):
+                self.assertEqual(j._last_pid(set()), 7)
+                self.assertIsNone(j._last_pid({7}))
+            self.assertEqual(j.report_failure("bump", 3, None, Path(folder), None, 0.0), "app: no launch recorded a pid")
 
 
 class ContractTests(unittest.TestCase):

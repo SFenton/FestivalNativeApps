@@ -6,6 +6,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from tools.windows import ci_guard
 
@@ -39,6 +40,11 @@ class CiGuardTests(unittest.TestCase):
         self.folder = Path(tempfile.mkdtemp(prefix="fst-ci-guard-"))
         self.addCleanup(shutil.rmtree, self.folder, ignore_errors=True)
         self.log = self.folder / "command.log"
+        # A real task adopts every orphaned app or driver started while it runs and ends it afterwards; on a shared dev
+        # host that would end another lane's journey app (#704), and these tasks start neither.
+        orphans = mock.patch.object(ci_guard, "ORPHAN_EXES", frozenset())
+        orphans.start()
+        self.addCleanup(orphans.stop)
 
     def run_spawner(self, wait: float, timeout: float, **kwargs) -> ci_guard.TaskResult:
         command = [sys.executable, "-c", SPAWNER.format(wait=wait)]
