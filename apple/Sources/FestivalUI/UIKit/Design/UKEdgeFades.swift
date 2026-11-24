@@ -55,6 +55,12 @@ final class UKPageTopScrollEdge {
         let edge = PageTopScrollEdge.resolve(hardEdge: UKAccessibility.hardEdge(scrollView.traitCollection))
         scrollView.topEdgeEffect.style = edge == .hard ? .hard : .soft
     }
+
+    /// Detaches the decorative scrim before this page binds another result scroller.
+    func remove() {
+        settingsObserver = nil
+        scrim.removeFromSuperview()
+    }
 }
 
 // MARK: - Gradient mask

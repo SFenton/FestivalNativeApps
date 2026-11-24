@@ -40,6 +40,8 @@ class UKRivalsPageViewController: UIViewController, UKPageToolsProviding, UIScro
     var needsInitialOffset = true
     private var shownSignature: AnyHashable?
     private nonisolated(unsafe) var settingsObserver: NSObjectProtocol?
+    private weak var registeredContentScrollView: UIScrollView?
+    private var pageTopScrollEdge: UKPageTopScrollEdge?
 
     /// The session the page reads.
     var session: FestivalSession { context.session }
@@ -122,9 +124,11 @@ class UKRivalsPageViewController: UIViewController, UKPageToolsProviding, UIScro
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        if needsInitialOffset, !scrollView.isHidden, scrollView.window != nil, scrollView.adjustedContentInset.top > 0 {
+        refreshContentScrollView()
+        pageTopScrollEdge?.layout()
+        if needsInitialOffset, let registeredContentScrollView,
+           UKPageScrollViewport.placeAtInitialTop(registeredContentScrollView) {
             needsInitialOffset = false
-            scrollView.contentOffset.y = -scrollView.adjustedContentInset.top
         }
         quickLinks?.scrollViewDidScroll()
         updateTitleHidden()
@@ -354,6 +358,29 @@ class UKRivalsPageViewController: UIViewController, UKPageToolsProviding, UIScro
         guard let quickLinks else { return }
         let ordered = quickLinkEntries.sorted { precedes(order(of: $0.view), order(of: $1.view)) }
         quickLinks.discover(ordered.map(\.section))
+    }
+
+    /// Registers the scroller that is actually on screen. Suggestions intentionally
+    /// exposes its nested collection through a non-scrolling semantic holder, so UIKit
+    /// and the page edge must follow the collection rather than the hidden base scroller.
+    private func refreshContentScrollView() {
+        let active: UIScrollView?
+        if !scrollView.isHidden, !scrollView.bounds.isEmpty {
+            active = scrollView
+        } else if let stateView {
+            active = UKPageScrollViewport.scrollingDescendant(in: stateView)
+        } else {
+            active = nil
+        }
+        guard active !== registeredContentScrollView || (active == nil && pageTopScrollEdge != nil) else { return }
+        registeredContentScrollView = active
+        needsInitialOffset = true
+        pageTopScrollEdge?.remove()
+        pageTopScrollEdge = nil
+        setContentScrollView(active)
+        if let active {
+            pageTopScrollEdge = UKPageTopScrollEdge(scrollView: active, in: view)
+        }
     }
 
     /// The view's place in the column as a path of indexes, so nested stacks sort in page order.

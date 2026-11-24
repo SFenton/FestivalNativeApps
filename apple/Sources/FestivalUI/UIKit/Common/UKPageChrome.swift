@@ -7,6 +7,44 @@ import UIKit
 
 nonisolated(unsafe) private var pageTitleModeKey: UInt8 = 0
 
+// MARK: - Page scroll viewport
+
+/// Shared geometry for page scrollers that sit behind native bars.
+@MainActor
+enum UKPageScrollViewport {
+    /// Places a newly revealed page at its content's true top, compensating once for
+    /// UIKit's adjusted top inset.
+    ///
+    /// - Parameter scrollView: The page scroller.
+    /// - Returns: Whether the scroller is attached and its initial offset was applied.
+    @discardableResult
+    static func placeAtInitialTop(_ scrollView: UIScrollView) -> Bool {
+        guard scrollView.window != nil, !scrollView.isHidden else { return false }
+        let offset = CGPoint(x: scrollView.contentOffset.x, y: -scrollView.adjustedContentInset.top)
+        if abs(scrollView.contentOffset.y - offset.y) > 0.5 {
+            scrollView.setContentOffset(offset, animated: false)
+        }
+        return true
+    }
+
+    /// Finds the first visible, independently scrolling view below a page-state host.
+    /// Non-scrolling `UIScrollView` holders are skipped, but their scrolling descendants
+    /// remain authoritative (Suggestions' collection is the common example).
+    ///
+    /// - Parameter host: The visible host that owns the page result.
+    /// - Returns: The first enabled nested scroller, if one exists.
+    static func scrollingDescendant(in host: UIView) -> UIScrollView? {
+        guard !host.isHidden, host.alpha > 0.01, !host.bounds.isEmpty else { return nil }
+        if let scrollView = host as? UIScrollView, scrollView.isScrollEnabled {
+            return scrollView
+        }
+        for subview in host.subviews {
+            if let scrollView = scrollingDescendant(in: subview) { return scrollView }
+        }
+        return nil
+    }
+}
+
 extension UIViewController {
     /// Sets the page title the way ``View/festivalNavigationTitle(_:)`` does: the
     /// navigation title plus a title display mode. Automatic follows the system (large

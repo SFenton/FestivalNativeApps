@@ -358,6 +358,43 @@ final class SuggestionsJourneyTests: XCTestCase {
         assertPlacement("after dismissing the filter")
     }
 
+    /// Returning to the top rematerializes Suggestions' system title without covering
+    /// the first card. The page's base scroller is hidden, so this is the nested
+    /// collection's native title/scroll-edge seam (UIKit, scroll-edge R6).
+    @MainActor
+    func testSuggestionsReturnToTopKeepsTheLargeTitleClearAtAX5() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        if let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"] {
+            app.launchEnvironment["FST_API_BASE_URL"] = base
+        }
+        app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        let list = app.scrollViews.matching(identifier: "fst.suggestions.list").firstMatch
+        try XCTSkipUnless(list.waitForExistence(timeout: 20), "The fixture did not produce a Suggestions list")
+        for _ in 0..<3 { list.swipeUp(velocity: .slow) }
+        let title = app.navigationBars.staticTexts["Suggestions"]
+        let first = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.suggestions.category."))
+            .firstMatch
+        for _ in 0..<8 {
+            let frame = first.frame
+            if !frame.isEmpty && frame.minY >= app.navigationBars.firstMatch.frame.maxY - 1
+                && frame.minY < app.windows.firstMatch.frame.maxY {
+                break
+            }
+            list.swipeDown(velocity: .slow)
+        }
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "Suggestions title did not return")
+        XCTAssertTrue(first.waitForExistence(timeout: 5), "No Suggestions category at the top")
+        XCTAssertLessThanOrEqual(title.frame.maxY, first.frame.minY + 0.5,
+                                 "The returned title overlaps the first category")
+        XCTAssertGreaterThanOrEqual(first.frame.minY, app.navigationBars.firstMatch.frame.minY,
+                                    "The first category leaves the bar's accessible geometry")
+        try app.performAccessibilityAudit(for: [.hitRegion, .textClipped, .sufficientElementDescription])
+    }
+
     /// Prove incremental loading when the fixture mix exceeds one page, otherwise skip
     /// rather than fail a fixture limitation that a richer catalogue would remove.
     ///
