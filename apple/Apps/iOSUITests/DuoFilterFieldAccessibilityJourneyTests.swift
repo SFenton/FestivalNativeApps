@@ -158,15 +158,20 @@ final class DuoFilterFieldAccessibilityJourneyTests: XCTestCase {
     private func assertField(in app: XCUIApplication, pose: String, name: String) throws -> CGFloat {
         let label = "\(pose)-\(name)"
         DuoWindowSwitch.post(pose)
-        let readout = app.staticTexts["fst.shell.debug.duo-window"]
-        let reached = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label BEGINSWITH %@", "\(pose) "), object: readout)
-        XCTAssertEqual(XCTWaiter.wait(for: [reached], timeout: FestivalApp.budget(15)), .completed,
-                       "never simulated \(pose): \(readout.exists ? readout.label : "no readout")")
-        let fold = readout.label.components(separatedBy: " fold=").dropFirst().first.flatMap { Double($0) }
-        XCTAssertEqual(fold != nil, pose == "book", "\(label): fold reported only in book pose: \(readout.label)")
+        // The first reads after a pose switch come from retried app snapshots: run 2 of
+        // #708 stalled 73 s in the field's live `waitForExistence` at AX5 (as #690).
+        let readoutID = "fst.shell.debug.duo-window"
+        let posed = { (root: XCUIElementSnapshot) in
+            FestivalApp.node(readoutID, in: root)?.label.hasPrefix("\(pose) ") ?? false
+        }
+        let shown = try? FestivalApp.snapshot(of: app, within: FestivalApp.budget(15), until: posed)
+        let readout = shown.flatMap { FestivalApp.node(readoutID, in: $0) }?.label
+        XCTAssertTrue(shown.map(posed) ?? false, "never simulated \(pose): \(readout ?? "no readout")")
+        let fold = readout?.components(separatedBy: " fold=").dropFirst().first.flatMap { Double($0) }
+        XCTAssertEqual(fold != nil, pose == "book", "\(label): fold reported only in book pose: \(readout ?? "no readout")")
         let window = app.windows.firstMatch.frame
         let element = field(in: app)
-        XCTAssertTrue(element.waitForExistence(timeout: FestivalApp.budget(10)), "\(label): field missing")
+        XCTAssertTrue(FestivalApp.waitForElement(Self.field, in: app, timeout: FestivalApp.budget(10)), "\(label): field missing")
 
         // The field settles in its column: across the middle when flat; in book pose on
         // the page past the fold, unless that page is narrower than
@@ -238,17 +243,22 @@ final class DuoFilterFieldAccessibilityJourneyTests: XCTestCase {
     private func assertCapsuleTarget(_ app: XCUIApplication, _ field: XCUIElement, label: String) throws {
         let frame = field.frame
         let origin = app.coordinate(withNormalizedOffset: .zero)
-        // Read focus from a fresh snapshot on every poll: the element's own key-value
-        // reading (and a format predicate bound to it) can return a cached snapshot's
-        // focus, which reported the field focused after Return in book pose while every
-        // UI snapshot showed it unfocused. Return has ended editing once the field lost
-        // focus or the keyboard is gone.
-        let hasFocus = {
-            ((try? field.snapshot()) as? NSObject)?.value(forKey: "hasKeyboardFocus") as? Bool ?? false
+        // Focus and position come from retried app snapshots, never the live field: on
+        // the starved CI runner one live resolution of the field's query hung 11–93 s, so
+        // a waiter polling it timed out mid-read and reported "kept focus" (#708), and a
+        // live key-value read returned a cached focus after Return in book pose. Return
+        // has ended editing once the field lost focus or the keyboard is gone. Snapshot
+        // frames are window-relative, so the rest position is measured the same way.
+        let id = Self.field
+        let ended = { (root: XCUIElementSnapshot) in
+            !FestivalApp.hasKeyboardFocus(id, in: root) || !FestivalApp.showsKeyboard(in: root)
         }
-        let focused = { XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in hasFocus() }, object: nil) }
-        let unfocused = {
-            XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in !hasFocus() || app.keyboards.count == 0 }, object: nil)
+        let restY = try XCTUnwrap(
+            FestivalApp.currentSnapshot(of: app).flatMap { FestivalApp.node(id, in: $0) },
+            "\(label): no Filter Songs node in a snapshot"
+        ).frame.minY
+        let rests = { (root: XCUIElementSnapshot) in
+            FestivalApp.node(id, in: root).map { abs($0.frame.minY - restY) <= 1 } ?? false
         }
         // iOS reports either the text line (magnifier to its left) or the whole capsule
         // (magnifier just inside its leading edge) as the field's frame.
@@ -258,26 +268,27 @@ final class DuoFilterFieldAccessibilityJourneyTests: XCTestCase {
             + [CGPoint(x: magnifierX, y: frame.midY)]
         for point in points {
             origin.withOffset(CGVector(dx: point.x, dy: point.y)).tap()
-            XCTAssertEqual(
-                XCTWaiter.wait(for: [focused()], timeout: FestivalApp.budget(3)),
-                .completed,
+            XCTAssertTrue(
+                FestivalApp.waitForKeyboardFocus(id, in: app, focused: true, timeout: FestivalApp.budget(3)),
                 "\(label): Filter Songs \(frame) ignored a tap at \(point)"
             )
             // Return ends editing; a Return typed while the keyboard is still animating
-            // in can be dropped, so it is sent once more before failing.
+            // in can be dropped, so it is sent once more, only while a snapshot still
+            // shows the field focused, before failing.
             field.typeText("\n")
-            if XCTWaiter.wait(for: [unfocused()], timeout: FestivalApp.budget(3)) != .completed, hasFocus() {
+            var after = try? FestivalApp.snapshot(of: app, within: FestivalApp.budget(3), until: ended)
+            if let root = after, ended(root) == false {
                 field.typeText("\n")
             }
-            XCTAssertEqual(
-                XCTWaiter.wait(for: [unfocused()], timeout: FestivalApp.budget(3)),
-                .completed, "\(label): Filter Songs kept focus after Return"
-            )
-            let rested = NSPredicate { _, _ in abs(field.frame.minY - frame.minY) <= 1 }
-            XCTAssertEqual(
-                XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: rested, object: nil)],
-                               timeout: FestivalApp.budget(3)),
-                .completed, "\(label): Filter Songs did not settle back to \(frame) after Return"
+            if after.map(ended) != true {
+                after = try? FestivalApp.snapshot(of: app, within: FestivalApp.budget(3), until: ended)
+            }
+            XCTAssertTrue(after.map(ended) ?? false, "\(label): Filter Songs kept focus after Return")
+            let rested = try? FestivalApp.snapshot(of: app, within: FestivalApp.budget(3), until: rests)
+            XCTAssertTrue(
+                rested.map(rests) ?? false,
+                "\(label): Filter Songs did not settle back to \(frame) after Return "
+                    + "(snapshot minY \(String(describing: rested.flatMap { FestivalApp.node(id, in: $0) }?.frame.minY)), rest \(restY))"
             )
         }
     }

@@ -244,6 +244,59 @@ enum FestivalApp {
         return contains(identifier, in: root)
     }
 
+    // MARK: - Keyboard focus
+
+    /// Whether the node with `identifier` in a snapshot has keyboard focus.
+    ///
+    /// Read focus from an app snapshot taken through ``snapshot(of:within:until:)``, never
+    /// from a live element's `hasKeyboardFocus` or its own `snapshot()`: each of those
+    /// resolves the element's query again, and on the starved CI runner one resolution can
+    /// hang for 10–90 s, so an `XCTWaiter` polling it times out while its predicate is still
+    /// blocked, whatever the field's focus (the iPhone Duo Filter Songs Return probe, #708).
+    /// A live read also returned a cached snapshot's focus after Return in book pose.
+    ///
+    /// - Parameters:
+    ///   - identifier: The focusable element's accessibility identifier.
+    ///   - root: The snapshot to walk.
+    /// - Returns: True when the first node with `identifier` reports keyboard focus; false
+    ///   when it does not or is missing.
+    @MainActor
+    static func hasKeyboardFocus(_ identifier: String, in root: XCUIElementSnapshot) -> Bool {
+        guard let node = node(identifier, in: root) as? NSObject else { return false }
+        return node.value(forKey: "hasKeyboardFocus") as? Bool ?? false
+    }
+
+    /// Whether a snapshot shows a software keyboard.
+    ///
+    /// - Parameter root: An app snapshot.
+    /// - Returns: True when any node is a keyboard.
+    @MainActor
+    static func showsKeyboard(in root: XCUIElementSnapshot) -> Bool {
+        if root.elementType == .keyboard { return true }
+        return root.children.contains { showsKeyboard(in: $0) }
+    }
+
+    /// Wait until the element with `identifier` gains (or loses) keyboard focus, reading
+    /// each poll from a retried app snapshot (``snapshot(of:within:until:)``) instead of a
+    /// live `hasKeyboardFocus` predicate. A slow snapshot that shows the state still counts,
+    /// and a snapshot that throws is retried rather than read as either state.
+    ///
+    /// - Parameters:
+    ///   - identifier: The focusable element's accessibility identifier.
+    ///   - app: The running app.
+    ///   - focused: The focus state to wait for.
+    ///   - timeout: How long to wait; size it with ``budget(_:inVirtualMachine:)``.
+    /// - Returns: True once a snapshot shows that state; false when none did in time or
+    ///   every snapshot attempt failed.
+    @MainActor
+    static func waitForKeyboardFocus(
+        _ identifier: String, in app: XCUIApplication, focused: Bool, timeout: TimeInterval
+    ) -> Bool {
+        let matches = { (root: XCUIElementSnapshot) in hasKeyboardFocus(identifier, in: root) == focused }
+        guard let root = try? snapshot(of: app, within: timeout, until: matches) else { return false }
+        return matches(root)
+    }
+
     // MARK: - Notifications bell
 
     /// Whether the bell's accessibility value is acceptable: empty, or on iOS 27+ exactly
