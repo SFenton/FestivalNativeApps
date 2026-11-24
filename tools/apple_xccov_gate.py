@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gate measured iPhone/iPad shared-UI and app lines; Core/Design remain separate."""
+"""Gate measured iPhone/iPad app and UI lines; package logic is gated by SwiftPM."""
 
 from __future__ import annotations
 
@@ -14,6 +14,20 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET_SOURCES = {
     "FestivalUI": "apple/Sources/FestivalUI/**/*.swift",
     "FestivalMobile.app": "apple/Apps/iOS/**/*.swift",
+}
+# Entirely Mac-only or declaration-only in the iOS build. Xcode can omit these
+# files, but if a report includes them their executable lines still count.
+OPTIONAL_IOS_SOURCES = {
+    "apple/Sources/FestivalUI/Design/LeaderboardRowMetrics.swift",
+    "apple/Sources/FestivalUI/Features/Rivals/FindRivalSheet.swift",
+    "apple/Sources/FestivalUI/Features/Settings/LicenseManifest.swift",
+    "apple/Sources/FestivalUI/Mac/MacAppModel.swift",
+    "apple/Sources/FestivalUI/Mac/MacContextMenus.swift",
+    "apple/Sources/FestivalUI/Mac/MacDebugHooks.swift",
+    "apple/Sources/FestivalUI/Mac/MacListDetailStack.swift",
+    "apple/Sources/FestivalUI/Mac/MacRootView.swift",
+    "apple/Sources/FestivalUI/Mac/MacRouteDestination.swift",
+    "apple/Sources/FestivalUI/Mac/MacSettingsView.swift",
 }
 
 
@@ -201,7 +215,7 @@ def validate_result_devices(
 def collect_result(
     result: Path, root: Path
 ) -> tuple[dict[str, dict[int, bool]], float, tuple[str, str]]:
-    """Require one passing iOS result and read all app and shared-UI line hits.
+    """Require one passing iOS result and read its app/UI line hits.
 
     Args:
         result: Completed Xcode .xcresult with code coverage enabled.
@@ -215,6 +229,7 @@ def collect_result(
     """
     if not result.is_dir():
         raise ValueError(f"{result}: Xcode result bundle does not exist")
+    root = root.resolve()
     summary = xcode_json(
         "xcresulttool", ["get", "test-results", "summary", "--path", str(result)]
     )
@@ -235,10 +250,12 @@ def collect_result(
         if not expected:
             raise ValueError(f"{root}: no production files match {pattern}")
         actual = {Path(item["path"]).resolve() for item in target["files"]}
-        if actual != expected:
+        missing = expected - actual - {root / path for path in OPTIONAL_IOS_SOURCES}
+        unexpected = actual - expected
+        if missing or unexpected:
             raise ValueError(
-                f"{result}: {name} source mismatch; missing {sorted(map(str, expected - actual))}, "
-                f"unexpected {sorted(map(str, actual - expected))}"
+                f"{result}: {name} source mismatch; missing {sorted(map(str, missing))}, "
+                f"unexpected {sorted(map(str, unexpected))}"
             )
         for item in target["files"]:
             source = Path(item["path"]).resolve()
@@ -252,7 +269,7 @@ def collect_result(
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Check the iOS UX bar against complete, source-identical device results.
+    """Check the iOS UX coverage bar against source-identical device results.
 
     Args:
         argv: Optional CLI arguments for tests.
@@ -294,18 +311,15 @@ def main(argv: list[str] | None = None) -> int:
                     f"{source}: {sum(hits.values())}/{len(hits)} lines; "
                     f"uncovered: {', '.join(missing[:45])}"
                 )
-        covered, executable = union_lines(list(reports))
-        label = (
-            "ios.ui-and-app-ux" if args.scope == "paired"
-            else f"ios.{args.scope}.ui-and-app-ux"
-        )
-        print(
-            f"{label}: {covered}/{executable} lines "
-            f"= {100 * covered / executable:.2f}% "
-            f"(need {threshold}%)"
-        )
+        scope = "ios" if args.scope == "paired" else f"ios.{args.scope}"
+        covered = sum(sum(lines.values()) for lines in combined.values())
+        executable = sum(map(len, combined.values()))
+        if not executable:
+            raise ValueError(f"{scope}: no executable UI/app lines in Xcode coverage")
+        print(f"{scope}.ui-and-app-ux: {covered}/{executable} lines = "
+              f"{100 * covered / executable:.2f}% (need {threshold}%)")
         if covered * 100 < threshold * executable:
-            raise ValueError(f"{args.scope} UX coverage is below {threshold}%")
+            raise ValueError(f"{args.scope} UI/app coverage is below {threshold}%")
     except (OSError, KeyError, TypeError, ValueError, ZeroDivisionError) as error:
         print(f"iOS Xcode coverage error: {error}", file=sys.stderr)
         return 1

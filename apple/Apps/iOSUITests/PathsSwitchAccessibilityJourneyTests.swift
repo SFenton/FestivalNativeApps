@@ -11,9 +11,10 @@ import XCTest
 /// releases it (at most 60 s), so the switching state stays on screen while the journey
 /// checks it. Held, the sheet must expose exactly one busy indicator named for the form
 /// loading ("Loading text path" / "Loading image path"), nothing of the old chart (no stale
-/// table, activation cards, image or error), the spinner before the Instrument, Difficulty
-/// and View selectors in reading order, those selectors hittable with 44 pt targets showing
-/// the new choice, and the system Close hittable. `performAccessibilityAudit` runs on the held state (and
+/// table, activation cards, image or error), a 36 pt spinner before the Instrument,
+/// Difficulty and View selectors in reading order, those selectors hittable with 44 pt
+/// targets showing the new choice, and the system Close hittable.
+/// `performAccessibilityAudit` runs on the held state (and
 /// the spinner is still held after it), at the default size with every audit type and at
 /// AX5 with every type but contrast (`testing/apple/accessibility.md`). The audit flags the
 /// changed selectors' capsules for contrast on iOS 26.5 and 27 although their text renders
@@ -130,6 +131,7 @@ final class PathsSwitchAccessibilityJourneyTests: XCTestCase {
         try hold()
         choose("Hard", in: element("fst.paths.difficulty", in: app), app: app)
         try assertHeld(.text, in: app, run: run, values: ["Lead", "Hard", "Text"])
+        let textViewHeight = display.frame.height
         try release()
         let hard = element("fst.paths.text.Solo_Guitar.hard", in: app)
         XCTAssertTrue(hard.waitForExistence(timeout: FestivalApp.budget(15)), "No Hard table after release")
@@ -141,6 +143,12 @@ final class PathsSwitchAccessibilityJourneyTests: XCTestCase {
         try hold()
         choose(Form.image.option, in: display, app: app)
         try assertHeld(.image, in: app, run: run, values: ["Lead", "Hard", "Image"])
+        if run.contentSize == UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+           (ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] ?? "").contains("Duo"),
+           app.windows.firstMatch.frame.width < app.windows.firstMatch.frame.height {
+            XCTAssertGreaterThan(textViewHeight, display.frame.height + 6,
+                                 "The tall Text symbol and short Image symbol must fit their own capsules at AX5")
+        }
         try release()
         let image = app.images.matching(NSPredicate(
             format: "identifier == %@ AND label CONTAINS %@", "fst.paths.image", "Hard"
@@ -186,6 +194,9 @@ final class PathsSwitchAccessibilityJourneyTests: XCTestCase {
         // The system menu dims the row's labels until its dismissal finishes; under Reduce
         // Motion the spinner is in before that, so let it settle before the audit samples.
         RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(1)))
+        let spinnerFrame = spinners.firstMatch.frame
+        XCTAssertEqual(spinnerFrame.width, 36, accuracy: 1, "Paths uses the medium indicator, not the page-loading ring")
+        XCTAssertEqual(spinnerFrame.height, 36, accuracy: 1, "Paths uses the medium indicator, not the page-loading ring")
         assertOrder([form.spinner] + Self.selectors, in: app, "\(form.rawValue) switch held (\(run.name))")
         assertControlsReachable(in: app, values: values, run: run)
         record(app, name: "paths-switch-\(run.name)-\(form.rawValue)-held")

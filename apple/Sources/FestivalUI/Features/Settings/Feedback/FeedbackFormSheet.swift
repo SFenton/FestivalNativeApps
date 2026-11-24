@@ -37,16 +37,15 @@ struct FeedbackFormSheet: View {
     private let kind: FeedbackKind
     private let session: FestivalSession
     private let onSent: (FeedbackSentNotice) -> Void
-    @State private var model: FeedbackFormModel
+    @Bindable private var model: FeedbackFormModel
     @State private var confirmingDiscard = false
     @State private var showingPhotos = false
     @State private var showingFiles = false
     @State private var photoSelection: [PhotosPickerItem] = []
     /// The beside-the-form library is open (regular-width iPad and Duo only).
     @State private var showingLibraryPane = false
-    /// Items ticked in the beside-the-form library, mirrored into ``model``'s attachments.
-    @State private var librarySelection: [PhotosPickerItem] = []
-    @State private var libraryLinks = FeedbackPickerLinks<PhotosPickerItem>()
+    /// The remote picker's binding can reset when its pane is removed.
+    @State private var inlinePickerSelection: [PhotosPickerItem] = []
     /// How many drop targets (the sheet, each form row and header) the drag is over.
     @State private var dropTargets = 0
     /// How many times the drop highlight has appeared (Debug UI-test marker only).
@@ -61,21 +60,21 @@ struct FeedbackFormSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.deviceLayout) private var layout
 
-    /// Create an empty form.
+    /// Present the Settings-owned draft.
     ///
     /// - Parameters:
-    ///   - kind: Bug report or feature request.
+    ///   - model: The draft that persists when Duo recreates the sheet's view.
     ///   - session: Service session used only when Submit is pressed.
     ///   - onSent: Called with the success notice just before the form closes itself;
     ///     the presenter shows it once the sheet has been dismissed.
     init(
-        kind: FeedbackKind, session: FestivalSession,
+        model: FeedbackFormModel, session: FestivalSession,
         onSent: @escaping (FeedbackSentNotice) -> Void
     ) {
-        self.kind = kind
+        self.kind = model.draft.kind
         self.session = session
         self.onSent = onSent
-        _model = State(initialValue: FeedbackFormModel(kind: kind))
+        self.model = model
     }
 
     var body: some View {
@@ -88,7 +87,7 @@ struct FeedbackFormSheet: View {
                         // Faded out, the form is gone for touch and assistive technology.
                         .opacity(sending.showsForm ? 1 : 0)
                         .allowsHitTesting(sending.showsForm)
-                        .accessibilityHidden(!sending.showsForm)
+                        .accessibilityHidden(while: !sending.showsForm)
                 }
             }
                 .overlay { sendingStatus }
@@ -99,11 +98,9 @@ struct FeedbackFormSheet: View {
                     }
                 }
                 .overlay(alignment: .topLeading) { dropMarker }
+                .overlay(alignment: .topTrailing) { hingeDraftMarker }
                 .modifier(dropTarget)
-                .navigationTitle(kind.formTitle)
-                #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-                #endif
+                .modifier(FestivalModalTitle(title: kind.formTitle))
                 .toolbar { toolbar }
         }
         // Once the service has the report (filing), closing loses nothing.
@@ -131,11 +128,11 @@ struct FeedbackFormSheet: View {
             photoSelection = []
             Task { await model.importPhotos(items) }
         }
-        .onChange(of: librarySelection) { old, new in syncLibrarySelection(from: old, to: new) }
+        .onChange(of: inlinePickerSelection) { _, items in syncLibrarySelection(to: items) }
         .onChange(of: model.attachments.map(\.id)) { _, ids in
             // Attachments discarded or removed elsewhere untick their library items.
-            let stale = libraryLinks.prune(keeping: Set(ids))
-            if !stale.isEmpty { librarySelection.removeAll { stale.contains($0) } }
+            let stale = model.inlineLibraryLinks.prune(keeping: Set(ids))
+            if !stale.isEmpty { untickLibraryItems(Set(stale)) }
         }
         .onChange(of: photoLibraryPlacement) { _, placement in
             if placement == .presented { showingLibraryPane = false }
@@ -194,14 +191,19 @@ struct FeedbackFormSheet: View {
                     .foregroundStyle(.white)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 12)
-                Button("Hide") { showingLibraryPane = false }
-                    .frame(minHeight: 44)
-                    .accessibilityLabel("Hide Photo Library")
-                    .accessibilityIdentifier("fst.settings.feedback.library.hide")
+                Button {
+                    showingLibraryPane = false
+                } label: {
+                    Text("Hide")
+                        .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("Hide Photo Library")
+                .accessibilityIdentifier("fst.settings.feedback.library.hide")
             }
             .padding(.horizontal, 16)
             PhotosPicker(
-                selection: $librarySelection, maxSelectionCount: FeedbackLimits.attachments,
+                selection: $inlinePickerSelection, maxSelectionCount: FeedbackLimits.attachments,
                 selectionBehavior: .continuousAndOrdered, matching: .any(of: [.images, .videos]),
                 preferredItemEncoding: .current, photoLibrary: .shared()
             ) {
@@ -233,6 +235,22 @@ struct FeedbackFormSheet: View {
         #endif
     }
 
+    /// Report the live model and count without typing into the media-only hinge probe.
+    @ViewBuilder
+    private var hingeDraftMarker: some View {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["FST_UI_TEST_FEEDBACK_HINGE_TRACE"] == "1" {
+            Color.clear
+                .frame(width: 1, height: 1)
+                .allowsHitTesting(false)
+                .accessibilityElement()
+                .accessibilityLabel("Feedback hinge draft")
+                .accessibilityValue("\(ObjectIdentifier(model)); attachments=\(model.attachments.count)")
+                .accessibilityIdentifier("fst.settings.feedback.hinge-draft")
+        }
+        #endif
+    }
+
     // MARK: - Sending status
 
     /// The centred spinner, title and subtitle while the report is sent (issue #634).
@@ -246,7 +264,7 @@ struct FeedbackFormSheet: View {
             .modifier(ModalTopEdgeFadeModifier())
             .opacity(sending.showsStatus ? 1 : 0)
             .allowsHitTesting(sending.showsStatus)
-            .accessibilityHidden(!sending.showsStatus)
+            .accessibilityHidden(while: !sending.showsStatus)
         }
     }
 
@@ -265,7 +283,9 @@ struct FeedbackFormSheet: View {
             from: sending, to: target, reduceMotion: systemReduceMotion || appReduceMotion
         )
         sendingSequence = FeedbackSendingChoreography.run(steps) { step in
-            sending = step.presentation
+            withAnimation(FeedbackSendingChoreography.animation(step.fade)) {
+                sending = step.presentation
+            }
             // HIG VoiceOver: "Inform VoiceOver of visible content or layout changes".
             if step.announces, let stage = step.presentation.stage {
                 AccessibilityNotification.Announcement(stage.title(for: kind)).post()
@@ -433,34 +453,48 @@ struct FeedbackFormSheet: View {
     /// otherwise the system picker over it.
     private func openPhotoLibrary() {
         switch photoLibraryPlacement {
-        case .beside: showingLibraryPane.toggle()
+        case .beside:
+            if !showingLibraryPane { inlinePickerSelection = model.inlineLibrarySelection }
+            showingLibraryPane.toggle()
         case .presented: showingPhotos = true
         }
     }
 
     /// Remove an attachment from the form, unticking it in the library pane.
     private func removeAttachment(_ attachment: FeedbackAttachment) {
-        if let item = libraryLinks.unlink(attachmentID: attachment.id) {
-            librarySelection.removeAll { $0 == item }
+        if let item = model.inlineLibraryLinks.unlink(attachmentID: attachment.id) {
+            untickLibraryItems([item])
         }
         model.remove(attachment)
     }
 
-    /// Mirror the library pane's ticks into attachments: newly ticked items are copied
-    /// (a refused one is unticked again), unticked ones are removed.
-    private func syncLibrarySelection(from old: [PhotosPickerItem], to new: [PhotosPickerItem]) {
-        let changes = FeedbackPickerLinks<PhotosPickerItem>.changes(from: old, to: new)
+    /// Reflect a programmatic removal in both the draft and the native picker.
+    ///
+    /// - Parameter items: Items whose attachments were removed or refused.
+    private func untickLibraryItems(_ items: Set<PhotosPickerItem>) {
+        model.inlineLibrarySelection.removeAll { items.contains($0) }
+        if libraryPaneVisible { inlinePickerSelection = model.inlineLibrarySelection }
+    }
+
+    /// Mirror ticks from the visible library into the draft. Reflowing or hiding the
+    /// pane is not an untick, even if the remote picker clears its selection binding.
+    ///
+    /// - Parameter items: The selection reported by the inline picker.
+    private func syncLibrarySelection(to items: [PhotosPickerItem]) {
+        guard libraryPaneVisible, sending.showsForm, model.acceptsMedia else { return }
+        let changes = FeedbackPickerLinks<PhotosPickerItem>.changes(from: model.inlineLibrarySelection, to: items)
+        model.inlineLibrarySelection = items
         for item in changes.removed {
-            if let id = libraryLinks.unlink(item) { model.remove(id: id) }
+            if let id = model.inlineLibraryLinks.unlink(item) { model.remove(id: id) }
         }
         for item in changes.added {
             Task {
                 guard let id = await model.importPhoto(item) else {
-                    librarySelection.removeAll { $0 == item }
+                    untickLibraryItems([item])
                     return
                 }
-                if librarySelection.contains(item) {
-                    libraryLinks.link(item, to: id)
+                if model.inlineLibrarySelection.contains(item) {
+                    model.inlineLibraryLinks.link(item, to: id)
                 } else {
                     // Unticked while it was still being copied.
                     model.remove(id: id)
@@ -624,20 +658,29 @@ private struct FeedbackDropTarget: ViewModifier {
 
 // MARK: - Drop highlight
 
+/// Shared appearance of the Feedback media drop destination.
+enum FeedbackDropAppearance {
+    static let title = "Drop to Attach"
+    static let cornerRadius: CGFloat = 16
+    static let borderWidth: CGFloat = 3
+    static let fillOpacity = 0.12
+    static let inset: CGFloat = 6
+}
+
 /// Shows the form accepts what is being dragged over it. HIG (Drag and drop): "Show
 /// whether a destination accepts the content, like an insertion point or highlight if it
 /// can"; nothing is shown for content it can't take.
 private struct FeedbackDropHighlight: View {
     var body: some View {
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .strokeBorder(BrandTokens.accentBlue, lineWidth: 3)
+        RoundedRectangle(cornerRadius: FeedbackDropAppearance.cornerRadius, style: .continuous)
+            .strokeBorder(BrandTokens.accentBlue, lineWidth: FeedbackDropAppearance.borderWidth)
             .background(
-                BrandTokens.accentBlue.opacity(0.12),
-                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                BrandTokens.accentBlue.opacity(FeedbackDropAppearance.fillOpacity),
+                in: RoundedRectangle(cornerRadius: FeedbackDropAppearance.cornerRadius, style: .continuous)
             )
-            .padding(6)
+            .padding(FeedbackDropAppearance.inset)
             .overlay {
-                Label("Drop to Attach", systemImage: "paperclip")
+                Label(FeedbackDropAppearance.title, systemImage: "paperclip")
                     .font(.headline)
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)

@@ -350,9 +350,17 @@ final class DrawerAccessibilityJourneyTests: XCTestCase {
         let largeHeight = large.songs.height
         SongsUITestSupport.record(app, name: "drawer-a11y-ax5")
         // Rows have a 48 pt floor, so they grow to the AX5 body line (≈ 64 pt), not by a ratio.
-        XCTAssertGreaterThan(largeHeight, 60, "Rows grow with text: \(regularHeight) → \(largeHeight)")
+        XCTAssertGreaterThan(largeHeight, max(60, regularHeight), "Rows grow with text: \(regularHeight) → \(largeHeight)")
         let clipped = try audit(app, for: [.dynamicType, .textClipped, .hitRegion], panel: large.panel)
         XCTAssertEqual(clipped, 0, "Text predicted to clip at the largest size")
+    }
+
+    /// The drawer scroll viewport can grow, but a destination whose text fits stays 48 pt.
+    @MainActor
+    func testDrawerDoesNotStretchDestinationRowsToFillTheViewport() {
+        continueAfterFailure = false
+        let app = launch()
+        XCTAssertEqual(assertDrawer(app).songs.height, 48, accuracy: 0.5)
     }
 
     /// Reduce Motion (the in-app setting): the panel fades in place instead of sliding

@@ -1,5 +1,6 @@
 #if os(macOS)
 import SwiftUI
+import FestivalAppSupport
 import FestivalCore
 
 // MARK: - Row context menus

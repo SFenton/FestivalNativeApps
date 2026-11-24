@@ -26,6 +26,15 @@ Every Rivals card says who is ahead the same way: a red or green capsule with te
 
 ## Canonical implementation
 
+In the UIKit port, `UKRivalSongRowView` reserves the same space before the
+trailing delta as the SwiftUI row, then fits the two pills into the remaining
+width. `UKRivalsPageViewController` keeps the column inside the horizontal safe
+area, including when Compete mounts it in its load gate. This keeps the Duo
+rail from covering the row or taking space intended for the rank badge.
+Single-line marquee labels use their native label's intrinsic height rather
+than rounding the font height to whole points. Hub rows use the shared
+deemphasized text color for the trailing chevron.
+
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
 | Status pill (R2) | `apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift` `RivalStatusPill`, `RivalStatusText` | `android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt` `RivalPill` | `windows/Festival.App/Controls/RivalsResources.xaml` `FSTRivalPillStyle` |

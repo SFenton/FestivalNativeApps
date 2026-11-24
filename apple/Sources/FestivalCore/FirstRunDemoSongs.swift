@@ -12,8 +12,31 @@ public enum FirstRunDemoSongs {
     /// Artist marker the web uses to pick neutral, first-party demo songs.
     public static let preferredArtistMarker = "Epic Games"
 
+    /// Bounds the song pool for rotating previews and their artwork.
+    public static let rotationPoolSize = 24
+
     /// Prefix of every placeholder `songId`; never a real catalogue identifier.
     static let placeholderPrefix = "fre-placeholder-"
+
+    /// Illustrative Shop states for the three Songs guide slides, independent of the live Shop.
+    public enum ShopPreview {
+        case highlights, new, leaving
+
+        /// - Parameter index: Zero-based slot in the Songs preview.
+        /// - Returns: The Shop highlight illustrated in that slot, if any.
+        public func highlight(at index: Int) -> ShopHighlight? {
+            switch self {
+            case .highlights:
+                switch index {
+                case 0: .new
+                case 1: .leavingTomorrow
+                default: nil
+                }
+            case .new: index == 0 ? .new : nil
+            case .leaving: index == 0 ? .leavingTomorrow : nil
+            }
+        }
+    }
 
     /// Pick up to `count` distinct catalogue songs with artwork for a demo.
     ///

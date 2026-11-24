@@ -3,29 +3,6 @@ import FestivalCore
 
 // MARK: - Page tools in the menu bar
 
-/// The focused page's menu-bar values (HIG Toolbars › macOS: "Every toolbar item must
-/// also be a menu-bar command"; The menu bar › iPadOS), read by ``MacCommands`` and the
-/// iPadOS ``FestivalCommands`` from `@FocusedValue` and handed to the shared page-tool
-/// menu items, so both menu bars list, enable and invoke the same commands
-/// (page-tools-and-nav-chrome R28).
-struct PageToolMenuState {
-    /// Sort, Filter, Find Rival and List/Grid of the front page.
-    var page: MacPageCommands?
-    /// The front rankings page's Rank By.
-    var rankBy: MacRankByCommands?
-    /// The front rankings page's instrument.
-    var instrument: MacInstrumentCommands?
-    /// The front band board's band size.
-    var bandSize: MacBandSizeCommands?
-    /// The front player or rival page's Profile-menu actions.
-    var profile: MacProfilePageCommands?
-    /// Settings › Experimental Ranks (View › Rank By lists Total Score alone while off).
-    var experimentalRanks = ExperimentalRanks.defaultValue
-    /// Whether a sheet covers the window, or no window is focused (commands that
-    /// present must not stack another sheet).
-    var blocked = false
-}
-
 /// View-menu page tools, in toolbar order: Sort…, Filter…, Rank By ▸, Instrument ▸,
 /// Band Size ▸, then as List / as Grid. Unavailable items are disabled, never hidden
 /// (HIG The menu bar: "Disable, don't hide, unavailable items"), and each submenu keeps
@@ -79,7 +56,7 @@ struct PageToolChoiceItems: View {
     /// - Returns: The submenu's choices.
     static func rankBy(_ state: PageToolMenuState) -> Self {
         let rankBy = state.rankBy
-        let options = rankBy?.options ?? MacRankByCommands.accountOptions(experimentalRanks: state.experimentalRanks)
+        let options = rankBy?.options ?? RankByMenuCommands.accountOptions(experimentalRanks: state.experimentalRanks)
         return Self(
             choices: options.map { Choice(id: $0.id, label: $0.label) },
             selected: rankBy?.selected, select: rankBy?.select
@@ -92,7 +69,7 @@ struct PageToolChoiceItems: View {
     /// - Returns: The submenu's choices.
     static func instrument(_ state: PageToolMenuState) -> Self {
         let instrument = state.instrument
-        let options = instrument?.options ?? MacInstrumentCommands.allOptions
+        let options = instrument?.options ?? InstrumentMenuCommands.allOptions
         return Self(
             choices: options.map { Choice(id: $0.id, label: $0.label) },
             selected: instrument?.selected, select: instrument?.select
@@ -145,7 +122,7 @@ struct PageToolProfileMenuItems: View {
     let state: PageToolMenuState
 
     var body: some View {
-        Button(MacProfilePageCommands.identityMenuTitle(for: state.profile?.identity)) {
+        Button(ProfilePageMenuCommands.identityMenuTitle(for: state.profile?.identity)) {
             state.profile?.performIdentity?()
         }
         .disabled(state.profile?.performIdentity == nil || state.blocked)

@@ -58,7 +58,7 @@ struct FirstRunRivalGroupsDemo: View {
             }
         }
         .environment(\.firstRunFadingRows, fading)
-        .accessibilityHidden(true)
+        .firstRunDecorative()
         .firstRunDemoTicker { await swap() }
     }
 
@@ -91,7 +91,7 @@ private struct FirstRunOptionalStagger: ViewModifier {
 /// instrument. As on the web, each 5 s tick fades two of the six rows out (4 pt drop) and
 /// brings in the next rival from that instrument and direction's pool.
 struct FirstRunRivalsInstrumentsDemo: View {
-    private static let instruments: [Instrument] = [.lead, .drums, .vocals]
+    nonisolated static let instruments: [Instrument] = [.lead, .drums, .vocals]
 
     @FirstRunReduceMotion private var reduceMotion
     /// Pool position per slot: instrument `i` above is slot `2i`, below is `2i + 1`.
@@ -117,7 +117,7 @@ struct FirstRunRivalsInstrumentsDemo: View {
             }
         }
         .environment(\.firstRunFadingRows, fading)
-        .accessibilityHidden(true)
+        .firstRunDecorative()
         .firstRunDemoTicker { await swap() }
     }
 
@@ -162,7 +162,7 @@ struct FirstRunRivalsDetailDemo: View {
         FirstRunCatalogueSongs(count: 3, rotates: true, swapsWhole: true) { songs, session in
             FirstRunRivalsDetailCard(songs: songs, session: session)
         }
-        .accessibilityHidden(true)
+        .firstRunDecorative()
     }
 }
 
@@ -179,6 +179,8 @@ private struct FirstRunRivalsDetailCard: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(category.title).font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
                 .firstRunStagger(0)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
             ForEach(Array(songs.enumerated()), id: \.offset) { index, song in
                 comparisonRow(song, session: session, ranks: category.ranks[index % category.ranks.count])
                     .firstRunStagger(index + 1, interval: FirstRunMotion.detailStaggerSeconds)

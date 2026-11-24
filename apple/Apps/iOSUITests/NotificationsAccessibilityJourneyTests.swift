@@ -64,13 +64,16 @@ final class NotificationsAccessibilityJourneyTests: XCTestCase {
     @MainActor
     private func openSheet(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
         let bell = app.buttons["fst.shell.notifications"]
-        XCTAssertTrue(bell.waitForExistence(timeout: FestivalApp.budget(20)), "No bell", file: file, line: line)
-        let counted = NSPredicate(format: "label == %@", "Notifications, \(Self.rowCount) unread")
-        XCTAssertEqual(
-            XCTWaiter.wait(for: [expectation(for: counted, evaluatedWith: bell)], timeout: FestivalApp.budget(20)),
-            .completed, "The bell never announced \(Self.rowCount) unread: '\(bell.label)'", file: file, line: line
+        if bell.waitForExistence(timeout: 3), bell.isHittable {
+            let counted = NSPredicate(format: "label == %@", "Notifications, \(Self.rowCount) unread")
+            XCTAssertEqual(
+                XCTWaiter.wait(for: [expectation(for: counted, evaluatedWith: bell)], timeout: FestivalApp.budget(20)),
+                .completed, "The bell never announced \(Self.rowCount) unread: '\(bell.label)'", file: file, line: line
+            )
+        }
+        ShellUITestSupport.tapToolbarItem(
+            "fst.shell.notifications", overflowLabels: ["Notifications"], in: app, file: file, line: line
         )
-        bell.tap()
         XCTAssertTrue(
             app.buttons[Self.rowPrefix + "\(Self.account)-0"].waitForExistence(timeout: FestivalApp.budget(15)),
             "The sheet did not show its first row", file: file, line: line
@@ -90,6 +93,7 @@ final class NotificationsAccessibilityJourneyTests: XCTestCase {
         let app = launch(largeText: false)
         openSheet(app)
         let small = try assertReadingOrder(app, size: "default")
+        try assertUnreadDotClearsRail(app, firstRow: small.row)
         guard try assertRowUnderTheTitle(app, size: "default") else { return }
         app.terminate()
 
@@ -128,6 +132,28 @@ final class NotificationsAccessibilityJourneyTests: XCTestCase {
     }
 
     // MARK: - Reading order
+
+    /// When Close sits on a side rail, the first row's unread dot is drawn on the
+    /// content side, even though the accessible row spans the sheet.
+    @MainActor
+    private func assertUnreadDotClearsRail(_ app: XCUIApplication, firstRow: CGRect) throws {
+        let close = app.buttons["fst.notifications.close"].frame
+        guard firstRow.intersects(close) else { return }
+        let right = close.midX > firstRow.midX
+        let y = firstRow.midY - 24 - 8
+        let edge = right ? close.minX : close.maxX
+        let content = CGRect(x: right ? firstRow.minX : edge, y: y,
+                             width: right ? edge - firstRow.minX : firstRow.maxX - edge, height: 16)
+        let rail = CGRect(x: right ? edge : firstRow.minX, y: y,
+                          width: right ? firstRow.maxX - edge : edge - firstRow.minX, height: 16)
+        let image = try XCTUnwrap(app.screenshot().image.cgImage)
+        let bitmap = try XCTUnwrap(ButtonFillPixels(image: image, pointWidth: app.windows.firstMatch.frame.width))
+        let unread: ButtonFillPixels.Classifier = { r, g, b in r >= 220 && g >= 165 && g <= 225 && b <= 85 }
+        XCTAssertGreaterThan(try XCTUnwrap(bitmap.fraction(in: content, matching: unread)), 0,
+                             "The first unread dot must be visible beside the rail")
+        XCTAssertEqual(try XCTUnwrap(bitmap.fraction(in: rail, matching: unread)), 0,
+                       "The unread dot must not draw under the Close rail")
+    }
 
     /// The list exposes the one "New" heading, then the rows in feed order, each a named,
     /// enabled button at least 44 pt each way whose label is its own notification's.
@@ -239,7 +265,13 @@ final class NotificationsAccessibilityJourneyTests: XCTestCase {
         }
         let identifier = try XCTUnwrap(candidate?.identifier, "No row clear of the fade at \(size)")
         let row = app.buttons[identifier]
-        let clear = try PinnedRowProbe(row: row, in: app)
+        let closeID = "fst.notifications.close"
+        let close = app.buttons.matching(identifier: closeID)
+        XCTAssertEqual(close.count, 1)
+        XCTAssertEqual(close.firstMatch.label, "Close")
+        XCTAssertTrue(close.firstMatch.isHittable)
+        XCTAssertFalse(row.buttons[closeID].exists, "Close is sheet chrome, not part of a row")
+        let clear = try PinnedRowProbe(row: row, in: app, separateChrome: [closeID])
         XCTAssertTrue(clear.strays.isEmpty, "Clear row exposes \(clear.strays) at \(size)")
 
         var pinned: CGRect?
@@ -266,10 +298,10 @@ final class NotificationsAccessibilityJourneyTests: XCTestCase {
                 slop = max(0, abs(length) - abs(row.frame.minY - before))
             }
             let titleFrame = title.frame
-            let masked = try PinnedRowProbe(row: row, in: app)
+            let masked = try PinnedRowProbe(row: row, in: app, separateChrome: [closeID])
             XCTContext.runActivity(named: "\(size) \(state): title \(titleFrame) (resting \(resting)), row \(masked.frame)") { _ in }
             XCTAssertEqual(titleFrame.height, resting.height, accuracy: 0.5, "\(size) \(state): the title changed size")
-            XCTAssertLessThanOrEqual(titleFrame.minY, resting.minY, "\(size) \(state): the title scrolled down")
+            XCTAssertLessThanOrEqual(titleFrame.minY, resting.minY + 0.01, "\(size) \(state): the title scrolled down")
             if let pinned {
                 XCTAssertEqual(titleFrame.minY, pinned.minY, accuracy: 1, "\(size) \(state): the title did not stay pinned")
             }

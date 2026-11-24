@@ -31,7 +31,8 @@ import XCTest
 /// the capsule) is measured from its screenshot.
 final class DuoPathsSelectorJourneyTests: XCTestCase {
     /// Loopback fixture service.
-    private static let origin = "http://127.0.0.1:18360"
+    private static let origin = ProcessInfo.processInfo.environment["FST_PATHS_FIXTURE_URL"]
+        ?? "http://127.0.0.1:18360"
     /// Widest content an icon-only selector may draw (24 pt icon, 6 pt gap, chevron).
     private static let iconOnlyMaxWidth: CGFloat = 56
     /// How much wider the named selector must draw than the icon-only one ("Lead"/"Bass").
@@ -176,6 +177,136 @@ final class DuoPathsSelectorJourneyTests: XCTestCase {
         waitForExpectations(timeout: 10)
     }
 
+    #if compiler(>=6.4.4) && targetEnvironment(simulator)
+    /// On a dedicated Duo, verify the same Paths session follows the real hinge from
+    /// flat to book to cover and back, restoring the selected Side by Side mode.
+    @MainActor
+    func testPathsFollowsPhysicalHingeWithoutReopening() throws {
+        continueAfterFailure = false
+        let environment = ProcessInfo.processInfo.environment
+        try XCTSkipUnless(
+            environment["FST_PATHS_HINGE_TEST"] == "1"
+                && (environment["SIMULATOR_DEVICE_NAME"] ?? "").contains("Duo"),
+            "Opt in on a dedicated iPhone Duo simulator"
+        )
+        guard #available(iOS 27.3, *) else { throw XCTSkip("Needs the iOS 27.3 hinge runtime") }
+        try requireFixture()
+        let device = XCUIDevice.shared
+        let hinge = try XCTUnwrap(device.hinge, "The Duo simulator has no XCUIHinge")
+        let initialAngle = hinge.angle
+        let initialOrientation = device.orientation
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": Self.origin,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_UI_TEST_RESET_SONG_CARDS": "1",
+        ])
+        app.launchArguments += ["-fst.settings.pathDefaultView", "image"]
+        defer {
+            app.terminate()
+            hinge.angle = initialAngle
+            device.orientation = initialOrientation
+        }
+
+        hinge.angle = .pi
+        // Portrait is the Duo's hardware orientation for a wide inner window.
+        device.orientation = .portrait
+        app.launch()
+        let window = app.windows.firstMatch
+        let inner = CGSize(width: 951, height: 669)
+        let cover = CGSize(width: 466, height: 678)
+        waitForDisplay(inner, hinge: hinge, angle: .pi, window: window)
+        _ = openPaths(in: app)
+        let view = menu("fst.paths.display", in: app)
+        let close = app.buttons["fst.paths.close"]
+        let image = menu("fst.paths.image", in: app)
+        let viewport = menu("fst.paths.image-viewport", in: app)
+        let text = menu("fst.paths.text.Solo_Guitar.expert", in: app)
+        choose("Side by Side", in: view, app: app)
+        XCTAssertTrue(image.waitForExistence(timeout: 10))
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        XCTAssertEqual(view.value as? String, "Side by Side")
+        XCTAssertLessThan(image.frame.midX, text.frame.midX)
+        assertEqualFlatSelectorWidths(in: app)
+        try recordPhysicalPaths("flat", in: app, angle: hinge.angle)
+
+        hinge.angle = .pi / 2
+        waitForDisplay(inner, hinge: hinge, angle: .pi / 2, window: window)
+        XCTAssertTrue(view.waitForNonExistence(timeout: 10), "Book pose kept the View menu")
+        try recordPhysicalPaths("book", in: app, angle: hinge.angle)
+        XCTAssertTrue(close.isHittable, "Book pose lost Close")
+        XCTAssertTrue(image.waitForExistence(timeout: 10))
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        XCTAssertLessThanOrEqual(viewport.frame.maxX, window.frame.midX + 1)
+        XCTAssertGreaterThanOrEqual(text.frame.minX, window.frame.midX - 1)
+
+        hinge.angle = 0
+        waitForDisplay(cover, hinge: hinge, angle: 0, window: window)
+        let imageMode = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Image"), object: view)
+        XCTAssertEqual(XCTWaiter().wait(for: [imageMode], timeout: 10), .completed)
+        XCTAssertTrue(image.waitForExistence(timeout: 10))
+        XCTAssertTrue(close.isHittable, "Folding dismissed the viewer")
+        XCTAssertFalse(text.exists)
+        try recordPhysicalPaths("cover", in: app, angle: hinge.angle)
+
+        hinge.angle = .pi
+        waitForDisplay(inner, hinge: hinge, angle: .pi, window: window)
+        let sideBySide = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Side by Side"), object: view)
+        XCTAssertEqual(XCTWaiter().wait(for: [sideBySide], timeout: 10), .completed)
+        XCTAssertTrue(image.waitForExistence(timeout: 10))
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        XCTAssertTrue(close.isHittable, "Unfolding dismissed the viewer")
+        assertEqualFlatSelectorWidths(in: app)
+        try recordPhysicalPaths("flat-return", in: app, angle: hinge.angle)
+    }
+
+    /// Each named selector gets an equal, reachable third of the flat inner row.
+    @MainActor
+    private func assertEqualFlatSelectorWidths(in app: XCUIApplication) {
+        let instrument = menu("fst.paths.instrument", in: app)
+        let difficulty = menu("fst.paths.difficulty", in: app)
+        let display = menu("fst.paths.display", in: app)
+        for control in [instrument, difficulty, display] {
+            XCTAssertTrue(control.isHittable, "\(control.identifier) is reachable on the inner display")
+            XCTAssertGreaterThanOrEqual(control.frame.height, 43.67)
+            XCTAssertEqual(control.frame.width, instrument.frame.width, accuracy: 1)
+        }
+    }
+
+    /// Wait for the requested hinge angle and the measured live window, not a debug pose.
+    @available(iOS 27.3, *)
+    @MainActor
+    private func waitForDisplay(_ size: CGSize, hinge: XCUIHinge, angle: CGFloat, window: XCUIElement) {
+        let settled = NSPredicate { _, _ in
+            let actual = window.frame.size
+            return abs(hinge.angle - angle) < 0.05
+                && abs(actual.width - size.width) < 1 && abs(actual.height - size.height) < 1
+        }
+        let result = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: settled, object: nil)], timeout: 15)
+        XCTAssertEqual(result, .completed, "Expected \(angle) rad and \(size); got \(hinge.angle) rad and \(window.frame)")
+    }
+
+    /// Save the lit screen and fresh accessibility tree with the physical pose.
+    @MainActor
+    private func recordPhysicalPaths(_ phase: String, in app: XCUIApplication, angle: CGFloat) throws {
+        let frame = app.windows.firstMatch.frame
+        let capture = XCUIScreen.main.screenshot()
+        let bitmap = try XCTUnwrap(capture.image.cgImage)
+        let pixels = [bitmap.width, bitmap.height].sorted()
+        let expected = [frame.width, frame.height].sorted().map { Int(($0 * 3).rounded()) }
+        for (actual, target) in zip(pixels, expected) {
+            XCTAssertEqual(Double(actual), Double(target), accuracy: 2, "Wrong lit screen in \(phase)")
+        }
+        let screen = XCTAttachment(screenshot: capture)
+        screen.name = "paths-\(phase)-framebuffer"
+        screen.lifetime = .keepAlways
+        add(screen)
+        let tree = XCTAttachment(string: "angle=\(angle); window=\(frame); pixels=\(pixels)\n\(app.debugDescription)")
+        tree.name = "paths-\(phase)-accessibility"
+        tree.lifetime = .keepAlways
+        add(tree)
+    }
+    #endif
+
     /// An ordinary iPhone in portrait (owner, issue #612; web mobile Paths modal): the
     /// Instrument and View menus show only their icon, at least 44 pt square, Difficulty
     /// fills the rest of the row between them, the title stays "Paths", and VoiceOver
@@ -295,14 +426,17 @@ final class DuoPathsSelectorJourneyTests: XCTestCase {
     /// Skip unless the fixture service answers.
     @MainActor
     private func requireFixture() throws {
+        let url = try XCTUnwrap(URL(string: "\(Self.origin)/api/features"))
+        try XCTSkipUnless(url.scheme == "http" && url.host == "127.0.0.1" && url.port != nil,
+                          "Paths journeys require a loopback fixture")
         let probe = expectation(description: "fixture probe")
         nonisolated(unsafe) var reachable = false
-        URLSession.shared.dataTask(with: URL(string: "\(Self.origin)/api/features")!) { _, response, _ in
+        URLSession.shared.dataTask(with: url) { _, response, _ in
             reachable = (response as? HTTPURLResponse)?.statusCode == 200
             probe.fulfill()
         }.resume()
         wait(for: [probe], timeout: 5)
-        try XCTSkipUnless(reachable, "Start `mock_service.py --port 18360` from this revision")
+        try XCTSkipUnless(reachable, "Start a mock_service.py fixture from this revision at \(Self.origin)")
     }
 
     /// Open the fixture song's Paths sheet (dismissing the Karaoke notice) in Text view.

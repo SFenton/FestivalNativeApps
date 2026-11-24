@@ -50,6 +50,9 @@ per-page `pages/<page>/firstRun/**`, `pages/settings/SettingsPage.tsx` (replay U
   "only the new slide shows" behavior, and version comparisons are strictly `>`, not `!=`.
 - Evaluate gates against the same four context fields as the web; `ready` must gate everything
   (nothing shows while facts the gates depend on could still be stale).
+  Apple resolves the selected identity and guide preferences synchronously, so neither renderer
+  has a `waiting-not-ready` UI state. A pending catalogue read can leave a preview redacted;
+  it does not prevent the guide from opening.
 - Enforce "one carousel at a time" app-wide, not just per navigation stack — a hidden tab root and
   a pushed route for the same or a different page must not both present simultaneously.
 - Settings replay must ignore both gates and seen-state (`getAllSlides`), matching the web

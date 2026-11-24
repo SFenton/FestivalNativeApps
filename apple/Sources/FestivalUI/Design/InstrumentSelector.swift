@@ -25,6 +25,26 @@ import FestivalDesign
 /// Accessibility: each circle is a button labelled with the instrument, with the
 /// Selected trait when chosen; disabled circles are not actionable; the compact arrows are
 /// labelled "Previous Instrument" / "Next Instrument" (or the caller's labels).
+/// The selector's metrics, non-generic so the UIKit port's `UKInstrumentSelectorView`
+/// reads the same numbers.
+enum InstrumentSelectorMetrics {
+    /// Touch size of one instrument button.
+    static let buttonSize: CGFloat = 64
+    /// Edge of the instrument icon in a button.
+    static let iconSize: CGFloat = 48
+    /// Gap between buttons.
+    static let gap: CGFloat = 12
+    /// Dim level of a button for each state (`graph` look: `normal` is half).
+    static func opacity(for state: InstrumentSelection.ButtonState, graphLook: Bool) -> Double {
+        switch state {
+        case .selected: 1
+        case .disabled: 0.28
+        case .muted: 0.42
+        case .normal: graphLook ? 0.5 : 1
+        }
+    }
+}
+
 struct InstrumentSelector<Panel: View>: View {
     /// Web looks.
     enum Look {
@@ -236,12 +256,7 @@ struct InstrumentSelector<Panel: View>: View {
     /// - Parameter state: Button state.
     /// - Returns: The circle's opacity.
     private func opacity(for state: InstrumentSelection.ButtonState) -> Double {
-        switch state {
-        case .selected: 1
-        case .disabled: 0.28
-        case .muted: 0.42
-        case .normal: look == .graph ? 0.5 : 1
-        }
+        InstrumentSelectorMetrics.opacity(for: state, graphLook: look == .graph)
     }
 }
 

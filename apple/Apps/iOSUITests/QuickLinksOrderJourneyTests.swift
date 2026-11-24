@@ -24,7 +24,7 @@ final class QuickLinksOrderJourneyTests: XCTestCase {
     @MainActor
     private func fixtureApp(_ environment: [String: String] = [:]) -> XCUIApplication {
         FestivalApp.makeApp([
-            "FST_API_BASE_URL": "http://127.0.0.1:8765",
+            "FST_API_BASE_URL": ProcessInfo.processInfo.environment["FST_FIXTURE_URL"] ?? "http://127.0.0.1:8765",
             "FST_UI_TEST_CLEAR_PROFILE": "1",
         ].merging(environment) { $1 })
     }
@@ -221,6 +221,13 @@ final class QuickLinksOrderJourneyTests: XCTestCase {
             XCTAssertFalse(row.label.isEmpty, row.identifier)
             XCTAssertFalse(row.label.contains("\u{2007}"), "Indent spoken in \(row.identifier)")
         }
+        let window = app.windows.firstMatch.frame
+        if #available(iOS 26.0, *), window.height >= 874 {
+            XCTAssertEqual(visible[0].frame.height, 52, accuracy: 1)
+            let bands = app.buttons[Self.itemPrefix + "bands"]
+            XCTAssertTrue(bands.isHittable, "Bands fits without scrolling on the tall portrait sheet")
+            XCTAssertLessThanOrEqual(bands.frame.maxY, window.maxY)
+        }
         let rankHistory = app.buttons[Self.itemPrefix + "rank-history:Solo_Guitar"]
         XCTAssertEqual(rankHistory.label, "Lead Rank History")
         XCTAssertEqual(app.buttons[Self.itemPrefix + "percentiles:Solo_Guitar"].label, "Lead Percentiles")
@@ -265,6 +272,12 @@ final class QuickLinksOrderJourneyTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(row.frame.height, 60, "\(row.identifier) \(row.frame)")
         }
         let window = app.windows.firstMatch.frame
+        if #available(iOS 27.0, *), window.width == 402, window.height == 874 {
+            let global = app.buttons[Self.itemPrefix + "global"]
+            let lead = app.buttons[Self.itemPrefix + "instrument:Solo_Guitar"]
+            XCTAssertEqual(global.frame.height, 155.33, accuracy: 1, "The wrapped row keeps the list's accessibility insets")
+            XCTAssertEqual(lead.frame.height, 93.33, accuracy: 1, "The single-line row keeps the same accessibility insets")
+        }
         let list = app.collectionViews.containing(.button, identifier: ids[0]).firstMatch
         let rankHistory = app.buttons[Self.itemPrefix + "rank-history:Solo_Guitar"]
         for _ in 0..<4 where !(rankHistory.exists && rankHistory.isHittable) {

@@ -17,7 +17,7 @@ import UIKit
 /// the default app can open it; ``discardMedia()`` deletes the copies.
 @MainActor
 @Observable
-final class FeedbackFormModel {
+final class FeedbackFormModel: Identifiable {
     /// Where the submit is.
     enum Phase: Equatable {
         case editing
@@ -45,6 +45,9 @@ final class FeedbackFormModel {
     private(set) var attachmentMessage: String?
     /// Picked items still being copied, so Submit waits for them.
     private(set) var importing = 0
+    /// Accepted inline ticks and their attachments outlive the sheet's content host.
+    @ObservationIgnored var inlineLibrarySelection: [PhotosPickerItem] = []
+    @ObservationIgnored var inlineLibraryLinks = FeedbackPickerLinks<PhotosPickerItem>()
     @ObservationIgnored private var submitTask: Task<Void, Never>?
     /// Time between status reads while filing.
     @ObservationIgnored let pollInterval: Duration
@@ -153,6 +156,27 @@ final class FeedbackFormModel {
         }
     }
 
+    /// Import a system photo pick supplied by UIKit, with the same staging, scrubbing and limits.
+    ///
+    /// - Parameter provider: The item provider from the system picker.
+    /// - Returns: The new attachment's ID, or nil after cancellation or a visible refusal.
+    func importPhoto(_ provider: NSItemProvider) async -> UUID? {
+        guard !Task.isCancelled, acceptsMedia else { return nil }
+        importing += 1
+        defer { importing -= 1 }
+        guard let type = FeedbackPickedMedia.droppableType(of: provider) else {
+            attachmentMessage = FeedbackAttachmentRejection.unreadable.errorDescription
+            return nil
+        }
+        do {
+            let picked = try await FeedbackPickedMedia.load(provider, as: type)
+            return await admit(picked.url, displayName: picked.url.lastPathComponent)
+        } catch {
+            if !Task.isCancelled { attachmentMessage = FeedbackAttachmentRejection.unreadable.errorDescription }
+            return nil
+        }
+    }
+
     /// Admit photos, videos or image/movie files dropped onto the form (issue #373).
     ///
     /// The drop has already copied each item into its own staging folder
@@ -216,6 +240,10 @@ final class FeedbackFormModel {
     /// removing location metadata (the issue is public).
     @discardableResult
     private func admit(_ url: URL, displayName: String) async -> UUID? {
+        guard !Task.isCancelled else {
+            Self.deleteCopy(url)
+            return nil
+        }
         let media = FeedbackAttachmentPolicy.media(forFilename: url.lastPathComponent)
         if let media {
             do {
@@ -224,10 +252,14 @@ final class FeedbackFormModel {
                 let rejection: FeedbackAttachmentRejection =
                     error as? FeedbackLocationScrubber.Failure == .unreadable
                         ? .unreadable : .locationNotRemoved(displayName)
-                attachmentMessage = rejection.errorDescription
+                if !Task.isCancelled { attachmentMessage = rejection.errorDescription }
                 Self.deleteCopy(url)
                 return nil
             }
+        }
+        guard !Task.isCancelled else {
+            Self.deleteCopy(url)
+            return nil
         }
         let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init)
         let rejection: FeedbackAttachmentRejection?
@@ -457,7 +489,7 @@ struct FeedbackPickedMedia: Transferable {
     }
 
     @MainActor
-    private static func load(_ provider: NSItemProvider, as type: UTType) async throws -> FeedbackPickedMedia {
+    fileprivate static func load(_ provider: NSItemProvider, as type: UTType) async throws -> FeedbackPickedMedia {
         try await withCheckedThrowingContinuation { continuation in
             _ = provider.loadFileRepresentation(for: type, openInPlace: false) { url, _, error in
                 // The file is deleted when this returns, so copy it now.

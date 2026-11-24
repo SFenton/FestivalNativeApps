@@ -61,6 +61,33 @@ Screenshots: `/tmp/laneP/sheet-anon.png` (`FST_DEBUG_SHEET=profile`) shows the r
 - Find Rival is not part of this: the web's rival search is players-only, so `FindRivalSheet` keeps its own player search.
 - Tests: Core `GlobalSearchTests` (`profileTargets*`); hosted `ProfileSelectionSheetRenderTests` (`profileScopeBarStartsOnAllAndNarrowsWithoutRefetching`, `profileSheetPaintsEmptySearchSeparatelyFromAccessDenied`, `profileSheetExposesNativeSearchField`); XCUITest `ProfileSearchScopeJourneyTests` (All → Bands → Players, band opens its page, accessibility audit) and `FestivalMobileUITests.testProfileSearchAccessDeniedAndEmptyStayDistinct` (Players scope: 403 reads "Players unavailable", empty reads "No Players Found", no Retry).
 
+UIKit presents Profiles through `UKSheet`, so the native inline title, Close
+and accessibility appearance use the shared modal shell. The system search
+field keeps the title and Close while focused ([HIG Sheets](https://developer.apple.com/design/human-interface-guidelines/sheets)).
+UIKit opens a result on the presenting tab without a push animation, then uses
+the native sheet dismissal to reveal it. On a viewed profile, the pinned
+Select/Switch action precedes the app's horizontal account group rather than replacing it
+([navigation chrome R28](../../patterns/page-tools-and-nav-chrome.md), Apple
+[HIG Toolbars](https://developer.apple.com/design/human-interface-guidelines/toolbars):
+trailing controls are for important, always-available actions).
+`NavButtonHitRegionJourneyTests.testViewedPlayerSwitchKeepsAccountGroupInTheHeader`
+checks the order, labels and confirmation on the horizontal bar.
+On the Duo rail the prominent action follows native Back or Close rather than
+competing with the account items for a trailing slot (HIG Designing for iPhone
+Duo: put Back/Close first, followed by prominent actions).
+On portrait iPhone and folded Duo, Switch uses a native action sheet anchored
+to the page, not to the toolbar button. UIKit uses the horizontal safe-area
+midpoint so the folded rail stays clear. Cancel leaves any statistics link
+unfollowed; only a successful confirmed switch can open it. This keeps the
+SwiftUI page-level confirmation's placement and follows Apple
+[HIG Action sheets](https://developer.apple.com/design/human-interface-guidelines/action-sheets)
+(use the native action sheet for choices about an intentional action).
+`PlayerIdentityRailJourneyTests` checks the drawn fill, confirmation placement,
+and visible question above its destructive action. In Profiles, the native
+search field's spoken name follows the visible scope prompt.
+
+- Use the native action sheet for identity confirmations. In portrait on iPhone and on folded Duo, drawer Deselect attaches to the bottom of the presenting surface, while Profile Switch follows the horizontal header or folded rail placement. The shared anchor is documented in [modal-shell](../../patterns/modal-shell.md#canonical-implementation).
+
 ## Implemented (carried over)
 
 - `FestivalSession` persists only a validated player ID + display name; corrupt stored identity is removed with a visible error. The score index records its observed publication; `hasCurrentPlayerScores(forCatalogue:)` reuses `SongRelatedPublicationPolicy`, so retained older Songs rows show an accessible **paused** state (`fst.songs.profile-paused`, `fst.songs.profile-paused-row.*`).

@@ -4,6 +4,7 @@ import SwiftUI
 import AppKit
 #endif
 import Testing
+import FestivalAppSupport
 @testable import FestivalCore
 @testable import FestivalUI
 
@@ -121,22 +122,22 @@ private func rankingRow(_ accountId: String, rank: Int) throws -> AccountRanking
 /// Next/Previous Section step through the page's sections and stop at the ends.
 @Test func macQuickLinksNeighbors() {
     let ids = ["a", "b", "c"]
-    #expect(MacQuickLinksCommand.neighbor(of: nil, in: ids, offset: 1) == "a")
-    #expect(MacQuickLinksCommand.neighbor(of: nil, in: ids, offset: -1) == nil)
-    #expect(MacQuickLinksCommand.neighbor(of: "a", in: ids, offset: 1) == "b")
-    #expect(MacQuickLinksCommand.neighbor(of: "c", in: ids, offset: 1) == nil)
-    #expect(MacQuickLinksCommand.neighbor(of: "b", in: ids, offset: -1) == "a")
-    #expect(MacQuickLinksCommand.neighbor(of: "a", in: [], offset: 1) == nil)
+    #expect(QuickLinksMenuCommand.neighbor(of: nil, in: ids, offset: 1) == "a")
+    #expect(QuickLinksMenuCommand.neighbor(of: nil, in: ids, offset: -1) == nil)
+    #expect(QuickLinksMenuCommand.neighbor(of: "a", in: ids, offset: 1) == "b")
+    #expect(QuickLinksMenuCommand.neighbor(of: "c", in: ids, offset: 1) == nil)
+    #expect(QuickLinksMenuCommand.neighbor(of: "b", in: ids, offset: -1) == "a")
+    #expect(QuickLinksMenuCommand.neighbor(of: "a", in: [], offset: 1) == nil)
 }
 
 /// View › Rank By lists every account metric when no rankings page is in front and
 /// Experimental Ranks is on, and Total Score alone while it is off (pattern
 /// `experimental-ranks`; HIG The menu bar: the submenu keeps its items).
 @Test func macRankByAccountOptions() {
-    let on = MacRankByCommands.accountOptions(experimentalRanks: true)
+    let on = RankByMenuCommands.accountOptions(experimentalRanks: true)
     #expect(on.map(\.id) == ["totalscore", "adjusted", "weighted", "fcrate", "maxscore"])
     #expect(on.first?.label == RankingMetric.totalscore.label)
-    let off = MacRankByCommands.accountOptions(experimentalRanks: false)
+    let off = RankByMenuCommands.accountOptions(experimentalRanks: false)
     #expect(off.map(\.id) == ["totalscore"])
     #expect(off.map(\.label) == ["Total Score"])
 }
@@ -144,43 +145,43 @@ private func rankingRow(_ accountId: String, rank: Int) throws -> AccountRanking
 /// View › Rank By's band options never include Max Score and narrow to Total Score
 /// while Experimental Ranks is off.
 @Test func macRankByBandOptions() {
-    #expect(MacRankByCommands.bandOptions(experimentalRanks: true).map(\.id) == ["totalscore", "adjusted", "weighted", "fcrate"])
-    #expect(!MacRankByCommands.bandOptions(experimentalRanks: true).map(\.id).contains("maxscore"))
-    #expect(MacRankByCommands.bandOptions(experimentalRanks: false).map(\.id) == ["totalscore"])
+    #expect(RankByMenuCommands.bandOptions(experimentalRanks: true).map(\.id) == ["totalscore", "adjusted", "weighted", "fcrate"])
+    #expect(!RankByMenuCommands.bandOptions(experimentalRanks: true).map(\.id).contains("maxscore"))
+    #expect(RankByMenuCommands.bandOptions(experimentalRanks: false).map(\.id) == ["totalscore"])
 }
 
 /// View › Instrument lists the page's charts in order, keyed by wire id, and keeps
 /// every chart (disabled) when no rankings page is in front.
 @Test func macInstrumentOptions() {
-    let options = MacInstrumentCommands.options(for: [.drums, .lead])
+    let options = InstrumentMenuCommands.options(for: [.drums, .lead])
     #expect(options.map(\.id) == ["Solo_Drums", "Solo_Guitar"])
     #expect(options.map(\.label) == [Instrument.drums.label, Instrument.lead.label])
-    #expect(MacInstrumentCommands.allOptions.map(\.id) == Instrument.allCases.map(\.rawValue))
-    #expect(MacInstrumentCommands.options(for: []).isEmpty)
+    #expect(InstrumentMenuCommands.allOptions.map(\.id) == Instrument.allCases.map(\.rawValue))
+    #expect(InstrumentMenuCommands.options(for: []).isEmpty)
 }
 
 /// View › as List / as Grid re-publishes when the Item Shop's layout flips (the
 /// checkmark follows it), and pages without a List/Grid toggle publish none (issue #633).
 @Test @MainActor func macPageCommandsLayoutChoice() {
-    let grid = MacPageCommands(sort: {}, filter: {}, layout: MacLayoutChoice(isGrid: true) { _ in })
-    let list = MacPageCommands(sort: {}, filter: {}, layout: MacLayoutChoice(isGrid: false) { _ in })
+    let grid = PageMenuCommands(sort: {}, filter: {}, layout: PageMenuLayoutChoice(isGrid: true) { _ in })
+    let list = PageMenuCommands(sort: {}, filter: {}, layout: PageMenuLayoutChoice(isGrid: false) { _ in })
     #expect(grid != list)
-    #expect(grid == MacPageCommands(sort: {}, filter: {}, layout: MacLayoutChoice(isGrid: true) { _ in }))
-    #expect(grid != MacPageCommands(sort: {}, filter: {}))
+    #expect(grid == PageMenuCommands(sort: {}, filter: {}, layout: PageMenuLayoutChoice(isGrid: true) { _ in }))
+    #expect(grid != PageMenuCommands(sort: {}, filter: {}))
     var picked: Bool?
-    MacLayoutChoice(isGrid: false) { picked = $0 }.select(true)
+    PageMenuLayoutChoice(isGrid: false) { picked = $0 }.select(true)
     #expect(picked == true)
     // Suggestions publishes Filter alone.
-    let suggestions = MacPageCommands(filter: {})
+    let suggestions = PageMenuCommands(filter: {})
     #expect(suggestions.sort == nil && suggestions.filter != nil && suggestions.layout == nil)
 }
 
 /// View › Band Size checks the board's band size and re-publishes when it changes.
 @Test @MainActor func macBandSizeCommands() {
     var applied: BandType?
-    let trios = MacBandSizeCommands(selected: .trios) { applied = $0 }
-    #expect(trios == MacBandSizeCommands(selected: .trios) { _ in })
-    #expect(trios != MacBandSizeCommands(selected: .quad) { _ in })
+    let trios = BandSizeMenuCommands(selected: .trios) { applied = $0 }
+    #expect(trios == BandSizeMenuCommands(selected: .trios) { _ in })
+    #expect(trios != BandSizeMenuCommands(selected: .quad) { _ in })
     trios.select(.quad)
     #expect(applied == .quad)
 }
@@ -189,17 +190,17 @@ private func rankingRow(_ accountId: String, rank: Int) throws -> AccountRanking
 /// (never "Select Profile…", which opens profile selection), and View Rival's Profile
 /// is offered only by rival pages (issue #633).
 @Test @MainActor func macProfilePageCommands() {
-    #expect(MacProfilePageCommands.identityMenuTitle(for: .switchTo) == "Switch to This Profile")
-    #expect(MacProfilePageCommands.identityMenuTitle(for: .select) == "Select This Profile")
-    #expect(MacProfilePageCommands.identityMenuTitle(for: nil) == "Select This Profile")
-    let planned = MacProfilePageCommands(identity: .select)
-    let proven = MacProfilePageCommands(identity: .select, performIdentity: {})
+    #expect(ProfilePageMenuCommands.identityMenuTitle(for: .switchTo) == "Switch to This Profile")
+    #expect(ProfilePageMenuCommands.identityMenuTitle(for: .select) == "Select This Profile")
+    #expect(ProfilePageMenuCommands.identityMenuTitle(for: nil) == "Select This Profile")
+    let planned = ProfilePageMenuCommands(identity: .select)
+    let proven = ProfilePageMenuCommands(identity: .select, performIdentity: {})
     #expect(planned != proven)
     #expect(planned.performIdentity == nil)
-    #expect(MacProfilePageCommands(identity: .switchTo, performIdentity: {}) != proven)
-    let rival = MacProfilePageCommands(viewRivalProfile: {})
+    #expect(ProfilePageMenuCommands(identity: .switchTo, performIdentity: {}) != proven)
+    let rival = ProfilePageMenuCommands(viewRivalProfile: {})
     #expect(rival.identity == nil && rival.viewRivalProfile != nil)
-    #expect(rival != MacProfilePageCommands())
+    #expect(rival != ProfilePageMenuCommands())
 }
 
 /// Full Rankings' header, pinned title and window title share one "<Instrument> Rankings" string.

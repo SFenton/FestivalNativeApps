@@ -16,7 +16,8 @@ state, switching between phases through a loopback control route:
 
 Every control answer also reports ``posts`` (feedback POSTs received), ``reads`` (status reads) and ``last``: the
 multipart field names, ``kind``, ``platform``, the number of ``media`` parts and whether a privileged or
-selected-profile header was present. Titles are never echoed. The mock's own fixtures still apply: a title containing
+selected-profile header was present. ``lastFeatures`` is the feedback flag in the last completed features response,
+or null until a response is sent after reset. Titles are never echoed. The mock's own fixtures still apply: a title containing
 ``fixture-unavailable`` answers ``503 feedback_busy`` and ``fixture-failed`` queues a job that fails.
 
 Usage: ``python tools/windows/feedback_fixture.py --port 0 [--features off] [--post hold] [--status hold]
@@ -114,6 +115,7 @@ class FeedbackState:
         self.posts = 0
         self.reads = 0
         self.last: dict | None = None
+        self.last_features: bool | None = None
         self.update({"features": [features], "post": [post], "status": [status]})
 
     def update(self, query: dict[str, list[str]]) -> dict:
@@ -148,21 +150,28 @@ class FeedbackState:
             if query.get("reset", ["0"])[-1] == "1":
                 self.posts = self.reads = 0
                 self.last = None
+                self.last_features = None
         return self.snapshot()
 
     def snapshot(self) -> dict:
         """Modes and counters.
 
         Returns:
-            ``features``/``post``/``status`` modes, ``posts``, ``reads`` and ``last`` (see :func:`summarize`).
+            The active modes, request counts, last submission summary, and last completed features flag.
         """
         with self._lock:
-            return {**self.modes, "posts": self.posts, "reads": self.reads, "last": self.last}
+            return {**self.modes, "posts": self.posts, "reads": self.reads, "last": self.last,
+                    "lastFeatures": self.last_features}
 
     def features_on(self) -> bool:
         """Whether ``/api/features`` reports feedback as available."""
         with self._lock:
             return self.modes["features"] == "on"
+
+    def record_features(self, enabled: bool) -> None:
+        """Record the availability flag sent in a completed features response."""
+        with self._lock:
+            self.last_features = enabled
 
     def record_post(self, summary: dict) -> None:
         """Count one feedback POST.
@@ -198,8 +207,13 @@ def install(state: FeedbackState) -> None:
                 self._json(200, state.update(parse_qs(parsed.query)))
             except ValueError as error:
                 self._json(400, {"status": str(error)})
-        elif parsed.path == "/api/features" and not state.features_on():
-            self._json(200, {"appManual": False, "feedback": False})
+        elif parsed.path == "/api/features":
+            enabled = state.features_on()
+            if enabled:
+                original_get(self)
+            else:
+                self._json(200, {"appManual": False, "feedback": False})
+            state.record_features(enabled)
         else:
             original_get(self)
 

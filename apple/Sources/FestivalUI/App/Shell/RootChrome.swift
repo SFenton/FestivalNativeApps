@@ -1,4 +1,5 @@
 import SwiftUI
+import FestivalAppSupport
 import FestivalCore
 import FestivalDesign
 #if canImport(UIKit)
@@ -131,7 +132,8 @@ extension EnvironmentValues {
 /// primary action (Player Select / Switch, drawn prominent) stays visible like the
 /// bell and profile, so it renders blue in the rail instead of hiding in "…" (issue
 /// #351; HIG Designing for iPhone Duo: "Place primary navigation (Back/Close) at the
-/// top, then prominent actions (Done)"); a plain page action overflows first.
+/// top, then prominent actions (Done)"). Song Detail's own actions also outrank
+/// ordinary page tools without adopting the prominent fill.
 enum RootChromeRailItem: CaseIterable, Equatable {
     case drawer
     case quickLinks
@@ -141,13 +143,15 @@ enum RootChromeRailItem: CaseIterable, Equatable {
     case pageAction
     /// The page's prominent primary action mirrored into the rail.
     case primaryPageAction
+    /// Song Detail's Paths and Item Shop actions.
+    case songDetailAction
 
     /// True when the system should keep this item visible ahead of same-bar
     /// items with standard priority once the vertical bar runs out of room.
     var staysVisibleAheadOfOthers: Bool {
         switch self {
         case .drawer, .quickLinks, .pageAction: false
-        case .bell, .profile, .primaryPageAction: true
+        case .bell, .profile, .primaryPageAction, .songDetailAction: true
         }
     }
 }

@@ -47,6 +47,8 @@ struct PlayerHistoryScreen: View {
     private static let topAnchor = "fst.history.top"
     /// Space above the song header, as on the song leaderboards.
     nonisolated private static let headerTopInset: CGFloat = 20
+    /// Vertical space on each side of an individual score card.
+    nonisolated static let rowVerticalInset: CGFloat = 3
 
     enum LoadState {
         case loading
@@ -166,7 +168,7 @@ struct PlayerHistoryScreen: View {
         ) {
             sortButton
         }
-        .macPageCommands(sortAvailable ? MacPageCommands(sort: { sortPresented = true }) : MacPageCommands())
+        .macPageCommands(sortAvailable ? PageMenuCommands(sort: { sortPresented = true }) : PageMenuCommands())
         #if os(iOS)
         .sheet(isPresented: $sortPresented) { sortSheet }
         #endif
@@ -230,7 +232,7 @@ struct PlayerHistoryScreen: View {
             )
             .accessibilityIdentifier("fst.history.row.\(index)")
             .detailStaggeredFadeIn(index: index, settled: staggerSettled)
-            .listRowInsets(EdgeInsets(top: 3, leading: 16, bottom: 3, trailing: 16))
+            .listRowInsets(EdgeInsets(top: Self.rowVerticalInset, leading: 16, bottom: Self.rowVerticalInset, trailing: 16))
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
         }

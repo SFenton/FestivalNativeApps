@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import FestivalAppSupport
 import FestivalCore
 import FestivalDesign
 
@@ -88,13 +89,7 @@ struct SongBandPreviewSection: View {
     /// Total ranked bands, like the solo cards' subtitle, when the service allows it.
     private var subtitle: String? {
         guard case let .loaded(response) = state else { return nil }
-        let preview = response.preview(for: bandType)
-        if preview.entries.isEmpty && preview.footerEntry == nil {
-            return "No scores recorded yet"
-        }
-        guard response.showLeaderboardEntryTotals == true else { return nil }
-        let total = preview.totalEntries
-        return "\(total.formatted()) \(total == 1 ? "band" : "bands")"
+        return SongDetailPlan.bandSubtitle(response, bandType: bandType)
     }
 
     private var header: some View {

@@ -1,4 +1,5 @@
 import SwiftUI
+import FestivalAppSupport
 import FestivalCore
 import FestivalDesign
 
@@ -55,8 +56,8 @@ struct SettingsScreen: View {
     @State private var showingWhatsNew = false
     /// Privacy Policy sheet (issue #98).
     @State private var showingPrivacyPolicy = false
-    /// Open Report an Issue / Request a Feature form, if any (issue #78).
-    @State private var feedbackForm: FeedbackKind?
+    /// Own the open draft above the sheet content, which Duo can recreate on a display handoff.
+    @State private var feedbackForm: FeedbackFormModel?
     /// A filed form's "Report Sent" alert, shown over Settings only after its sheet has
     /// gone (issue #565, pattern `modal-shell` R7).
     @State private var feedbackSent = FeedbackSentPresentation()
@@ -176,9 +177,9 @@ struct SettingsScreen: View {
         .sheet(isPresented: $showingPrivacyPolicy) {
             PrivacyPolicySheet()
         }
-        .sheet(item: $feedbackForm, onDismiss: feedbackFormDismissed) { kind in
+        .sheet(item: $feedbackForm, onDismiss: feedbackFormDismissed) { model in
             // Applies its own `.festivalSheet`, widening while its photo library is open.
-            FeedbackFormSheet(kind: kind, session: session) { feedbackSent.formFinished($0) }
+            FeedbackFormSheet(model: model, session: session) { feedbackSent.formFinished($0) }
         }
         .alert(
             feedbackSent.shown?.title ?? "", isPresented: feedbackSentShowing,
@@ -583,7 +584,7 @@ struct SettingsScreen: View {
 
     /// A row that opens the bug or feature form, styled like What's New's "Show" row.
     private func feedbackRow(_ kind: FeedbackKind, detail: String, action: String) -> some View {
-        Button { feedbackForm = kind } label: {
+        Button { feedbackForm = FeedbackFormModel(kind: kind) } label: {
             HStack {
                 SettingLabel(kind.formTitle, detail: detail)
                 Spacer(minLength: 8)
@@ -625,15 +626,14 @@ struct SettingsScreen: View {
         #if os(macOS)
         "System Settings"
         #else
-        "device Settings"
+        SettingsCopy.deviceSettingsName
         #endif
     }
 
     private var accessibility: some View {
         SettingsSectionCard(
             "Accessibility",
-            subtitle: "Off follows your device; On adds an app override. "
-                + "VoiceOver and text size are managed in \(Self.systemSettingsName).",
+            subtitle: SettingsCopy.accessibilitySubtitle(systemSettingsName: Self.systemSettingsName),
             titled: showsSectionTitles
         ) {
             Toggle(isOn: $reduceMotion) { SettingLabel("Reduce Motion") }
@@ -699,14 +699,9 @@ struct SettingsScreen: View {
     private var metadata: some View {
         SettingsSectionCard(
             "Show Instrument Metadata",
-            subtitle: session.selectedPlayer == nil
-                ? "Select a player to customize score metadata."
-                : showInstrumentIcons
-                    ? "With icons and All instruments, status chips replace score "
-                        + "metadata. Turn icons off or filter one chart to show these fields."
-                    : "Visible score fields update Songs cards. Enable Independent Song Row "
-                        + "Visual Order above to choose which field leads; Last Played sort is "
-                        + "still being ported.",
+            subtitle: SettingsCopy.metadataSubtitle(
+                hasPlayer: session.selectedPlayer != nil, showInstrumentIcons: showInstrumentIcons
+            ),
             titled: showsSectionTitles
         ) {
             ForEach(MetadataField.allCases) { field in
@@ -921,17 +916,13 @@ struct SettingsScreen: View {
 
     /// Debug vs Release, useful context when a user reports a bug.
     private var buildConfigurationText: String {
-        #if DEBUG
-        "Debug"
-        #else
-        "Release"
-        #endif
+        SettingsCopy.buildConfigurationText
     }
 
     /// The live service build from keyless `GET /api/version` (pure read; see
     /// `.agents/platforms/service-safety.md`), "Loading" until it answers.
     private var serviceVersionText: String {
-        serviceVersion ?? (serviceVersionFailed ? "Unavailable" : "Loading")
+        SettingsCopy.serviceVersionText(version: serviceVersion, failed: serviceVersionFailed)
     }
 
     /// Show the feedback rows once the service reports in-app feedback is on (pure
@@ -1017,17 +1008,7 @@ struct SettingsScreen: View {
     /// - Parameter field: Metadata setting that supplies a Song-row label or meter.
     /// - Returns: Explanation of the actual currently supported row effect.
     private func metadataHint(for field: MetadataField) -> String {
-        if field == .intensity {
-            return "Controls song Intensity on selected score cards or filtered anonymous rows"
-        }
-        if field == .lastPlayed {
-            return session.selectedPlayer == nil
-                ? "Select a player to show the saved date"
-                : "Shows the saved date on native Songs cards; Last Played sort is not yet available"
-        }
-        return session.selectedPlayer == nil
-            ? "Select a player to use score metadata"
-            : "Updates Songs score fields when icons are off or one chart is filtered"
+        SettingsCopy.metadataHint(for: field, hasPlayer: session.selectedPlayer != nil)
     }
 
     // MARK: - Service and reset

@@ -1,6 +1,7 @@
 #if os(macOS)
 import Foundation
 import Observation
+import FestivalAppSupport
 import FestivalCore
 
 // MARK: - App model
@@ -54,7 +55,7 @@ public final class MacAppModel {
         if debug.anonymous { selectionStorage = nil }
         #endif
         let session = FestivalSession(
-            factory: { try FestivalRootView.makeClient(environment: ProcessInfo.processInfo.environment) },
+            factory: { try FestivalClientFactory.makeClient(environment: ProcessInfo.processInfo.environment) },
             selectionStorage: selectionStorage, debugSelectedPlayer: debugPlayer,
             debugSelectedBand: debugBand,
             liveConnection: PublicationLiveConnection.isEnabled() ? PublicationLiveConnection() : nil

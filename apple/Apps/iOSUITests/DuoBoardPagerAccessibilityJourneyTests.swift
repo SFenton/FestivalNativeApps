@@ -120,6 +120,198 @@ final class DuoBoardPagerAccessibilityJourneyTests: XCTestCase {
         try assertPagerOnBoard(.song, duoWindow: "unfolded-landscape")
     }
 
+    #if compiler(>=6.4.4) && targetEnvironment(simulator)
+    /// Only the standalone Duos pager moves across the physical hinge change, not its full-width footer.
+    @MainActor
+    func testStandaloneDuosPagerFollowsThePhysicalDivide() throws {
+        guard #available(iOS 27.3, *) else { throw XCTSkip("Needs the iOS 27.3 hinge runtime") }
+        let prefix = "fst.song-band-leaderboard."
+        try withPhysicalDuo([
+            "FST_DEBUG_SONG": "fixture-pulse",
+            "FST_DEBUG_SONG_BAND": "Band_Duets",
+            "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
+        ]) { app, hinge in
+            let jump = app.buttons[prefix + "spotlight-jump"]
+            let open = app.buttons[prefix + "spotlight-open"]
+            let info = app.descendants(matching: .any)[prefix + "page-info"]
+            XCTAssertTrue(jump.waitForExistence(timeout: FestivalApp.budget(15)))
+            XCTAssertEqual(jump.label, "Your band's rank, 29th. Jump to your band's position.")
+            XCTAssertNil(SplitBandUITestSupport.trailingPane(app))
+            let footerFrame = jump.frame
+            let flat = try assertPhysicalPager(in: app, prefix: prefix, page: 1, total: 2, rightOf: footerFrame.midX)
+            XCTAssertGreaterThan(footerFrame.width, 768)
+            XCTAssertLessThan(footerFrame.maxY, info.frame.minY)
+            capturePhysicalPager(in: app, phase: "duos-flat-jump")
+            XCTAssertEqual(flat, (footerFrame.midX + footerFrame.maxX + 16) / 2, accuracy: 1,
+                           "The flat pager should center on the rail-side half of the free space")
+
+            jump.tap()
+            XCTAssertTrue(FeedbackJourney.waitUntil { open.exists && info.value as? String == "2 of 2" })
+            XCTAssertEqual(open.label, "Your band's rank, 29th. Open band.")
+            try assertDuosPageTwo(in: app, footer: open.frame, divide: footerFrame.midX, equalColumns: true)
+            let width = app.windows.firstMatch.frame.width
+            hinge.angle = .pi / 2
+            XCTAssertTrue(FeedbackJourney.waitUntil {
+                abs(hinge.angle - .pi / 2) < 0.05 && abs(info.frame.midX - flat) > 10
+            }, "The pager must follow the physical book divider without a window resize")
+            let book = try assertPhysicalPager(in: app, prefix: prefix, page: 2, total: 2, rightOf: width / 2)
+            XCTAssertGreaterThan(book, flat)
+            XCTAssertEqual(open.frame.width, footerFrame.width, accuracy: 1, "Only the pager moves, not the footer")
+            try assertDuosPageTwo(in: app, footer: open.frame, divide: width / 2, equalColumns: false)
+            capturePhysicalPager(in: app, phase: "duos-book-open")
+
+            hinge.angle = .pi
+            XCTAssertTrue(FeedbackJourney.waitUntil {
+                abs(hinge.angle - .pi) < 0.05 && abs(info.frame.midX - flat) < 1
+            })
+            _ = try assertPhysicalPager(in: app, prefix: prefix, page: 2, total: 2, rightOf: footerFrame.midX)
+            XCTAssertEqual(open.frame, footerFrame)
+            capturePhysicalPager(in: app, phase: "duos-flat-open")
+        }
+    }
+
+    /// Checks that page 2 exposes two complete, row-major pairs within the board margins.
+    @MainActor
+    private func assertDuosPageTwo(in app: XCUIApplication, footer: CGRect, divide: CGFloat, equalColumns: Bool) throws {
+        let prefix = "fst.song-band-leaderboard.row."
+        let ids = (26...28).map { "\(prefix)fixture-band-\($0):\($0)" } + ["\(prefix)fixture-band-fixture-player-1:29"]
+        XCTAssertTrue(app.buttons[ids[0]].waitForExistence(timeout: FestivalApp.budget(10)))
+        let nodes = try FestivalApp.snapshotNodes(in: app) { ids.contains($0.identifier) }
+        XCTAssertEqual(nodes.map(\.identifier), ids)
+        guard nodes.count == ids.count else { return }
+        for (index, node) in nodes.enumerated() {
+            let frame = node.frame
+            XCTAssertGreaterThan(frame.height, 80, "Duos rows must fit both member lines and their team score")
+            XCTAssertGreaterThanOrEqual(frame.minX, footer.minX - 1)
+            XCTAssertLessThanOrEqual(frame.maxX, footer.maxX + 1, "A row runs under the rail")
+            if index.isMultiple(of: 2) {
+                XCTAssertLessThanOrEqual(frame.maxX, divide)
+            } else {
+                let previous = nodes[index - 1].frame
+                XCTAssertGreaterThanOrEqual(frame.minX, divide)
+                XCTAssertEqual(frame.minY, previous.minY, accuracy: 1)
+                if equalColumns { XCTAssertEqual(frame.width, previous.width, accuracy: 1) }
+            }
+        }
+    }
+
+    /// Band Rankings' separate floating capsule also clears the divide at AX5.
+    @MainActor
+    func testFloatingBandPagerClearsPhysicalDivideAtAX5() throws {
+        guard #available(iOS 27.3, *) else { throw XCTSkip("Needs the iOS 27.3 hinge runtime") }
+        try withPhysicalDuo(
+            Board.bandRankings.environment,
+            arguments: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        ) { app, hinge in
+            let prefix = Board.bandRankings.prefix
+            let info = app.descendants(matching: .any)[prefix + "page-info"]
+            XCTAssertTrue(info.waitForExistence(timeout: FestivalApp.budget(15)), "The loaded board must expose its pager")
+            let window = app.windows.firstMatch.frame
+            let rowIDs = (1...2).map { "\(Board.bandRankings.rowPrefix)fixture-team-\($0)" }
+            let rows = try FestivalApp.snapshotNodes(in: app) { rowIDs.contains($0.identifier) }
+            XCTAssertEqual(rows.map(\.identifier), rowIDs)
+            let left = try XCTUnwrap(rows.first?.frame)
+            let right = try XCTUnwrap(rows.last?.frame)
+            let divide = (left.maxX + right.minX) / 2
+            let flat = try assertPhysicalPager(in: app, prefix: prefix, page: 1, total: 1, rightOf: divide)
+            capturePhysicalPager(in: app, phase: "rankings-flat-ax5")
+            XCTAssertEqual(flat, (divide + right.maxX + 16) / 2, accuracy: 1,
+                           "The floating pager should center on the rail-side half of the free space at AX5")
+            hinge.angle = .pi / 2
+            XCTAssertTrue(FeedbackJourney.waitUntil {
+                abs(hinge.angle - .pi / 2) < 0.05 && info.frame.midX > flat + 10
+            })
+            _ = try assertPhysicalPager(in: app, prefix: prefix, page: 1, total: 1, rightOf: window.midX)
+            capturePhysicalPager(in: app, phase: "rankings-book-ax5")
+        }
+    }
+
+    /// Opens the lit inner landscape display and restores the original device pose afterward.
+    ///
+    /// - Parameters:
+    ///   - route: Debug launch values for the loopback board.
+    ///   - arguments: Additional app launch arguments.
+    ///   - body: Assertions performed in the running app without relaunching.
+    @available(iOS 27.3, *)
+    @MainActor
+    private func withPhysicalDuo(
+        _ route: [String: String], arguments: [String] = [], body: (XCUIApplication, XCUIHinge) throws -> Void
+    ) throws {
+        let environment = ProcessInfo.processInfo.environment
+        try XCTSkipUnless(
+            environment["FST_DUO_SPLIT_TEST"] == "1" && (environment["SIMULATOR_DEVICE_NAME"] ?? "").contains("Duo"),
+            "Opt in on a dedicated iPhone Duo with the loopback fixture"
+        )
+        let origin = SongsUITestSupport.fixtureURL
+        let url = try XCTUnwrap(URLComponents(string: origin))
+        try XCTSkipUnless(url.scheme == "http" && url.host == "127.0.0.1" && url.port != nil)
+        continueAfterFailure = false
+        let device = XCUIDevice.shared
+        let hinge = try XCTUnwrap(device.hinge)
+        let angle = hinge.angle
+        let orientation = device.orientation
+        let app = FestivalApp.makeApp(route.merging(["FST_API_BASE_URL": origin]) { _, origin in origin })
+        app.launchArguments += arguments + ["-fst.accessibility.reduceMotion", "YES"]
+        defer {
+            app.terminate()
+            device.orientation = orientation
+            hinge.angle = angle
+        }
+        device.orientation = .portrait
+        hinge.angle = .pi
+        app.launch()
+        let window = app.windows.firstMatch
+        XCTAssertTrue(FeedbackJourney.waitUntil(timeout: 15) {
+            abs(hinge.angle - .pi) < 0.05 && abs(window.frame.width - 951) < 1 && abs(window.frame.height - 669) < 1
+        }, "Expected the physical inner landscape window, got \(window.frame)")
+        try body(app, hinge)
+    }
+
+    /// Checks the five named targets, their state and reading order on the rail's side.
+    ///
+    /// - Returns: The adjustable badge's horizontal centre for the next pose comparison.
+    @MainActor
+    private func assertPhysicalPager(
+        in app: XCUIApplication, prefix: String, page: Int, total: Int, rightOf divide: CGFloat
+    ) throws -> CGFloat {
+        let ids = Self.pagerSuffixes.map { prefix + $0 }
+        let nodes = try FestivalApp.snapshotNodes(in: app) { ids.contains($0.identifier) }
+        XCTAssertEqual(nodes.map(\.identifier), ids)
+        let window = app.windows.firstMatch.frame
+        for node in nodes {
+            XCTAssertGreaterThan(node.frame.minX, divide, "\(node.identifier) straddles the divide: \(node.frame)")
+            XCTAssertTrue(window.contains(node.frame), "\(node.identifier) is off screen")
+            XCTAssertGreaterThanOrEqual(node.frame.width, 43.5)
+            XCTAssertGreaterThanOrEqual(node.frame.height, 43.5)
+        }
+        let info = try XCTUnwrap(nodes.first { $0.identifier == prefix + "page-info" })
+        XCTAssertEqual(info.label, "Page")
+        XCTAssertEqual(info.value as? String, "\(page) of \(total)")
+        for (offset, word) in [(0, "First"), (1, "Previous"), (3, "Next"), (4, "Last")] {
+            let arrow = app.buttons[ids[offset]]
+            XCTAssertTrue(arrow.exists && arrow.label.hasPrefix(word))
+            XCTAssertEqual(arrow.isEnabled, offset < 2 ? page > 1 : page < total)
+        }
+        return info.frame.midX
+    }
+
+    /// Records the lit inner framebuffer and the AX hierarchy for the same settled pose.
+    @MainActor
+    private func capturePhysicalPager(in app: XCUIApplication, phase: String) {
+        let screen = XCUIScreen.main.screenshot()
+        let size = screen.image.size
+        XCTAssertEqual(min(size.width, size.height) / max(size.width, size.height), 669.0 / 951.0, accuracy: 0.002)
+        let image = XCTAttachment(screenshot: screen)
+        image.name = "board-pager-\(phase)-inner-framebuffer"
+        image.lifetime = .keepAlways
+        add(image)
+        let tree = XCTAttachment(string: app.debugDescription)
+        tree.name = "board-pager-\(phase)-accessibility"
+        tree.lifetime = .keepAlways
+        add(tree)
+    }
+    #endif
+
     // MARK: - Assertions
 
     /// Launch `board` at AX5 in the simulated Duo window and check its pager, selected

@@ -72,7 +72,55 @@ final class SongBandLeaderboardAccessibilityJourneyTests: XCTestCase {
         )
     }
 
+    /// The AX5 gold badge still draws only the percent; the card tells VoiceOver what it means.
+    @MainActor
+    func testBandCardShowsPercentAndSpeaksFullComboAtAX5() throws {
+        continueAfterFailure = false
+        try requireFixture()
+        let app = openBoard(category: Self.largest)
+        defer { app.terminate() }
+        let row = app.buttons["\(Self.rowPrefix)fixture-band-1:1"]
+        let pager = element("fst.song-band-leaderboard.page-info", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: FestivalApp.budget(20)), "The first Duos card did not load")
+        XCTAssertTrue(pager.waitForExistence(timeout: FestivalApp.budget(10)), "The pager did not load")
+        let label = row.label
+        XCTAssertTrue(label.contains("Band 1 Member A + Band 1 Member B"), label)
+        XCTAssertTrue(label.contains("full combo, accuracy 96.5%"), label)
+        XCTAssertEqual(app.buttons.matching(identifier: row.identifier).count, 1, "The band has one button")
+
+        let window = app.windows.firstMatch
+        let start = window.coordinate(withNormalizedOffset: CGVector(dx: 0.18, dy: 0.64))
+        let end = window.coordinate(withNormalizedOffset: CGVector(dx: 0.18, dy: 0.38))
+        for _ in 0..<6 where row.frame.maxY > pager.frame.minY - 24 {
+            start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
+        }
+        XCTAssertTrue(row.isHittable, "The first band is not reachable after scrolling")
+        XCTAssertLessThanOrEqual(row.frame.maxY, pager.frame.minY - 24, "The pager still covers the badge")
+        SongsUITestSupport.record(app, name: "song-band-first-card-accuracy-ax5")
+        let lines = RecognizedText.lines(in: row.screenshot()).map(\.text)
+        XCTAssertTrue(lines.contains { $0 == "96.5%" }, "The badge should show only the percentage: \(lines)")
+        let drawn = lines.joined(separator: " ").lowercased()
+        XCTAssertFalse(drawn.contains("full combo") || drawn.contains("accuracy"), "\(lines)")
+    }
+
     // MARK: - Helpers
+
+    /// Opens the fixture's standalone Duos board at the requested Dynamic Type size.
+    @MainActor
+    private func openBoard(category: String) -> XCUIApplication {
+        XCUIDevice.shared.orientation = .portrait
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": Self.origin,
+            "FST_DEBUG_ANONYMOUS": "1",
+            "FST_UI_TEST_RESET_SONG_CARDS": "1",
+            "FST_DEBUG_SONG": "fixture-pulse",
+            "FST_DEBUG_SONG_BAND": "Band_Duets",
+        ])
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", category]
+        app.launch()
+        SongsUITestSupport.collapseSidebarOnPad(app)
+        return app
+    }
 
     /// What one run measured.
     struct Measured {
@@ -92,18 +140,8 @@ final class SongBandLeaderboardAccessibilityJourneyTests: XCTestCase {
     @MainActor
     private func checkBoard(category: String, pin: Bool = true) throws -> Measured {
         continueAfterFailure = false
-        XCUIDevice.shared.orientation = .portrait
-        let app = FestivalApp.makeApp([
-            "FST_API_BASE_URL": Self.origin,
-            "FST_DEBUG_ANONYMOUS": "1",
-            "FST_UI_TEST_RESET_SONG_CARDS": "1",
-            "FST_DEBUG_SONG": "fixture-pulse",
-            "FST_DEBUG_SONG_BAND": "Band_Duets",
-        ])
-        app.launchArguments += ["-UIPreferredContentSizeCategoryName", category]
-        app.launch()
+        let app = openBoard(category: category)
         defer { app.terminate() }
-        SongsUITestSupport.collapseSidebarOnPad(app)
 
         let header = element(Self.headerID, in: app)
         XCTAssertTrue(header.waitForExistence(timeout: FestivalApp.budget(20)), "No band board header (\(category))")
@@ -132,13 +170,17 @@ final class SongBandLeaderboardAccessibilityJourneyTests: XCTestCase {
         XCTAssertFalse(label.contains("Trios") || label.contains("Quads"), "Only Duos is named: \(label)")
         XCTAssertEqual(app.descendants(matching: .any).matching(identifier: Self.headerID).count, 1, "One header")
         XCTAssertFalse(app.staticTexts["Duos Scores"].exists, "The old '<Band> Scores' title is back")
+        XCTAssertFalse(element(Self.pinnedID, in: app).exists, "The bar must not repeat the visible song header")
 
         // Layout and reading order: inside the screen, above and read before the rows.
         let window = app.windows.firstMatch.frame
         let frame = header.frame
         XCTAssertGreaterThanOrEqual(frame.minX, window.minX - 0.5, "Header starts off screen (\(category)): \(frame)")
         XCTAssertLessThanOrEqual(frame.maxX, window.maxX + 0.5, "Header runs off screen (\(category)): \(frame)")
-        XCTAssertLessThanOrEqual(frame.maxY, firstRow.frame.minY + 0.5, "Header is not above the rows: \(frame)")
+        XCTAssertGreaterThanOrEqual(
+            firstRow.frame.minY - frame.maxY, 11.5,
+            "The first band card needs a 12 pt gap below the header (\(category)): \(frame) → \(firstRow.frame)"
+        )
         // Drawn: the title, artist and band size show whole (no truncation at either size).
         let reading = RecognizedText.recognize(header, label: Self.songTitle, frame: frame)
         for drawn in [Self.songTitle, Self.artist, "Duos"] {

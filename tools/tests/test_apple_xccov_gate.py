@@ -166,6 +166,45 @@ class XcodeCoverageTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "missing FestivalUI coverage"):
                     collect_result(result, Path(temporary))
 
+    def test_require_active_ui_files_without_mac_only_sources(self):
+        """Mac-only files may be omitted, but iOS must include the promoted renderer."""
+        summary = {
+            "result": "Passed", "passedTests": 1, "startTime": 1,
+            "devicesAndConfigurations": [{
+                "device": {
+                    "platform": "iOS Simulator", "modelName": "iPhone 18 Pro", "deviceId": "phone",
+                },
+            }],
+        }
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            result = root / "result.xcresult"
+            result.mkdir()
+            ui = root / "apple/Sources/FestivalUI/UIKit/NewView.swift"
+            mac = root / "apple/Sources/FestivalUI/Mac/MacRootView.swift"
+            app = root / "apple/Apps/iOS/App.swift"
+            for path in (ui, mac, app):
+                path.parent.mkdir(parents=True)
+                path.touch()
+            target = {"name": "FestivalUI", "files": []}
+            report = {"targets": [target, {"name": "FestivalMobile.app", "files": [
+                {"path": str(app), "coveredLines": 0, "executableLines": 0}
+            ]}]}
+            with patch("tools.apple_xccov_gate.xcode_json", side_effect=[summary, report]):
+                with self.assertRaisesRegex(ValueError, "source mismatch.*UIKit/NewView.swift"):
+                    collect_result(result, root)
+            target["files"].append({"path": str(ui), "coveredLines": 0, "executableLines": 0})
+            with patch("tools.apple_xccov_gate.xcode_json", side_effect=[
+                summary, report, {str(ui.resolve()): []}, {str(app.resolve()): []},
+            ]):
+                self.assertEqual(
+                    collect_result(result, root),
+                    ({
+                        ui.relative_to(root).as_posix(): {},
+                        app.relative_to(root).as_posix(): {},
+                    }, 1, ("iPhone", "phone")),
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

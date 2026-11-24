@@ -23,6 +23,7 @@ Source: `FortniteFestivalWeb/src/pages/songs/SongsPage.tsx:587-618,1122-1136`, G
 
 ## Native deviations (all platforms)
 
+- On Apple, changes and Reset apply immediately; Close does not apply or discard a draft. The open Item Shop group sets availability, not a separate Leaving Tomorrow filter.
 - A valid 200 **empty** score index still permits Missing Scores (web gates on `allScoreMap.size > 0`): correctness fix.
 - Deselect / profile change, all platforms follow the web (#359; owner: "follow web pattern of resetting filters/sorts … when profiles or bands are deselected"): every Songs filter (General included) and the instrument return to defaults, and a player-chart sort reverts to Title A–Z; no "paused until a player is selected" notice exists. **Apple** resets on deselect and on a player↔band switch (`SongSettingsReset`). **Android** also reverts Has FC and Last Played (only offered with a player). **Windows** has no band selection and also reverts Last Played (its flyout offers it only with a player). A player-to-player switch keeps settings everywhere.
 - Hidden Shop: natives hide the Item Shop filter group; a saved Item Shop choice stays (inert) until Reset, with a visible paused notice on Apple and Android.

@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 /// Profile search scope journeys (issue #600) against a loopback fixture started from
@@ -143,6 +144,27 @@ final class ProfileSearchScopeJourneyTests: XCTestCase {
         XCTAssertFalse(app.buttons["Retry"].exists, "Profile search offered Retry")
     }
 
+    /// The native field exposes the same active scope in its spoken name and prompt.
+    @MainActor
+    func testFieldNameFollowsProfileScope() {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launch()
+        let profile = app.buttons["fst.shell.profile"]
+        XCTAssertTrue(profile.waitForExistence(timeout: 15))
+        profile.tap()
+        let scope = app.segmentedControls["fst.profile.scope"]
+        XCTAssertTrue(scope.waitForExistence(timeout: 10))
+        for (name, prompt) in [
+            ("All", "Search players or bands"), ("Players", "Search players"), ("Bands", "Search bands"),
+        ] {
+            if !scope.buttons[name].isSelected { scope.buttons[name].tap() }
+            let search = field(prompt, in: app)
+            XCTAssertTrue(search.waitForExistence(timeout: 5), "\(name) prompt missing")
+            XCTAssertEqual(search.label, prompt)
+        }
+    }
+
     /// A band result closes the Profiles sheet and opens that band's page.
     @MainActor
     func testBandResultOpensBandPage() throws {
@@ -157,4 +179,49 @@ final class ProfileSearchScopeJourneyTests: XCTestCase {
         )
         XCTAssertFalse(app.segmentedControls["fst.profile.scope"].exists, "The Profiles sheet stayed open")
     }
+
+    #if FST_UIKIT_PORT
+    /// A UIKit single-column result is one accessible button and opens from either gutter.
+    @MainActor
+    func testBandResultOpensFromEitherRowGutter() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "Requires a phone or the Duo cover")
+        continueAfterFailure = false
+        for leading in [true, false] {
+            let app = fixtureApp()
+            app.launchEnvironment["FST_DEBUG_TAB"] = "settings"
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", UIContentSizeCategory.large.rawValue]
+            app.launch()
+            defer { app.terminate() }
+            let window = app.windows.firstMatch
+            let viewport = window.frame
+            try XCTSkipUnless(viewport.width < 500 && viewport.width < viewport.height, "Requires a portrait phone viewport")
+            let profile = app.buttons["fst.shell.profile"]
+            XCTAssertTrue(profile.waitForExistence(timeout: FestivalApp.budget(15)))
+            profile.tap()
+            let scope = app.segmentedControls["fst.profile.scope"]
+            XCTAssertTrue(scope.waitForExistence(timeout: FestivalApp.budget(10)))
+            scope.buttons["Bands"].tap()
+            let search = field("Search bands", in: app)
+            XCTAssertTrue(search.waitForExistence(timeout: FestivalApp.budget(5)))
+            search.tap()
+            search.typeText("Fixture Player 2")
+            let results = app.buttons.matching(identifier: "fst.profile.result.band")
+            let band = results.firstMatch
+            XCTAssertTrue(band.waitForExistence(timeout: FestivalApp.budget(15)))
+            XCTAssertEqual(results.count, 1)
+            XCTAssertEqual(band.label, "Fixture Player 1 + Fixture Player 2, 12 songs together")
+            XCTAssertTrue(band.isEnabled && band.isHittable)
+            XCTAssertGreaterThanOrEqual(band.frame.height, 44)
+            let x = leading ? viewport.minX + 12 : viewport.maxX - 12
+            let point = CGPoint(x: x, y: band.frame.midY)
+            window.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: point.x - viewport.minX, dy: point.y - viewport.minY)).tap()
+            XCTAssertTrue(
+                app.staticTexts["fst.band.subtitle"].waitForExistence(timeout: FestivalApp.budget(10)),
+                "The \(leading ? "leading" : "trailing") gutter did not open Band Detail"
+            )
+            XCTAssertFalse(scope.exists, "The Profiles sheet stayed open")
+        }
+    }
+    #endif
 }

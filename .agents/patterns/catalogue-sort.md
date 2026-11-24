@@ -29,6 +29,8 @@ A page that lists catalogue songs sorts them the same way Songs does. The owner 
 
 ## Canonical implementation
 
+UIKit Songs and Item Shop use the same `UKSortDirectionControl` as Score History. The arrows use the preferred semibold body symbol size, independent of the fixed visual capsules; let them paint beyond the capsule at accessibility sizes. Reserve at least 32 pt between the description column and the pill, and use system hyphenation for the current direction title when it wraps. The arrows are decorative; the named buttons expose the selected direction ([HIG Typography](https://developer.apple.com/design/human-interface-guidelines/typography), [HIG Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility)).
+
 | Sub-behavior | Apple | Android | Windows | Web |
 |---|---|---|---|---|
 | Comparator (R2) | `apple/Sources/FestivalCore/SongCatalogSort.swift` `SongCatalogSort` | `android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongCatalogSort.kt` `SongCatalogSort` | `windows/Festival.Core/Domain/SongQuery.cs` `SongCatalogQuery` (`Compare`) | `hooks/data/useFilteredSongs.ts` |

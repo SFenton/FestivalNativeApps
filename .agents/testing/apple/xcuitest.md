@@ -20,6 +20,51 @@ see `cmd_uitest`'s docstring in `tools/ios_sim.py` for the full contract.
 sequence instead of a written `XCTestCase`, useful for ad hoc exploration
 before writing a real journey.
 
+### Real Duo Feedback handoff
+
+`FeedbackMediaJourneyTests/testDuoFeedbackAttachmentSurvivesHalfOpenReturn` and
+`testDuoFeedbackAttachmentSurvivesFullyOpenReturn` require Xcode and iOS 27.3, a
+dedicated Duo simulator seeded with a synthetic photo in Photos, the loopback
+Feedback fixture, and `TEST_RUNNER_FST_FEEDBACK_HINGE_TEST=1`. The tests use
+`XCUIHinge` and restore the initial angle. Verify both the live window and the
+lit active-panel screenshot at each stop; an angle read alone doesn't prove
+that the displayed panel changed. Use the pre-scroll accessibility snapshot to
+distinguish an offscreen strip from missing media. No host desktop control is
+needed.
+
+### Real Duo split journeys
+
+Use `DuoSongTitleJourneyTests/testDuosBoardOpensBesideSongAndClosesOnInnerLandscape`
+on a dedicated Duo with Xcode and iOS 27.3, the plain loopback fixture
+(`TEST_RUNNER_FST_FIXTURE_URL`) and `TEST_RUNNER_FST_DUO_SPLIT_TEST=1`. Run it
+under `--app phone`; for an A/B comparison, run the same selector from the
+[pinned SwiftUI checkout](uikit-perf.md#method). Physical portrait followed
+by a flat hinge produces inner interface landscape; verify the 951 × 669 pt
+live window and active panel rather than relying on the reported device
+orientation. The journey opens Duos from its Song Detail button and keeps the
+open/closed framebuffer and accessibility tree. The two renderers can expose
+the same heading as different XCTest element types: match its identifier and
+spoken name, not its framework-specific element type.
+
+With the same fixture and opt-in, run
+`PlayerProfileLinksJourneyTests/testDuoProfileKeepsCoveredRankingsThroughFoldAndRotation`
+for the [Full Rankings profile cover](../../design/apple/split-view.md#page-classification).
+Keep the app running through book → cover → inner portrait → flat landscape →
+book, verifying the angle, live window and painted player independently. Lead
+and Bass stack on the cover, stay paired flat and clear the hinge in both book
+stops. The last two stops change the hinge at the same window size. Back must
+reveal the same named ranking row in the original position and keep View All
+selected; Close must clear just that selection. Read the saved trees separately
+from the hit tests: a non-hittable node in XCTest's raw tree is not proof of a
+VoiceOver stop.
+
+With the same opt-in, `ProfileBandsAccessibilityJourneyTests/testDuoStatisticsBandsReflowWhenFolded`
+reaches the selected player's Bands preview from Statistics before and after
+folding. Use Quick Links in the toolbar or its native More menu; jumping to the
+same anchor avoids assuming that a scroll offset maps to the same content
+after reflow. The named Duos and Trios cards stack on the cover, clear the
+physical hinge in book pose, and keep the named Duos action.
+
 ## CI journeys
 
 On the weekly release branch ([release train](../../workflow/release-machine.md#release-train); the machine dispatches it), `apple-ci` runs a short list of iPhone journeys on a simulator (step "iPhone simulator journeys", `JOURNEYS` in [`apple-ci.yml`](../../../.github/workflows/apple-ci.yml)) in the build job. A separate job, `ipad-journeys` ("apple-ci iPad and Rival Detail journeys"), runs beside it on its own runner: the iPad plain-fixture journeys, a list of iPad journeys (step "iPad simulator journeys", its own `JOURNEYS`) and the Rival Detail journeys on an iPad, an iPhone and a folded iPhone Duo (step "Rival Detail accessibility journeys", `RIVAL_JOURNEYS`). One job needed about 7 hours on the runner, past the 300-minute job limit and the hosted runner's 360-minute cap (#636), so keep each job's journeys under its limit and split again rather than raise a limit past 360. Use it for evidence the macOS-hosted suite cannot give: real Dynamic Type sizes (macOS has no Dynamic Type, [accessibility](accessibility.md)), `performAccessibilityAudit`, and the production chrome's accessibility order (the navigation bar and tab-bar accessory are system containers a hosted view cannot reproduce, e.g. the account buttons, `page-tools-and-nav-chrome` R17).

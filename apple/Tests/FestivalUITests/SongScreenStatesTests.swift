@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import SwiftUI
 import Testing
+import FestivalAppSupport
 @testable import FestivalCore
 @testable import FestivalUI
 
@@ -551,10 +552,9 @@ func soloLeaderboardVisualStates(_ scenario: ScoreScenario) throws {
 @Test func nestedSongRoutesRenderDifferentDestinations() async throws {
     let song = try fixtureSong()
     func snapshot(_ path: [AppRoute]) async throws -> Data {
-        let host = NSHostingView(rootView: SongNavigationRoot(
-            session: offlineSession(), path: .constant(path),
-            searchText: .constant(""), settledSearch: .constant("")
-        ))
+        let model = MacAppModel(session: offlineSession(), storage: nil, initial: .songs)
+        path.forEach(model.navigation.push)
+        let host = NSHostingView(rootView: MacRootView(model: model))
         host.frame = NSRect(x: 0, y: 0, width: 800, height: 600)
         host.layoutSubtreeIfNeeded()
         for _ in 0..<10 {

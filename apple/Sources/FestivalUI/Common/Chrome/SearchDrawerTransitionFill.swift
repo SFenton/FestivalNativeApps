@@ -88,22 +88,21 @@ private struct SearchDrawerTransitionBridge: UIViewControllerRepresentable {
     let backing: SearchFieldBacking
     let isContentUnderBar: @MainActor () -> Bool
 
-    func makeUIViewController(context: Context) -> Controller {
-        let controller = Controller()
+    func makeUIViewController(context: Context) -> SearchDrawerTransitionFill.Controller {
+        let controller = SearchDrawerTransitionFill.Controller()
         controller.backing = backing
         controller.isContentUnderBar = isContentUnderBar
         return controller
     }
 
-    func updateUIViewController(_ controller: Controller, context: Context) {
+    func updateUIViewController(_ controller: SearchDrawerTransitionFill.Controller, context: Context) {
         controller.isContentUnderBar = isContentUnderBar
-        if controller.backing != backing {
-            controller.backing = backing
-            controller.installBacking()
-        }
+        controller.updateBacking(backing)
     }
+}
 
-    /// Backs the page's drawer field at rest and fills it for the length of a push or pop.
+extension SearchDrawerTransitionFill {
+    /// Backs the page's drawer field and follows push and pop in either Apple renderer.
     final class Controller: UIViewController {
         var backing: SearchFieldBacking = .none
         var isContentUnderBar: (@MainActor () -> Bool)?
@@ -140,6 +139,15 @@ private struct SearchDrawerTransitionBridge: UIViewControllerRepresentable {
             coordinator.animate(alongsideTransition: nil) { [weak self] _ in
                 MainActor.assumeIsolated { self?.installBacking() }
             }
+        }
+
+        /// Apply a new accessibility backing, or defer it until the navigation animation ends.
+        ///
+        /// - Parameter backing: Current glass or opaque backing.
+        func updateBacking(_ backing: SearchFieldBacking) {
+            guard self.backing != backing else { return }
+            self.backing = backing
+            installBacking()
         }
 
         /// Give the drawer field its resting backing, or remove it where the system placed

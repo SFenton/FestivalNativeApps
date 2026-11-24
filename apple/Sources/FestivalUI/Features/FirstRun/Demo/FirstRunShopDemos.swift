@@ -42,6 +42,12 @@ enum FirstRunShopRowPhase: Equatable {
     /// New or leaving tomorrow: gold or red pulse.
     case highlighted(ShopHighlight)
 
+    /// The status badge inside an outlined row, if any.
+    var highlight: ShopHighlight? {
+        if case let .highlighted(badge) = self { return badge }
+        return nil
+    }
+
     /// The phases the web demo cycles each row through by index.
     ///
     /// - Parameters:
@@ -73,8 +79,7 @@ private struct FirstRunShopRows: View {
                     let phase = FirstRunShopRowPhase.phase(at: index, highlight: highlight)
                     FirstRunSongRow(
                         song: song, session: session,
-                        highlight: { if case let .highlighted(badge) = phase { badge } else { nil } }(),
-                        inShop: phase != .plain
+                        highlight: phase.highlight, inShop: phase != .plain
                     )
                     .firstRunStagger(index, interval: FirstRunMotion.rowStaggerSeconds)
                 }

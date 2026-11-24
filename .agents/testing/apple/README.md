@@ -9,3 +9,4 @@
 | [xcuitest.md](xcuitest.md) | Device journeys, the serial matrix runner, XCUITest pitfalls (UX-test phase) |
 | [accessibility.md](accessibility.md) | Audits, rendered-contrast checks and the open audit gaps (accessibility phase) |
 | [voiceover.md](voiceover.md) | VoiceOver walkthroughs (last phase) |
+| [uikit-perf.md](uikit-perf.md) | A/B performance of the SwiftUI app and its UIKit port (`tools/uikit_perf.py`) |

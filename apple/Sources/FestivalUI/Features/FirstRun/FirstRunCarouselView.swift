@@ -301,7 +301,8 @@ private struct FirstRunSlideView: View {
             FirstRunDemoContent(page: page, slide: slide)
                 .frame(
                     maxWidth: .infinity, minHeight: compact ? 120 : 170,
-                    idealHeight: compact ? 120 : 260, maxHeight: compact ? 120 : 320
+                    idealHeight: compact ? 120 : 260, maxHeight: compact ? 120 : 320,
+                    alignment: compact && slide.id == "rivals-detail" ? .top : .center
                 )
                 .clipped()
                 .padding(.horizontal, 20)

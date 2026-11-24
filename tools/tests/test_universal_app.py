@@ -67,6 +67,11 @@ class UniversalAppTests(unittest.TestCase):
         # iPad windows share one session and keep their own navigation (ipados.md, Windows).
         self.assertIn("UIApplicationSupportsMultipleScenes: true", self.mobile)
 
+    def test_mobile_declares_the_window_scene_delegate(self):
+        """New application scenes install the UIKit delegate independently of app callbacks."""
+        self.assertIn("UIWindowSceneSessionRoleApplication:", self.mobile)
+        self.assertIn("UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).UKSceneDelegate", self.mobile)
+
     def test_launch_screen_and_icon_are_kept(self):
         self.assertIn("UIColorName: FestivalLaunchBackground", self.mobile)
         self.assertIn("ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon", self.mobile)
@@ -76,6 +81,12 @@ class UniversalAppTests(unittest.TestCase):
         self.assertNotIn("festivalscoretracker.ipad", self.source)
         ipad_tests = target_block(self.source, "FestivalMobileIPadUITests")
         self.assertIn("TEST_TARGET_NAME: FestivalMobile\n", ipad_tests)
+
+    def test_mobile_cutover_keeps_app_identity_and_no_second_renderer(self):
+        self.assertIn("PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.festivalscoretracker.native\n", self.mobile)
+        self.assertNotIn("FestivalMobileUIKit", self.source)
+        self.assertNotIn("SUPPORTS_MACCATALYST: YES", self.mobile)
+        self.assertIn("TEST_TARGET_NAME: FestivalMobile\n", target_block(self.source, "FestivalMobileUITests"))
 
 
 if __name__ == "__main__":

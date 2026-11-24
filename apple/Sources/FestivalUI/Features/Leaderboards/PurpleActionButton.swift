@@ -1,4 +1,5 @@
 import SwiftUI
+import FestivalAppSupport
 import FestivalDesign
 
 // MARK: - Purple action link
@@ -48,8 +49,15 @@ enum PurpleActionName {
 
 // MARK: - Purple action surface
 
+/// Shared layout of the padded purple action label.
+enum PurpleActionMetrics {
+    static let minimumContentHeight: CGFloat = 44
+    static let verticalPadding: CGFloat = 2
+    static var minimumHeight: CGFloat { minimumContentHeight + 2 * verticalPadding }
+}
+
 /// The one purple "View Full Leaderboard" / "View All …" button look used everywhere
-/// (operator batch 6.29): full-width, 44 pt, white semibold text. Inside a group card
+/// (operator batch 6.29): full-width, 48 pt minimum including padding, white semibold text. Inside a group card
 /// (the usual place, #382) it is a flat purple fill; below separate cards it is the
 /// accent-purple material card (issue #291), with an opaque purple fill under Reduce
 /// Transparency, the app's contrast/transparency overrides, or before iOS/macOS 26
@@ -62,9 +70,9 @@ struct PurpleActionLabel: View {
             .font(.body.weight(.semibold))
             .foregroundStyle(FestivalText.primary)
             .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .frame(maxWidth: .infinity, minHeight: PurpleActionMetrics.minimumContentHeight)
             .padding(.horizontal, 12)
-            .padding(.vertical, 2)
+            .padding(.vertical, PurpleActionMetrics.verticalPadding)
             .modifier(PurpleActionSurface())
             .contentShape(RoundedRectangle(cornerRadius: PurpleActionSurface.cornerRadius, style: .continuous))
     }

@@ -23,7 +23,7 @@ struct FirstRunStatsSelectProfileDemo: View {
         .padding(.vertical, 12)
         .festivalCard(cornerRadius: 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .accessibilityHidden(true)
+        .firstRunDecorative()
     }
 }
 
@@ -38,6 +38,7 @@ private struct FirstRunStatTiles: View {
     @ViewBuilder var body: some View {
         let grid = PlayerStatGrid(tiles: tiles, scope: "first-run") { _ in }
             .allowsHitTesting(false)
+            .firstRunDecorative()
         if pulsing.isEmpty {
             grid
         } else {
@@ -45,8 +46,51 @@ private struct FirstRunStatTiles: View {
             grid.environment(\.statTileGlow, BrandTokens.accentBlue)
         }
     }
+}
 
-    /// A drillable tile (chevron), like Songs Played / Full Combos / Best Rank.
+/// Illustrative Statistics data shared by the native guide renderers, independent of the player.
+enum FirstRunStatisticsSamples {
+    /// Global Statistics tiles, including which examples show drill-down chevrons.
+    static var overview: [StatTile] {
+        [
+            linked("played", "Songs Played", "142 / 206"),
+            linked("fc", "Full Combos", "38 (26.8%)"),
+            StatTile(id: "gold", label: "Gold Stars", value: "12", tint: BrandTokens.gold),
+            StatTile(id: "accuracy", label: "Avg Accuracy", value: "96.2%"),
+            linked("best", "Best Rank", "#4"),
+            StatTile(id: "avg-stars", label: "Avg Stars", value: "5.2"),
+        ]
+    }
+
+    /// Lead's per-instrument sample tiles in reading order.
+    static var instrument: [StatTile] {
+        [
+            linked("played", "Played", "98 / 206"),
+            linked("fc", "Full Combos", "24 (24.5%)"),
+            StatTile(id: "gold", label: "Gold Stars", value: "8", tint: BrandTokens.gold),
+            StatTile(id: "accuracy", label: "Avg Accuracy", value: "94.4%"),
+        ]
+    }
+
+    /// The chevrons in the drill-down illustration mark only the linked sample tiles.
+    static var drillDown: [StatTile] {
+        [
+            linked("played", "Songs Played", "142"),
+            StatTile(id: "gold", label: "Gold Stars", value: "12", tint: BrandTokens.gold),
+            StatTile(id: "accuracy", label: "Avg Accuracy", value: "96.2%"),
+            linked("fc", "Full Combos", "38 (26.8%)"),
+        ]
+    }
+
+    /// Illustrative top percentages in slot order, unchanged when a song rotates out.
+    static let topSongPercentiles = [1.2, 3.5, 7.8, 14.2]
+
+    /// The artist and optional release year for a ranked catalogue example.
+    static func topSongSubtitle(_ song: Song) -> String {
+        [song.artist, song.year.map(String.init)].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    /// A drillable sample tile displays the production chevron.
     static func linked(_ id: String, _ label: String, _ value: String) -> StatTile {
         StatTile(id: id, label: label, value: value, link: .fullRankings(.lead, rankBy: "totalscore"))
     }
@@ -58,13 +102,8 @@ private struct FirstRunStatTiles: View {
 /// drillable tiles carry chevrons; the grid pulses to hint they're tappable.
 struct FirstRunStatsDrillDownDemo: View {
     var body: some View {
-        FirstRunStatTiles(tiles: [
-            FirstRunStatTiles.linked("played", "Songs Played", "142"),
-            StatTile(id: "gold", label: "Gold Stars", value: "12", tint: BrandTokens.gold),
-            StatTile(id: "accuracy", label: "Avg Accuracy", value: "96.2%"),
-            FirstRunStatTiles.linked("fc", "Full Combos", "38 (26.8%)"),
-        ], pulsing: ["played", "fc"])
-        .accessibilityHidden(true)
+        FirstRunStatTiles(tiles: FirstRunStatisticsSamples.drillDown, pulsing: ["played", "fc"])
+            .accessibilityHidden(true)
     }
 }
 
@@ -73,15 +112,8 @@ struct FirstRunStatsDrillDownDemo: View {
 /// Ported from `pages/player/firstRun/demo/OverviewDemo.tsx`: the global summary stat grid.
 struct FirstRunStatsOverviewDemo: View {
     var body: some View {
-        FirstRunStatTiles(tiles: [
-            FirstRunStatTiles.linked("played", "Songs Played", "142 / 206"),
-            FirstRunStatTiles.linked("fc", "Full Combos", "38 (26.8%)"),
-            StatTile(id: "gold", label: "Gold Stars", value: "12", tint: BrandTokens.gold),
-            StatTile(id: "accuracy", label: "Avg Accuracy", value: "96.2%"),
-            FirstRunStatTiles.linked("best", "Best Rank", "#4"),
-            StatTile(id: "avg-stars", label: "Avg Stars", value: "5.2"),
-        ])
-        .accessibilityHidden(true)
+        FirstRunStatTiles(tiles: FirstRunStatisticsSamples.overview)
+            .accessibilityHidden(true)
     }
 }
 
@@ -95,12 +127,7 @@ struct FirstRunStatsInstrumentBreakdownDemo: View {
             // The Statistics page's real instrument header (`PlayerProfileContent`).
             InstrumentSectionHeader(.lead, size: .medium)
                 .firstRunStagger(0)
-            FirstRunStatTiles(tiles: [
-                FirstRunStatTiles.linked("played", "Played", "98 / 206"),
-                FirstRunStatTiles.linked("fc", "Full Combos", "24 (24.5%)"),
-                StatTile(id: "gold", label: "Gold Stars", value: "8", tint: BrandTokens.gold),
-                StatTile(id: "accuracy", label: "Avg Accuracy", value: "94.4%"),
-            ])
+            FirstRunStatTiles(tiles: FirstRunStatisticsSamples.instrument)
         }
         .accessibilityHidden(true)
     }
@@ -120,6 +147,7 @@ struct FirstRunStatsPercentilesDemo: View {
         )
         .firstRunStagger(0)
         .firstRunInert()
+        .firstRunDecorative()
     }
 }
 
@@ -129,11 +157,9 @@ struct FirstRunStatsPercentilesDemo: View {
 /// artwork) assigned the web's static demo percentiles; redacted placeholders until the
 /// catalogue answers. Two rows swap songs every 5 s, as the web's `useDemoSongs` does.
 struct FirstRunStatsTopSongsDemo: View {
-    /// The web's `DEMO_PERCENTILES`.
-    private static let percentiles = [1.2, 3.5, 7.8, 14.2, 22.6, 35.1, 48.9]
-
     var body: some View {
-        FirstRunCatalogueSongs(count: 4, rotates: true) { songs, session in
+        let percentiles = FirstRunStatisticsSamples.topSongPercentiles
+        FirstRunCatalogueSongs(count: percentiles.count, rotates: true) { songs, session in
             VStack(spacing: 8) {
                 ForEach(Array(songs.enumerated()), id: \.offset) { index, song in
                     HStack(spacing: 12) {
@@ -141,13 +167,13 @@ struct FirstRunStatsTopSongsDemo: View {
                         VStack(alignment: .leading, spacing: 2) {
                             MarqueeText(song.title).font(.subheadline.weight(.semibold))
                                 .lineLimit(1)
-                            MarqueeText(Self.subtitle(song)).font(.caption)
+                            MarqueeText(FirstRunStatisticsSamples.topSongSubtitle(song)).font(.caption)
                                 .lineLimit(1)
                         }
                         .foregroundStyle(FestivalText.primary)
                         .firstRunRedacted(song)
                         Spacer(minLength: 0)
-                        Text("Top \(Self.percentiles[index % Self.percentiles.count], specifier: "%.1f")%")
+                        Text("Top \(percentiles[index], specifier: "%.1f")%")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(BrandTokens.gold)
                     }
@@ -158,11 +184,6 @@ struct FirstRunStatsTopSongsDemo: View {
                 }
             }
         }
-        .accessibilityHidden(true)
-    }
-
-    /// "Artist · Year", like the web's `PlayerSongRow`.
-    private static func subtitle(_ song: Song) -> String {
-        [song.artist, song.year.map(String.init)].compactMap { $0 }.joined(separator: " · ")
+        .firstRunDecorative()
     }
 }

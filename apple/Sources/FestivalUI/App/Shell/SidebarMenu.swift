@@ -1,3 +1,4 @@
+import FestivalAppSupport
 import SwiftUI
 
 // MARK: - Sidebar menu

@@ -3,6 +3,7 @@ import AppKit
 import Foundation
 import SwiftUI
 import Testing
+import FestivalAppSupport
 import FestivalDesign
 @testable import FestivalCore
 @testable import FestivalUI

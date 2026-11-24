@@ -1,3 +1,4 @@
+import FestivalAppSupport
 import SwiftUI
 
 // MARK: - Shell presentation policy
@@ -103,43 +104,6 @@ struct ShellPresentation: Sendable, Equatable {
         }
         let sections = FestivalTabPolicy.sections(profile: profile, regularWidth: usesRegularSectionSet)
         return usesRegularSectionSet ? sections : FestivalTabPolicy.fittingSearchTab(sections)
-    }
-}
-
-// MARK: - Shell content
-
-/// Reads the published ``DeviceLayout`` and hands the resolved ``ShellPresentation``
-/// to the root shell's content.
-///
-/// `FestivalRootView` owns the navigation state and applies
-/// `publishesDeviceLayout(usesSidebarShell:)` *outside* this view, so the layout is
-/// visible here but not in the root view itself.
-struct FestivalShellContent<Content: View>: View {
-    /// True for the wide shell (regular-width iPad flyout, macOS sidebar).
-    let usesSidebarShell: Bool
-    /// Builds the shell for the resolved presentation and the published layout.
-    @ViewBuilder let content: (ShellPresentation, DeviceLayout) -> Content
-
-    @Environment(\.deviceLayout) private var layout
-    /// The section set the tabs currently show; trails the resolved one by a run-loop turn.
-    @State private var appliedRegularSet: Bool?
-
-    var body: some View {
-        let resolved = ShellPresentation.resolve(layout: layout, usesSidebarShell: usesSidebarShell)
-        content(ShellPresentation.applying(resolved, regularSet: appliedRegularSet), layout)
-            .onChange(of: resolved.usesRegularSectionSet, initial: true) { _, regular in
-                guard appliedRegularSet != nil else {
-                    appliedRegularSet = regular
-                    return
-                }
-                // Folding iPhone Duo from inner portrait crashed UIKit
-                // (`-[UITabBarController _tabs_rebuildTabBarItemsAnimated:]` inserting
-                // out of bounds, 2026-10-04) when the tab set changed in the same update
-                // that pushed the new size class into the tab bar controller. The Duo
-                // keeps one tab set since #337, but an iPad window crossing size classes
-                // can still publish a stale layout, so a change still lands one turn later.
-                DispatchQueue.main.async { appliedRegularSet = regular }
-            }
     }
 }
 

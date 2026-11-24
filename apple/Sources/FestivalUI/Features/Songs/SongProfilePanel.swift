@@ -56,7 +56,8 @@ struct SongProfilePanel: View {
         switch tile.subject {
         case let .chart(chart):
             InstrumentIcon(
-                chart, keyboard: keyboard && (chart == .lead || chart == .proLead), size: 24
+                chart, keyboard: keyboard && (chart == .lead || chart == .proLead),
+                size: SongProfilePanelPolicy.tileInstrumentIconSize
             )
         case let .band(type, _):
             Image(systemName: type.symbolName)
@@ -74,7 +75,7 @@ struct SongProfilePanel: View {
         let fields = arrangement.dropsStars ? tile.fields.filter { $0.id != .stars } : tile.fields
         return HStack(alignment: .top, spacing: 8) {
             icon(tile)
-                .frame(width: 28, height: 28)
+                .frame(width: SongProfilePanelPolicy.tileIconSlot, height: SongProfilePanelPolicy.tileIconSlot)
                 .accessibilityHidden(true)
             if !fields.isEmpty {
                 SongProfileMetadataPills(fields: fields, songId: songId, leading: true)
@@ -82,7 +83,7 @@ struct SongProfilePanel: View {
                 Text(tile.label)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(FestivalText.primary)
-                    .frame(minHeight: 28)
+                    .frame(minHeight: SongProfilePanelPolicy.tileIconSlot)
             }
         }
         .padding(.horizontal, 8)

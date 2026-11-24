@@ -181,21 +181,29 @@ enum SongsUITestSupport {
     /// - Parameter app: Foreground fixture app on the pushed Player Profile page.
     @MainActor
     static func selectViewedPlayer(in app: XCUIApplication) {
-        let select = app.buttons["fst.player.select"]
+        let select = profileSelectionAction(in: app)
         XCTAssertTrue(select.waitForExistence(timeout: 10))
         select.tap()
         let switchConfirm = app.buttons["Switch Profile"]
         if switchConfirm.waitForExistence(timeout: 2) {
             switchConfirm.tap()
         }
-        // A selection change pops the Songs stack by itself ("Selected profile
-        // changed. Returned to Songs…"); only other tabs need a manual Back.
+        // Selection may return to Songs automatically. Otherwise use the presenting
+        // stack's native Back, including the folded Duo's rail.
         if !playerPage(in: app).waitForNonExistence(timeout: 5) {
-            let back = app.navigationBars.buttons["BackButton"]
+            let back = ShellUITestSupport.backButton(in: app)
             XCTAssertTrue(back.waitForExistence(timeout: 5))
             back.tap()
         }
         XCTAssertTrue(app.buttons["fst.shell.profile"].waitForExistence(timeout: 10))
+    }
+
+    /// The viewed player's identity action, in either the header or the Duo rail.
+    @MainActor
+    static func profileSelectionAction(in app: XCUIApplication) -> XCUIElement {
+        app.buttons.matching(NSPredicate(
+            format: "identifier IN %@", ["fst.player.select", "fst.player.select.rail"]
+        )).firstMatch
     }
 
     /// Remove only the app's selected identity through its own confirmation action.
@@ -210,18 +218,17 @@ enum SongsUITestSupport {
     static func deselectFixturePlayer(in app: XCUIApplication) throws {
         let songs = rootControl("Songs", app: app)
         if songs.waitForExistence(timeout: 5) { songs.tap() }
-        let drawerOpen = app.buttons["fst.shell.drawer.open"]
-        XCTAssertTrue(drawerOpen.waitForExistence(timeout: 10))
-        drawerOpen.tap()
-        let deselect = app.buttons["fst.shell.drawer.deselect-profile"]
+        ShellUITestSupport.tapToolbarItem("fst.shell.drawer.open", overflowLabels: ["Menu", "Open Navigation"], in: app)
+        let deselectID = "fst.shell.drawer.deselect-profile"
+        let deselect = app.buttons[deselectID]
         XCTAssertTrue(deselect.waitForExistence(timeout: 10))
         deselect.tap()
         let confirmed = try XCTUnwrap(
-            app.buttons.matching(identifier: "Deselect Profile")
+            app.buttons.matching(NSPredicate(format: "label == %@ AND identifier != %@", "Deselect Profile", deselectID))
                 .allElementsBoundByIndex.first(where: \.isHittable)
         )
         confirmed.tap()
-        if songs.waitForExistence(timeout: 5), songs.isHittable { songs.tap() }
+        XCTAssertTrue(deselect.waitForNonExistence(timeout: FestivalApp.budget(10)), "The drawer did not close after deselecting")
     }
 
     /// Refresh the Songs toolbar after a drawer deselection.
@@ -299,16 +306,9 @@ enum SongsUITestSupport {
     @MainActor
     static func openFilterSheet(in app: XCUIApplication) -> XCUIElement {
         let filter = app.buttons["fst.songs.filter"]
-        if !filter.isHittable {
-            let more = app.buttons.matching(
-                NSPredicate(format: "label CONTAINS[c] %@", "more")
-            ).firstMatch
-            XCTAssertTrue(more.waitForExistence(timeout: 10))
-            more.tap()
-        }
-        XCTAssertTrue(filter.waitForExistence(timeout: 10))
-        XCTAssertTrue(filter.isHittable)
-        filter.tap()
+        ShellUITestSupport.tapToolbarItem(
+            "fst.songs.filter", overflowLabels: ["Filter", "Filter Songs"], in: app
+        )
         XCTAssertTrue(app.buttons["fst.songs.filter.done"].waitForExistence(timeout: 10))
         return filter
     }
@@ -481,23 +481,35 @@ enum SongsUITestSupport {
         let choice = app.buttons.matching(
             identifier: "fst.songs.sort.mode"
         ).matching(NSPredicate(format: "label == %@", "Item Shop")).firstMatch
-        let table = app.tables.containing(
-            .button, identifier: "fst.songs.sort.reset"
-        ).firstMatch
-        let form = table.exists ? table : app.collectionViews.containing(
-            .button, identifier: "fst.songs.sort.reset"
+        revealSortControl(choice, in: app)
+        return choice
+    }
+
+    /// Reveal a Sort control without scrolling the Songs collection behind the sheet.
+    ///
+    /// - Parameters:
+    ///   - control: The Sort choice or direction button.
+    ///   - app: Foreground native Songs Sort sheet.
+    @MainActor
+    static func revealSortControl(_ control: XCUIElement, in app: XCUIApplication) {
+        let table = app.tables.firstMatch
+        let form = table.exists ? table : app.collectionViews.matching(
+            NSPredicate(format: "identifier != %@", "fst.songs.list")
         ).firstMatch
         let footer = app.buttons["fst.songs.sort.done"]
         XCTAssertTrue(form.exists && footer.exists)
+        let header = app.navigationBars["Sort By"]
         for _ in 0..<8 {
-            if choice.isHittable && choice.frame.maxY <= sheetVisibleBottom(in: app) { break }
-            form.swipeUp()
+            let bottom = sheetVisibleBottom(in: app)
+            let top = header.exists ? header.frame.maxY : form.frame.minY
+            if control.isHittable && control.frame.minY >= top && control.frame.maxY <= bottom { return }
+            if control.exists && control.frame.midY < top {
+                form.swipeDown(velocity: .slow)
+            } else {
+                form.swipeUp(velocity: .slow)
+            }
         }
-        XCTAssertTrue(
-            choice.isHittable && choice.frame.maxY <= sheetVisibleBottom(in: app),
-            "Item Shop sort option is hidden by the sheet footer"
-        )
-        return choice
+        XCTFail("Unreachable Sort control \(control.identifier): \(control.frame)")
     }
 
     /// Expose the full detail pane before auditing iPad's split-view destination.
@@ -513,7 +525,7 @@ enum SongsUITestSupport {
         toggle.tap()
     }
 
-    /// Scroll the native chart, not its fixed pager, until a large score is visible.
+    /// Scroll the native chart until the AX5 badge clears the fixed pager.
     ///
     /// - Parameters:
     ///   - accountID: Synthetic player on the currently loaded chart page.
@@ -531,21 +543,43 @@ enum SongsUITestSupport {
                 fullCombo ? "Full combo, accuracy 98%" : "Accuracy 98%"
             ))
             .firstMatch
-        let table = app.tables.firstMatch
-        let list = table.exists ? table : app.collectionViews.firstMatch
-        XCTAssertTrue(list.exists, "Native score list is missing")
-        for _ in 0..<8 {
-            if accuracy.isHittable { break }
-            list.swipeUp()
-        }
-        XCTAssertTrue(
-            accuracy.isHittable,
-            "Score \(accountID) is not visible after scrolling its native list"
-        )
+        revealSoloText(accuracy, in: app)
         return accuracy
     }
 
-    /// Detect a score whose final digit wraps onto its own accessibility line.
+    /// Bring one AX5 score label above the pager and below the pinned title.
+    ///
+    /// - Parameters:
+    ///   - element: The exact score label whose rendered text will be measured.
+    ///   - app: Foreground chart with its pager loaded.
+    @MainActor
+    static func revealSoloText(_ element: XCUIElement, in app: XCUIApplication) {
+        let table = app.tables.firstMatch
+        let list = table.exists ? table : app.collectionViews.firstMatch
+        XCTAssertTrue(list.exists, "Native score list is missing")
+        let window = app.windows.firstMatch
+        let pager = app.buttons["fst.song-leaderboard.page-next"]
+        // A text child need not be independently hittable, and a badge can be reported hittable through the pager.
+        let contentBottom = pager.frame.minY
+        let upper = window.frame.minY + window.frame.height * 0.20
+        let track = window.coordinate(withNormalizedOffset: .zero).withOffset(
+            CGVector(dx: list.frame.midX - window.frame.minX, dy: (upper + contentBottom) / 2 - window.frame.minY)
+        )
+        for _ in 0..<10 {
+            let frame = element.frame
+            if !frame.isEmpty, frame.minY >= upper, frame.maxY <= contentBottom {
+                return
+            }
+            let step: CGFloat = !frame.isEmpty && frame.minY < upper ? 90 : -90
+            track.press(
+                forDuration: 0.05, thenDragTo: track.withOffset(CGVector(dx: 0, dy: step)),
+                withVelocity: .slow, thenHoldForDuration: 0.1
+            )
+        }
+        XCTFail("\(element) did not clear the chart chrome: \(element.frame), \(upper)...\(contentBottom)")
+    }
+
+    /// Detect a score that clips or wraps at the largest accessibility text size.
     ///
     /// - Parameters:
     ///   - accountID: Synthetic player on the current chart page.
@@ -569,9 +603,15 @@ enum SongsUITestSupport {
             scoreText.frame.height, rankText.frame.height * 1.25,
             "A numeric score must remain on one line at the largest native text size"
         )
+        let expected = score.formatted()
+        let drawn = RecognizedText.recognize(scoreText, label: expected, frame: scoreText.frame)
+        XCTAssertEqual(
+            drawn.text?.filter(\.isNumber), expected.filter(\.isNumber),
+            "The complete AX5 score must paint on that line: \(drawn.text ?? "unreadable")"
+        )
     }
 
-    /// Select native sidebar buttons on iPad, system tab buttons on iPhone.
+    /// Select the native sidebar on iPad or a horizontal or vertical tab on iPhone.
     ///
     /// On iPhone iOS 26.1+ the tab bar minimizes on scroll (issue #42) and then exposes
     /// only the selected tab, valued "Collapsed"; that button is tapped first to expand
@@ -588,13 +628,15 @@ enum SongsUITestSupport {
                 .matching(identifier: "fst.nav.\(name.lowercased())").firstMatch
         }
         let tab = app.tabBars.buttons[name]
-        if !tab.exists {
-            let collapsed = app.tabBars.buttons
-                .matching(NSPredicate(format: "value == %@", "Collapsed")).firstMatch
-            if collapsed.exists {
-                collapsed.tap()
-                _ = tab.waitForExistence(timeout: 3)
-            }
+        if tab.exists { return tab }
+        if let railTab = ShellUITestSupport.tabButtons(name, in: app).first(where: \.isHittable) {
+            return railTab
+        }
+        let collapsed = app.tabBars.buttons
+            .matching(NSPredicate(format: "value == %@", "Collapsed")).firstMatch
+        if collapsed.exists {
+            collapsed.tap()
+            _ = tab.waitForExistence(timeout: 3)
         }
         return tab
     }
@@ -612,9 +654,7 @@ enum SongsUITestSupport {
         }
         let songs = rootControl("Songs", app: app)
         if songs.waitForExistence(timeout: 5), songs.isHittable { songs.tap() }
-        let drawerOpen = app.buttons["fst.shell.drawer.open"]
-        XCTAssertTrue(drawerOpen.waitForExistence(timeout: 10))
-        drawerOpen.tap()
+        ShellUITestSupport.tapToolbarItem("fst.shell.drawer.open", overflowLabels: ["Menu", "Open Navigation"], in: app)
         let statistics = app.buttons["fst.shell.drawer.statistics"]
         XCTAssertTrue(statistics.waitForExistence(timeout: 10), "Statistics drawer row missing")
         statistics.tap()
@@ -890,16 +930,30 @@ enum SongsUITestSupport {
     ///   - app: Foreground app providing the composited screenshot.
     ///   - leadingTextWidth: For wide rows, limit the crop to its leading text.
     ///   - horizontalOrigin: A visible detail-pane anchor when iPadOS reports full-window bounds.
+    ///   - hitTarget: The enclosing button when the text isn't a separate accessibility action.
+    ///   - isStaticHeading: Check visible geometry and paint rather than a tap point for a passive heading.
     /// - Throws: A missing screenshot or insufficient 4.5:1 rendered contrast.
     @MainActor
     static func assertHeaderContrast(
         _ element: XCUIElement, in app: XCUIApplication,
-        leadingTextWidth: CGFloat? = nil, horizontalOrigin: CGFloat? = nil
+        leadingTextWidth: CGFloat? = nil, horizontalOrigin: CGFloat? = nil,
+        hitTarget: XCUIElement? = nil, isStaticHeading: Bool = false
     ) throws {
-        XCTAssertTrue(element.isHittable)
+        XCTAssertTrue(element.exists)
+        if hitTarget != nil || !isStaticHeading {
+            XCTAssertTrue((hitTarget ?? element).isHittable)
+        }
         let image = try XCTUnwrap(app.screenshot().image.cgImage)
         let window = app.windows.firstMatch.frame
         let frame = element.frame
+        if isStaticHeading {
+            XCTAssertEqual(element.elementType, .staticText)
+            XCTAssertTrue(frame.height > 0 && frame.minY >= window.minY && frame.maxY <= window.maxY,
+                          "Heading is outside the visible window")
+        }
+        if let hitTarget {
+            XCTAssertTrue(window.contains(frame) && hitTarget.frame.contains(frame), "Text is outside its visible button")
+        }
         let scaleX = Double(image.width) / window.width
         let scaleY = Double(image.height) / window.height
         let width = min(frame.width, leadingTextWidth ?? frame.width)
@@ -953,6 +1007,26 @@ enum SongsUITestSupport {
             background, text,
             luminances.filter { $0 > background * 3 }.count
         )
+    }
+
+    /// Checks that a page on the uniform fixture backdrop fades across both sides of the window.
+    @MainActor
+    static func assertPageScrim(
+        in app: XCUIApplication, window: CGRect, file: StaticString = #filePath, line: UInt = #line
+    ) throws {
+        let image = try XCTUnwrap(app.screenshot().image.cgImage, file: file, line: line)
+        let scaleX = CGFloat(image.width) / window.width
+        let scaleY = CGFloat(image.height) / window.height
+        let bytes = try bitmapPixels(image)
+        func red(at x: CGFloat, _ y: CGFloat) -> Int {
+            let index = (Int(y * scaleY) * image.width + Int(x * scaleX)) * 4
+            return Int(bytes[index])
+        }
+        for x in [CGFloat(12), window.width - 12] {
+            let top = red(at: x, 24), middle = red(at: x, 50), below = red(at: x, 154)
+            XCTAssertGreaterThan(below - top, 10, "Scrim reaches x=\(x): \(top), \(middle), \(below)", file: file, line: line)
+            XCTAssertGreaterThan(middle, top, "The scrim fades instead of drawing a flat plate at \(x)", file: file, line: line)
+        }
     }
 
     /// Decode one native screenshot into opaque RGBA bytes for visual assertions.

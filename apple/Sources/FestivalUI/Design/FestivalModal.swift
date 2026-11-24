@@ -1,4 +1,5 @@
 import SwiftUI
+import FestivalAppSupport
 import FestivalDesign
 #if os(macOS)
 import AppKit
@@ -98,23 +99,24 @@ extension EnvironmentValues {
     @Entry var festivalModalPreview = false
 }
 
-/// Inline title (iOS) when the modal has one.
-private struct FestivalModalTitle: ViewModifier {
+/// Keeps a modal's native title and dismissal available while its body scrolls.
+struct FestivalModalTitle: ViewModifier {
     let title: String?
 
     func body(content: Content) -> some View {
-        if let title {
-            content
-                .navigationTitle(title)
-                #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-                #endif
-        } else {
-            content
-                #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-                #endif
+        let titled = Group {
+            if let title { content.navigationTitle(title) } else { content }
         }
+        #if os(iOS)
+        let inline = titled.navigationBarTitleDisplayMode(.inline)
+        if #available(iOS 27.0, *) {
+            inline.toolbarMinimizationBehavior(.never, for: .navigationBar)
+        } else {
+            inline
+        }
+        #else
+        titled
+        #endif
     }
 }
 

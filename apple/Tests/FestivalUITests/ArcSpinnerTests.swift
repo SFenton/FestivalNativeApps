@@ -48,6 +48,39 @@ struct ArcSpinnerMetricsTests {
     }
 }
 
+#if os(iOS)
+import UIKit
+
+// MARK: - UIKit spinner motion
+
+@MainActor
+struct UIKitArcSpinnerTests {
+    /// Adding another spinner while the first is running must not restart the rotation phase.
+    @Test func staggeredSpinnersUseTheSameWallClockPhase() async throws {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 120, height: 120))
+        let first = UKArcView(size: .large)
+        window.addSubview(first)
+        try await Task.sleep(for: .milliseconds(170))
+        let second = UKArcView(size: .large)
+        window.addSubview(second)
+        defer { window.isHidden = true }
+
+        let wallTime = Date.timeIntervalSinceReferenceDate
+        let mediaTime = CACurrentMediaTime()
+        let expected = FestivalArcMetrics.angle(at: wallTime)
+        for spinner in [first, second] {
+            let layer = try #require(spinner.layer.sublayers?.first { $0.animation(forKey: "spin") != nil })
+            let animation = try #require(layer.animation(forKey: "spin") as? CABasicAnimation)
+            let elapsed = layer.convertTime(mediaTime, from: nil) - animation.beginTime
+            let phase = elapsed.truncatingRemainder(dividingBy: animation.duration) / animation.duration * 360
+            let error = abs((phase - expected).remainder(dividingBy: 360))
+            #expect(animation.beginTime > 0, "Core Animation must not start a new phase at attachment")
+            #expect(error < 6, "The spinner should stay within one 60 Hz frame of the shared phase")
+        }
+    }
+}
+#endif
+
 #if os(macOS)
 import AppKit
 

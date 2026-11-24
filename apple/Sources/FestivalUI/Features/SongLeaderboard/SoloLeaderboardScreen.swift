@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import FestivalAppSupport
 import FestivalCore
 import FestivalDesign
 

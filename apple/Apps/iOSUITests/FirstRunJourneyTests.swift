@@ -30,7 +30,7 @@ final class FirstRunJourneyTests: XCTestCase {
     @MainActor
     private func fixtureApp(mode: String = "force") -> XCUIApplication {
         FestivalApp.makeApp([
-            "FST_API_BASE_URL": "http://127.0.0.1:8765",
+            "FST_API_BASE_URL": ProcessInfo.processInfo.environment["FST_FIXTURE_URL"] ?? "http://127.0.0.1:8765",
             "FST_UI_TEST_CLEAR_PROFILE": "1",
             "FST_DEBUG_FIRST_RUN": mode,
         ])
@@ -41,6 +41,1038 @@ final class FirstRunJourneyTests: XCTestCase {
     private func slide(_ app: XCUIApplication, titled title: String) -> XCUIElement {
         app.descendants(matching: .any)
             .matching(NSPredicate(format: "label BEGINSWITH %@", "\(title). ")).firstMatch
+    }
+
+    /// The Songs guide renders real fixture songs while only the slide's narration is exposed.
+    @MainActor
+    func testSongListGuideRendersRealRowsWithoutDemoActions() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
+        app.launch()
+        let page = slide(app, titled: "Song List")
+        XCTAssertTrue(page.waitForExistence(timeout: FestivalApp.budget(15)))
+        XCTAssertEqual(page.elementType, .staticText)
+        XCTAssertTrue(page.label.contains("Tap a song to see leaderboards"))
+        for title in ["Fixture Pulse", "Fixture Orbit"] {
+            let reading = RecognizedText.recognizeLine(title, in: page)
+            XCTAssertTrue(RecognizedText.showsWhole(title, in: reading.text), "Expected guide row for \(title)")
+        }
+        XCTAssertFalse(page.buttons.firstMatch.exists, "Preview rows must not be separate actions")
+        let next = app.buttons["fst.first-run.next"]
+        XCTAssertTrue(next.isHittable)
+        XCTAssertGreaterThanOrEqual(next.frame.height, 44)
+    }
+
+    /// The selected Songs guide shows native Sort, Navigation and Filter previews without exposing their controls.
+    @MainActor
+    func testSongsGuideShowsReadOnlySortAndFilterForms() {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
+        app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
+        app.launch()
+        let next = app.buttons["fst.first-run.next"]
+        XCTAssertTrue(next.waitForExistence(timeout: FestivalApp.budget(15)))
+        next.tap()
+        waitForPage(app, "2 of 9")
+        let sort = slide(app, titled: "Sort Songs")
+        XCTAssertTrue(sort.waitForExistence(timeout: FestivalApp.budget(5)))
+        XCTAssertEqual(sort.elementType, .staticText)
+        let dots = app.descendants(matching: .any)["fst.first-run.dots"]
+        XCTAssertEqual(sort.frame.midX, next.frame.midX, accuracy: 3, "The slide stays inside the footer's safe column")
+        XCTAssertEqual(dots.frame.midX, next.frame.midX, accuracy: 3)
+        XCTAssertNotNil(RecognizedText.recognizeLine("Item Shop", in: sort).text, "The Sort preview draws its Item Shop option")
+        XCTAssertFalse(app.buttons["fst.songs.sort.mode"].exists)
+        next.tap()
+        waitForPage(app, "3 of 9")
+        let navigation = slide(app, titled: "Navigation")
+        XCTAssertTrue(navigation.waitForExistence(timeout: FestivalApp.budget(5)))
+        XCTAssertEqual(navigation.elementType, .staticText)
+        XCTAssertFalse(navigation.buttons.firstMatch.exists, "Example tabs must not be separate actions")
+        if app.windows.firstMatch.frame.size == CGSize(width: 402, height: 874) {
+            XCTAssertNotNil(RecognizedText.recognizeLine("Compete", in: navigation).text, "The preview draws the native tabs")
+        }
+        next.tap()
+        waitForPage(app, "4 of 9")
+        let filter = slide(app, titled: "Filter Songs")
+        XCTAssertTrue(filter.waitForExistence(timeout: FestivalApp.budget(5)))
+        XCTAssertEqual(filter.elementType, .staticText)
+        XCTAssertNotNil(RecognizedText.recognizeLine("Duration", in: filter).text)
+        XCTAssertFalse(app.descendants(matching: .any)["fst.songs.filter.duration"].exists)
+        XCTAssertTrue(next.isHittable)
+    }
+
+    /// Score examples are visible without exposing the guide's decorative status controls.
+    @MainActor
+    func testSongsGuideShowsReadOnlyInstrumentAndMetadataExamples() {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
+        app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
+        app.launch()
+        let next = app.buttons["fst.first-run.next"]
+        XCTAssertTrue(next.waitForExistence(timeout: FestivalApp.budget(15)))
+        for index in 2...5 {
+            next.tap()
+            waitForPage(app, "\(index) of 9")
+        }
+        let icons = slide(app, titled: "Instrument Icons")
+        XCTAssertTrue(icons.waitForExistence(timeout: FestivalApp.budget(5)))
+        XCTAssertEqual(icons.elementType, .staticText)
+        let size = app.windows.firstMatch.frame.size
+        if size == CGSize(width: 466, height: 678) {
+            XCTAssertNotNil(RecognizedText.recognizeLine("Synthetic Quartet", in: icons).text)
+        } else {
+            for title in ["Fixture Pulse", "Fixture Orbit"] {
+                XCTAssertNotNil(RecognizedText.recognizeLine(title, in: icons).text)
+            }
+        }
+        XCTAssertFalse(icons.descendants(matching: .any)["fst.songs.instrument-status.fixture-pulse"].exists)
+        SongsUITestSupport.record(app, name: "guide-songs-instrument-icons")
+
+        next.tap()
+        waitForPage(app, "6 of 9")
+        let metadata = slide(app, titled: "Song Metadata")
+        XCTAssertTrue(metadata.waitForExistence(timeout: FestivalApp.budget(5)))
+        XCTAssertEqual(metadata.elementType, .staticText)
+        XCTAssertNotNil(RecognizedText.recognizeLine("191,200", in: metadata).text)
+        XCTAssertFalse(metadata.descendants(matching: .any)["fst.songs.metadata.score.fixture-pulse"].exists)
+        XCTAssertTrue(next.isHittable)
+        SongsUITestSupport.record(app, name: "guide-songs-metadata")
+
+        let window = app.windows.firstMatch
+        if #available(iOS 27.0, *),
+           size == CGSize(width: 402, height: 874) || size == CGSize(width: 466, height: 678) {
+            XCTAssertEqual(next.frame.height, 50, accuracy: 2, "Filling the demo does not stretch Next")
+            let dots = app.descendants(matching: .any)["fst.first-run.dots"]
+            let screenshot = window.screenshot()
+            guard let title = RecognizedText.lines(in: screenshot).first(where: { $0.text == "Song Metadata" }) else {
+                XCTFail("Expected the rendered Song Metadata title")
+                return
+            }
+            let top = title.frame.minY * window.frame.height / screenshot.image.size.height + window.frame.minY
+            XCTAssertEqual(dots.frame.minY - top, 112, accuracy: 4, "The demo fills the reference's narration viewport")
+        }
+    }
+
+    /// All three Songs Shop slides show catalogue rows behind one accessible narration.
+    @MainActor
+    func testSongsShopGuidesShowReadOnlySongRows() {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
+        app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
+        app.launch()
+        let next = app.buttons["fst.first-run.next"]
+        XCTAssertTrue(next.waitForExistence(timeout: FestivalApp.budget(15)))
+        for index in 2...7 {
+            next.tap()
+            waitForPage(app, "\(index) of 9")
+        }
+
+        for (offset, title) in ["Item Shop Highlights", "New in the Item Shop", "Leaving Tomorrow"].enumerated() {
+            if offset > 0 {
+                next.tap()
+                waitForPage(app, "\(7 + offset) of 9")
+            }
+            let page = slide(app, titled: title)
+            XCTAssertTrue(page.waitForExistence(timeout: FestivalApp.budget(5)))
+            XCTAssertEqual(page.elementType, .staticText)
+            let lines = RecognizedText.lines(in: page.screenshot())
+            XCTAssertTrue(lines.contains { RecognizedText.showsWhole("Fixture Pulse", in: $0.text) })
+            XCTAssertFalse(lines.contains { $0.text.localizedCaseInsensitiveContains("scores paused") },
+                           "The Shop examples do not include the selected player's score status")
+            assertDecorativeCatalogueRows(page)
+        }
+        XCTAssertTrue(app.buttons["fst.first-run.done"].isHittable)
+    }
+
+    /// The Item Shop teaches its three statuses with native rows while the preview stays read-only.
+    @MainActor
+    func testItemShopGuideShowsReadOnlyCatalogueExamples() {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
+        replayGuide("shop", in: app)
+
+        let next = app.buttons["fst.first-run.next"]
+        XCTAssertTrue(next.waitForExistence(timeout: FestivalApp.budget(15)))
+        waitForPage(app, "1 of 4")
+        let overview = slide(app, titled: "Item Shop")
+        XCTAssertTrue(overview.waitForExistence(timeout: FestivalApp.budget(5)))
+        XCTAssertEqual(overview.elementType, .staticText)
+        XCTAssertFalse(overview.buttons.firstMatch.exists)
+        SongsUITestSupport.record(app, name: "item-shop-guide-overview")
+
+        for (index, title) in ["Shop Highlighting", "New Shop Songs", "Leaving Tomorrow"].enumerated() {
+            next.tap()
+            waitForPage(app, "\(index + 2) of 4")
+            let page = slide(app, titled: title)
+            XCTAssertTrue(page.waitForExistence(timeout: FestivalApp.budget(5)))
+            XCTAssertEqual(page.elementType, .staticText)
+            let lines = RecognizedText.lines(in: page.screenshot())
+            XCTAssertTrue(lines.contains { line in
+                ["Fixture Pulse", "Fixture Orbit"].contains { RecognizedText.showsWhole($0, in: line.text) }
+            }, "The preview shows a real fixture catalogue row, not a stand-in")
+            XCTAssertFalse(lines.contains { $0.text.localizedCaseInsensitiveContains("scores paused") })
+            assertDecorativeCatalogueRows(page)
+            SongsUITestSupport.record(app, name: "item-shop-guide-\(index + 2)")
+        }
+        let done = app.buttons["fst.first-run.done"]
+        XCTAssertTrue(done.isHittable)
+        XCTAssertGreaterThanOrEqual(done.frame.height, 44)
+    }
+
+    /// The visible example rows add neither actions nor duplicate narration.
+    @MainActor
+    private func assertDecorativeCatalogueRows(_ page: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertFalse(page.buttons.firstMatch.exists, file: file, line: line)
+        let descendants = page.descendants(matching: .any)
+        let demoSong = descendants.matching(NSPredicate(
+            format: "label BEGINSWITH %@ OR label BEGINSWITH %@", "Fixture Pulse", "Fixture Orbit"
+        )).firstMatch
+        if demoSong.exists {
+            XCTFail("Unexpected guide preview element: \(demoSong.debugDescription)", file: file, line: line)
+        }
+        let badge = descendants.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.shop-badge."))
+        XCTAssertFalse(badge.firstMatch.exists, file: file, line: line)
+    }
+
+    /// The Item Shop slides keep one narration stop before the controls at maximum text size.
+    @MainActor
+    func testItemShopGuideReadsInOrderAtLargestText() throws {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        replayGuide("shop", in: app)
+
+        let titles = ["Item Shop", "Shop Highlighting", "New Shop Songs", "Leaving Tomorrow"]
+        for (index, title) in titles.enumerated() {
+            let page = index + 1
+            let last = page == titles.count
+            let narration = slide(app, titled: title)
+            XCTAssertTrue(narration.waitForExistence(timeout: FestivalApp.budget(15)))
+            waitForPage(app, "\(page) of \(titles.count)")
+            XCTAssertEqual(narration.elementType, .staticText)
+            try assertGuidePageAccessible(app, slide: narration, page: page, last: last, form: "Item Shop AX5")
+            if !last { app.buttons["fst.first-run.next"].tap() }
+        }
+        app.buttons["fst.first-run.done"].tap()
+        XCTAssertTrue(app.buttons["fst.first-run.close"].waitForNonExistence(timeout: FestivalApp.budget(5)))
+    }
+
+    /// The top-rank and Your Rank illustrations draw synthetic scores without exposing
+    /// a ranked profile or View All action, including when an actual profile is selected.
+    @MainActor
+    func testRankingGuidesShowReadOnlySampleRows() {
+        continueAfterFailure = false
+        for guide in ["leaderboards", "compete"] {
+            let app = guideReplayApp()
+            app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
+            replayGuide(guide, in: app)
+            waitForPage(app, "1 of 3")
+            if guide == "compete" {
+                app.buttons["fst.first-run.next"].tap()
+                waitForPage(app, "2 of 3")
+            }
+            let title = guide == "compete" ? "Leaderboards" : "Global Rankings"
+            assertRankingDemo(title, score: "2,275,100", hiddenName: "BeatLegend", in: app)
+            if guide == "leaderboards" {
+                let next = app.buttons["fst.first-run.next"]
+                next.tap()
+                waitForPage(app, "2 of 3")
+                next.tap()
+                waitForPage(app, "3 of 3")
+                assertRankingDemo("Your Rank", score: "1,250,000", hiddenName: "DrumSurge", in: app)
+            }
+            app.terminate()
+        }
+    }
+
+    /// The Your Rank narration precedes the controls at AX5; its decorative board
+    /// never becomes a layout or accessibility obstacle.
+    @MainActor
+    func testYourRankGuideReadsInOrderAtLargestText() throws {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        replayGuide("leaderboards", in: app)
+        waitForPage(app, "1 of 3")
+        for page in 2...3 {
+            app.buttons["fst.first-run.next"].tap()
+            waitForPage(app, "\(page) of 3")
+        }
+        let narration = slide(app, titled: "Your Rank")
+        XCTAssertTrue(narration.waitForExistence(timeout: FestivalApp.budget(5)))
+        try assertGuidePageAccessible(app, slide: narration, page: 3, last: true, form: "Your Rank AX5")
+    }
+
+    /// The opt-in metrics lesson illustrates Rank By without a live menu.
+    @MainActor
+    func testExperimentalRankingGuideUsesReadOnlyChoices() throws {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        app.launchArguments += ["-fst.settings.experimentalRanks", "NO"]
+        replayGuide("leaderboards", in: app)
+        waitForPage(app, "1 of 3")
+        app.buttons["fst.first-run.next"].tap()
+        waitForPage(app, "2 of 3")
+        let narration = slide(app, titled: "Experimental Ranking Metrics")
+        XCTAssertTrue(narration.waitForExistence(timeout: FestivalApp.budget(5)))
+        SongsUITestSupport.record(app, name: "leaderboards-guide-experimental-metrics")
+        let lines = RecognizedText.lines(in: narration.screenshot()).map(\.text)
+        XCTAssertTrue(lines.contains { $0.hasSuffix("Adjusted Percentile") }, "The illustration needs its first choice: \(lines)")
+        XCTAssertTrue(lines.contains { $0.contains("Estimated skill") }, "The choice needs its own explanation: \(lines)")
+        XCTAssertFalse(narration.buttons.firstMatch.exists)
+        let window = app.windows.firstMatch.frame
+        if window.height >= 800, window.width < 450 {
+            let capture = app.screenshot()
+            let lastLine = try XCTUnwrap(RecognizedText.lines(in: capture).first {
+                RecognizedText.showsWhole("the toolbar", in: $0.text)
+            })
+            let bottom = lastLine.frame.maxY * window.height / capture.image.size.height
+            let dots = app.descendants(matching: .any).matching(identifier: "fst.first-run.dots").firstMatch
+            XCTAssertGreaterThan(dots.frame.minY - bottom, 25, "The illustration must not crowd the narration into the pager.")
+        }
+    }
+
+    /// The automatic anonymous guide admits experimental metrics only when enabled.
+    @MainActor
+    func testAutomaticRankingGuideFollowsExperimentalRanks() {
+        continueAfterFailure = false
+        for enabled in [false, true] {
+            let app = fixtureApp()
+            app.launchEnvironment["FST_DEBUG_TAB"] = "leaderboards"
+            app.launchEnvironment["FST_DEBUG_ANONYMOUS"] = "1"
+            app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
+            app.launchArguments += ["-fst.settings.experimentalRanks", enabled ? "YES" : "NO"]
+            app.launch()
+            XCTAssertTrue(slide(app, titled: "Global Rankings").waitForExistence(timeout: FestivalApp.budget(5)))
+            if enabled {
+                waitForPage(app, "1 of 2")
+                app.buttons["fst.first-run.next"].tap()
+                waitForPage(app, "2 of 2")
+                XCTAssertTrue(slide(app, titled: "Experimental Ranking Metrics").exists)
+            } else {
+                XCTAssertFalse(app.descendants(matching: .any)["fst.first-run.dots"].exists)
+                XCTAssertFalse(app.buttons["fst.first-run.next"].exists)
+            }
+            XCTAssertTrue(app.buttons["fst.first-run.done"].isHittable)
+            app.terminate()
+        }
+    }
+
+    /// Compete and Rivals use sample boards and rival rows rather than the selected account.
+    @MainActor
+    func testCompetitionGuidesShowReadOnlySampleMatchups() {
+        continueAfterFailure = false
+        for (guide, lessons) in [
+            ("compete", [
+                (1, "Compete Hub", ["GoldStreak", "NoteHunter", "BeatLegend", "VocalStorm"]),
+                (3, "Rivals", ["Above You", "KeyDrifter", "DeepGroove", "DrumSurge"]),
+            ]),
+            ("rivals", [
+                (1, "Your Rivals", ["KeyDrifter", "DeepGroove", "SonicRush", "DrumSurge"]),
+                (2, "Per-Instrument Rivals", ["StageKnight", "FretBlaze", "BeatLegend", "RhythmEdge"]),
+                (3, "Head-to-Head", ["Closest Battles"]),
+            ]),
+        ] {
+            let app = guideReplayApp()
+            app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
+            replayGuide(guide, in: app)
+            var current = 1
+            for (page, title, samples) in lessons {
+                while current < page {
+                    app.buttons["fst.first-run.next"].tap()
+                    current += 1
+                    waitForPage(app, "\(current) of 3")
+                }
+                let narration = slide(app, titled: title)
+                XCTAssertTrue(narration.waitForExistence(timeout: FestivalApp.budget(5)))
+                SongsUITestSupport.record(app, name: "\(guide)-guide-\(page)")
+                let illustration = RecognizedText.lines(in: narration.screenshot()).map(\.text).joined(separator: " ")
+                XCTAssertTrue(samples.contains { illustration.localizedCaseInsensitiveContains($0) },
+                              "\(title) should show at least one of \(samples): \(illustration)")
+                XCTAssertFalse(narration.buttons.firstMatch.exists)
+                XCTAssertFalse(narration.descendants(matching: .any).matching(
+                    NSPredicate(format: "label IN %@", samples)
+                ).firstMatch.exists, "The sample is outside the narration")
+                if title == "Head-to-Head" {
+                    XCTAssertNotNil(RecognizedText.recognizeLine("Fixture Pulse", in: narration).text)
+                }
+            }
+            app.terminate()
+        }
+    }
+
+    /// Rivals keeps samples out of the reading order, even with redacted titles and no motion.
+    @MainActor
+    func testRivalsGuideReadsInOrderWithUnavailableCatalogueAtLargestText() throws {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        app.launchEnvironment.removeValue(forKey: "FST_DEBUG_STILL_BACKGROUND")
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "error"
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+            "-fst.accessibility.reduceMotion", "YES",
+        ]
+        replayGuide("rivals", in: app)
+        let titles = ["Your Rivals", "Per-Instrument Rivals", "Head-to-Head"]
+        for (index, title) in titles.enumerated() {
+            let page = index + 1
+            if page > 1 { app.buttons["fst.first-run.next"].tap() }
+            waitForPage(app, "\(page) of 3")
+            let narration = slide(app, titled: title)
+            XCTAssertTrue(narration.waitForExistence(timeout: FestivalApp.budget(5)))
+            try assertGuidePageAccessible(app, slide: narration, page: page, last: page == 3, form: "Rivals AX5")
+            if page == 3 {
+                // The combined SwiftUI narration frame does not include the decorative preview.
+                let capture = app.screenshot()
+                let lines = RecognizedText.lines(in: capture)
+                let close = app.buttons["fst.first-run.close"].frame
+                let heading = lines.filter { $0.frame.maxX < close.minX }.map(\.text).joined(separator: " ")
+                if !RecognizedText.showsWhole("Closest Battles", in: heading) {
+                    add(XCTAttachment(screenshot: capture))
+                    XCTFail("The category heading should be fully visible: \(heading)")
+                }
+                let text = lines.map(\.text).joined(separator: " ")
+                XCTAssertFalse(text.localizedCaseInsensitiveContains("placeholder") ||
+                    text.localizedCaseInsensitiveContains("Fixture Pulse"), text)
+            }
+        }
+    }
+
+    /// Both Song Info chart lessons draw sample bars; the still selection rests on the first bar.
+    @MainActor
+    func testSongInfoGuideShowsReadOnlySampleCharts() {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        replayGuide("songinfo", in: app)
+        waitForPage(app, "1 of 8")
+        let chart = slide(app, titled: "Score History Chart")
+        XCTAssertTrue(chart.waitForExistence(timeout: FestivalApp.budget(5)))
+        XCTAssertNotNil(RecognizedText.recognizeLine("347,100", in: chart).text)
+        XCTAssertNotNil(RecognizedText.recognizeLine("Today", in: chart).text)
+
+        app.buttons["fst.first-run.next"].tap()
+        waitForPage(app, "2 of 8")
+        let selection = slide(app, titled: "Select a Bar for Details")
+        XCTAssertTrue(selection.waitForExistence(timeout: FestivalApp.budget(5)))
+        XCTAssertNotNil(RecognizedText.recognizeLine("9/12", in: selection).text)
+        if app.windows.firstMatch.frame.height >= 800 {
+            XCTAssertNotNil(RecognizedText.recognizeLine("218,400", in: selection).text)
+            XCTAssertNotNil(RecognizedText.recognizeLine("62%", in: selection).text)
+        }
+        app.buttons["fst.first-run.back"].tap()
+        waitForPage(app, "1 of 8")
+        XCTAssertNotNil(RecognizedText.recognizeLine("347,100", in: chart).text)
+    }
+
+    /// The sheet's scrim dims Settings, but the exposed Show capsule does not turn gray.
+    @MainActor
+    func testGuideReplayKeepsItsBlueFillBehindTheSheet() throws {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        app.launch()
+        let window = app.windows.firstMatch
+        guard window.frame.height >= 800, window.frame.width < 450 else {
+            throw XCTSkip("The exposed Settings button is measured in the iPhone portrait layout.")
+        }
+        let show = app.buttons["fst.settings.first-run.songs"]
+        XCTAssertTrue(show.waitForExistence(timeout: FestivalApp.budget(5)))
+        let fill = show.frame.insetBy(dx: 10, dy: 0)
+        app.buttons["fst.settings.first-run.songinfo"].tap()
+        waitForPage(app, "1 of 8")
+        XCTAssertFalse(show.isHittable, "The visible backdrop is still modal.")
+        let image = try XCTUnwrap(app.screenshot().image.cgImage)
+        let pixels = try XCTUnwrap(ButtonFillPixels(image: image, pointWidth: window.frame.width))
+        let blue = try XCTUnwrap(pixels.fraction(in: fill) { red, green, blue in
+            blue - red >= 45 && blue - green >= 20 && green > red
+        })
+        XCTAssertGreaterThan(blue, 0.25, "The exposed capsule keeps its blue hue through the sheet's scrim.")
+        app.buttons["fst.first-run.close"].tap()
+        XCTAssertTrue(show.isHittable, "Close restores the Settings controls.")
+    }
+
+    /// Sample marks and detail values never become separate accessibility stops at AX5.
+    @MainActor
+    func testSongInfoChartGuideReadsInOrderAtLargestText() throws {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        replayGuide("songinfo", in: app)
+        waitForPage(app, "1 of 8")
+        let lessons = [
+            ("Score History Chart", "instruments to see more data!"),
+            ("Select a Bar for Details", "season, score, and accuracy."),
+        ]
+        for (index, lesson) in lessons.enumerated() {
+            if index != 0 {
+                app.buttons["fst.first-run.next"].tap()
+                waitForPage(app, "2 of 8")
+            }
+            let narration = slide(app, titled: lesson.0)
+            XCTAssertTrue(narration.waitForExistence(timeout: FestivalApp.budget(5)))
+            XCTAssertEqual(narration.elementType, .staticText)
+            XCTAssertTrue(narration.label.hasSuffix(lesson.1), "Expected complete narration: \(narration.label)")
+            try assertGuidePageAccessible(app, slide: narration, page: index + 1, last: false, form: "Song Info chart AX5")
+        }
+    }
+
+    /// The Paths illustration shows the local placeholder and Expert selector; each Shop
+    /// lesson shows a catalogue header. On a short cover the action is titled, not a disc.
+    @MainActor
+    func testSongInfoGuideShowsReadOnlyPathsAndShopPreviews() {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        app.launchArguments += ["-fst.settings.disableShopHighlighting", "NO"]
+        openSongInfoPathsGuide(in: app)
+        let paths = slide(app, titled: "Optimal Paths")
+        XCTAssertTrue(paths.waitForExistence(timeout: FestivalApp.budget(5)))
+        for label in ["Path Preview", "Expert"] {
+            XCTAssertNotNil(RecognizedText.recognizeLine(label, in: paths).text)
+        }
+        for id in ["fst.paths.instrument", "fst.paths.difficulty", "fst.paths.display"] {
+            XCTAssertFalse(app.descendants(matching: .any).matching(identifier: id).firstMatch.exists)
+        }
+        for (page, title, _) in Self.songInfoActionLessons.dropFirst() {
+            app.buttons["fst.first-run.next"].tap()
+            waitForPage(app, "\(page) of 8")
+            let shop = slide(app, titled: title)
+            XCTAssertTrue(shop.waitForExistence(timeout: FestivalApp.budget(5)))
+            XCTAssertNotNil(RecognizedText.recognizeLine("Fixture Pulse", in: shop).text)
+            let illustration = shopIllustrationLines(title: title, in: shop, app: app)
+            let showsTitledAction = showsTitledShopAction(in: illustration)
+            if app.windows.firstMatch.frame.height < 800 {
+                XCTAssertTrue(showsTitledAction, "\(illustration)")
+                XCTAssertTrue(illustration.contains("Item") && illustration.contains("Shop"),
+                              "Wrap the folded action instead of taking space from the song header: \(illustration)")
+            } else {
+                XCTAssertFalse(showsTitledAction, "\(illustration)")
+            }
+            XCTAssertFalse(shop.buttons.firstMatch.exists)
+        }
+    }
+
+    /// A missing catalogue does not invent song content, and disabling highlighting
+    /// still draws the plain action on the final lesson.
+    @MainActor
+    func testSongInfoShopGuideRedactsUnavailableCatalogueWithHighlightingOff() {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        app.launchArguments += ["-fst.settings.disableShopHighlighting", "YES"]
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "error"
+        openSongInfoPathsGuide(in: app)
+        for page in 6...8 {
+            app.buttons["fst.first-run.next"].tap()
+            waitForPage(app, "\(page) of 8")
+        }
+        let title = "Leaving Tomorrow"
+        let shop = slide(app, titled: title)
+        XCTAssertTrue(shop.waitForExistence(timeout: FestivalApp.budget(5)))
+        let illustration = shopIllustrationLines(title: title, in: shop, app: app)
+        XCTAssertTrue(showsTitledShopAction(in: illustration), "\(illustration)")
+        XCTAssertFalse(illustration.contains { $0.localizedCaseInsensitiveContains("placeholder") }, "\(illustration)")
+        XCTAssertFalse(illustration.contains { $0.localizedCaseInsensitiveContains("fixture") }, "\(illustration)")
+    }
+
+    /// Inert Paths selectors and Shop actions stay out of the reading order, even at AX5.
+    @MainActor
+    func testSongInfoPathsAndShopGuideReadsInOrderAtLargestText() throws {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        openSongInfoPathsGuide(in: app)
+        for (page, title, ending) in Self.songInfoActionLessons {
+            if page != 5 {
+                app.buttons["fst.first-run.next"].tap()
+                waitForPage(app, "\(page) of 8")
+            }
+            let narration = slide(app, titled: title)
+            XCTAssertTrue(narration.waitForExistence(timeout: FestivalApp.budget(5)))
+            XCTAssertEqual(narration.elementType, .staticText)
+            XCTAssertTrue(narration.label.hasSuffix(ending), narration.label)
+            try assertGuidePageAccessible(app, slide: narration, page: page, last: page == 8, form: "Song Info actions AX5")
+        }
+    }
+
+    private static let songInfoActionLessons = [
+        (5, "Optimal Paths", "instrument and difficulty."),
+        (6, "Item Shop Link", "straight to the store."),
+        (7, "New Shop Songs", "instead of green."),
+        (8, "Leaving Tomorrow", "act fast."),
+    ]
+
+    /// Opens the fifth Song Info replay page without depending on account-specific gates.
+    @MainActor
+    private func openSongInfoPathsGuide(in app: XCUIApplication) {
+        replayGuide("songinfo", in: app)
+        waitForPage(app, "1 of 8")
+        for page in 2...5 {
+            app.buttons["fst.first-run.next"].tap()
+            waitForPage(app, "\(page) of 8")
+        }
+    }
+
+    /// Reads the full window before selecting the illustration lines. The element screenshot
+    /// can lose the leading letter of a short word next to the folded capsule's glyph.
+    ///
+    /// - Returns: Individual lines within the slide above its narration.
+    @MainActor
+    private func shopIllustrationLines(title: String, in slide: XCUIElement, app: XCUIApplication) -> [String] {
+        let window = app.windows.firstMatch
+        let frame = window.frame
+        let capture = window.screenshot()
+        let size = capture.image.size
+        let bounds = slide.frame.offsetBy(dx: -frame.minX, dy: -frame.minY).applying(
+            CGAffineTransform(scaleX: size.width / frame.width, y: size.height / frame.height)
+        )
+        let lines = RecognizedText.lines(in: capture).filter {
+            bounds.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
+        }
+        guard let narration = lines.firstIndex(where: { $0.text == title }) else {
+            XCTFail("Could not locate \(title) in \(lines.map(\.text))")
+            return []
+        }
+        let adornments = CharacterSet.symbols.union(.punctuationCharacters).union(.whitespaces)
+        return lines.prefix(narration).map { $0.text.trimmingCharacters(in: adornments) }
+    }
+
+    /// The folded SwiftUI capsule can place each word on its own line.
+    private func showsTitledShopAction(in lines: [String]) -> Bool {
+        lines.contains { RecognizedText.showsWhole("Item Shop", in: $0) }
+            || (lines.contains("Item") && lines.contains("Shop"))
+    }
+
+    /// Both Song Info score lessons show their sample rows and CTA, not the selected player's scores.
+    @MainActor
+    func testSongInfoGuideShowsReadOnlyScoreCards() {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
+        openSongInfoScoreGuide(in: app)
+        // The folded reference crops the decorative CTA; the tall reference shows its label.
+        let tallPreview = app.windows.firstMatch.frame.height >= 800
+        let history = ["412,300", "347,100"] + (tallPreview ? ["View All Scores"] : [])
+        let leaderboard = ["RiffMaster", "ChordKing"] + (tallPreview ? ["View Full Leaderboard"] : [])
+        assertSongInfoScoreDemo(
+            "View Player Scores", visibleTexts: history, in: app
+        )
+        app.buttons["fst.first-run.next"].tap()
+        waitForPage(app, "4 of 8")
+        assertSongInfoScoreDemo(
+            "Top Scores Per Instrument", visibleTexts: leaderboard, in: app
+        )
+        app.buttons["fst.first-run.back"].tap()
+        waitForPage(app, "3 of 8")
+        assertSongInfoScoreDemo("View Player Scores", visibleTexts: history, in: app)
+    }
+
+    /// The score cards remain decorative at AX5; the narration and pager keep their order and targets.
+    @MainActor
+    func testSongInfoScoreGuideReadsInOrderAtLargestText() throws {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        openSongInfoScoreGuide(in: app)
+        let lessons = [
+            (3, "View Player Scores", "user, score, and instrument."),
+            (4, "Top Scores Per Instrument", "the selected song."),
+        ]
+        for (page, title, ending) in lessons {
+            if page == 4 {
+                app.buttons["fst.first-run.next"].tap()
+                waitForPage(app, "4 of 8")
+            }
+            let narration = slide(app, titled: title)
+            XCTAssertTrue(narration.waitForExistence(timeout: FestivalApp.budget(5)))
+            XCTAssertEqual(narration.elementType, .staticText)
+            XCTAssertTrue(narration.label.hasSuffix(ending), "Expected complete narration: \(narration.label)")
+            try assertGuidePageAccessible(app, slide: narration, page: page, last: false, form: "Song Info AX5")
+        }
+    }
+
+    @MainActor
+    private func openSongInfoScoreGuide(in app: XCUIApplication) {
+        replayGuide("songinfo", in: app)
+        waitForPage(app, "1 of 8")
+        for page in 2...3 {
+            app.buttons["fst.first-run.next"].tap()
+            waitForPage(app, "\(page) of 8")
+        }
+    }
+
+    @MainActor
+    private func assertSongInfoScoreDemo(_ title: String, visibleTexts: [String], in app: XCUIApplication) {
+        let narration = slide(app, titled: title)
+        XCTAssertTrue(narration.waitForExistence(timeout: FestivalApp.budget(5)))
+        XCTAssertEqual(narration.elementType, .staticText)
+        let lines = RecognizedText.lines(in: narration.screenshot()).map(\.text)
+        for text in visibleTexts {
+            XCTAssertTrue(lines.contains { $0.localizedCaseInsensitiveContains(text) }, "Expected \(text) in \(lines)")
+        }
+        for label in ["View All Scores", "View Full Leaderboard", "AceSolo", "486,500"] {
+            XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(
+                format: "label == %@", label
+            )).firstMatch.exists, "\(label) is illustrative, not a separate element")
+        }
+    }
+
+    /// Statistics draws the illustrative Select card, tiles and percentile rows without
+    /// exposing the real page's selectors or drill-down actions.
+    @MainActor
+    func testStatisticsGuideShowsReadOnlySampleTilesAndRanks() {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
+        replayGuide("statistics", in: app)
+        waitForPage(app, "1 of 6")
+
+        let previews = [
+            (title: "Select Player Profile", anchors: ["GoldStreak"]),
+            (title: "Drill Into Your Data", anchors: ["142", "96.2%", "38 (26.8%)"]),
+            (title: "Global Statistics", anchors: ["96.2%"]),
+            (title: "Per-Instrument Stats", anchors: ["Avg Accuracy"]),
+            (title: "Percentile Rankings", anchors: ["Top 5%", "Top 10%", "Top 25%", "Top 50%"]),
+        ]
+        for (index, preview) in previews.enumerated() {
+            if index > 0 {
+                app.buttons["fst.first-run.next"].tap()
+                waitForPage(app, "\(index + 1) of 6")
+            }
+            let narration = slide(app, titled: preview.title)
+            XCTAssertTrue(narration.waitForExistence(timeout: FestivalApp.budget(5)))
+            XCTAssertEqual(narration.elementType, .staticText)
+            let text = RecognizedText.lines(in: narration.screenshot()).map(\.text)
+            XCTAssertTrue(text.contains { line in preview.anchors.contains(where: line.localizedCaseInsensitiveContains) },
+                          "\(preview.title) draws its illustrative data; recognized \(text)")
+            XCTAssertFalse(narration.buttons.firstMatch.exists, "\(preview.title) exposes a sample as a button")
+            XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(
+                format: "identifier BEGINSWITH %@ OR identifier BEGINSWITH %@ OR label == %@",
+                "fst.player.stat.first-run.", "fst.player.percentile", "GoldStreak"
+            )).firstMatch.exists, "\(preview.title) exposes decorative Statistics data")
+            XCTAssertFalse(app.buttons["fst.player.select"].exists)
+            SongsUITestSupport.record(app, name: "statistics-guide-\(index + 1)")
+        }
+    }
+
+    /// The Top Songs lesson shows actual catalogue songs with sample ranks but no song actions.
+    @MainActor
+    func testStatisticsTopSongsGuideShowsReadOnlyCatalogueRanks() {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        let page = openStatisticsTopSongsGuide(in: app)
+        for text in ["Fixture Pulse", "Top 1.2%", "Fixture Orbit", "Top 3.5%"] {
+            XCTAssertNotNil(RecognizedText.recognizeLine(text, in: page).text, "Missing \(text) in the artwork preview")
+        }
+        assertStatisticsTopSongsAreDecorative(in: app, page: page)
+        SongsUITestSupport.record(app, name: "statistics-guide-top-songs")
+    }
+
+    /// Without a catalogue the song content stays redacted while the sample ranks remain.
+    @MainActor
+    func testStatisticsTopSongsGuideRedactsUnavailableCatalogue() {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "error"
+        let page = openStatisticsTopSongsGuide(in: app)
+        XCTAssertNotNil(RecognizedText.recognizeLine("Top 3.5%", in: page).text)
+        let lines = RecognizedText.lines(in: page.screenshot()).map(\.text)
+        XCTAssertFalse(lines.contains { $0.localizedCaseInsensitiveContains("Placeholder") || $0.contains("Fixture") },
+                       "An unavailable catalogue must not show song or placeholder text: \(lines)")
+        assertStatisticsTopSongsAreDecorative(in: app, page: page)
+        SongsUITestSupport.record(app, name: "statistics-guide-top-songs-redacted")
+    }
+
+    /// Opens the final Statistics lesson and returns its settled narration.
+    @MainActor
+    private func openStatisticsTopSongsGuide(in app: XCUIApplication) -> XCUIElement {
+        replayGuide("statistics", in: app)
+        waitForPage(app, "1 of 6")
+        for page in 2...6 {
+            app.buttons["fst.first-run.next"].tap()
+            waitForPage(app, "\(page) of 6")
+        }
+        let narration = slide(app, titled: "Highest and Lowest Rank Breakdown")
+        XCTAssertTrue(narration.waitForExistence(timeout: FestivalApp.budget(5)))
+        return narration
+    }
+
+    /// The preview's illustrative songs and percentile labels are not separate reading stops.
+    @MainActor
+    private func assertStatisticsTopSongsAreDecorative(in app: XCUIApplication, page: XCUIElement) {
+        XCTAssertEqual(page.elementType, .staticText)
+        XCTAssertFalse(page.buttons.firstMatch.exists)
+        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(
+            format: "label IN %@", ["Fixture Pulse", "Fixture Orbit", "Top 1.2%", "Top 3.5%", "Top 7.8%", "Top 14.2%"]
+        )).firstMatch.exists)
+    }
+
+    /// At AX5 the Statistics lessons still read as narration followed by the pager.
+    @MainActor
+    func testStatisticsPercentileGuideReadsInOrderAtLargestText() throws {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        replayGuide("statistics", in: app)
+        waitForPage(app, "1 of 6")
+        #if FST_UIKIT_PORT
+        let selection = slide(app, titled: "Select Player Profile")
+        XCTAssertTrue(selection.waitForExistence(timeout: FestivalApp.budget(5)))
+        try assertGuidePageAccessible(app, slide: selection, page: 1, last: false, form: "Select Player Profile AX5")
+        #endif
+        for page in 2...5 {
+            app.buttons["fst.first-run.next"].tap()
+            waitForPage(app, "\(page) of 6")
+            #if FST_UIKIT_PORT
+            if page == 2 {
+                let drillDown = slide(app, titled: "Drill Into Your Data")
+                XCTAssertTrue(drillDown.waitForExistence(timeout: FestivalApp.budget(5)))
+                try assertGuidePageAccessible(app, slide: drillDown, page: page, last: false, form: "Drill Into Your Data AX5")
+            }
+            #endif
+        }
+        let narration = slide(app, titled: "Percentile Rankings")
+        XCTAssertTrue(narration.waitForExistence(timeout: FestivalApp.budget(5)))
+        try assertGuidePageAccessible(app, slide: narration, page: 5, last: false, form: "Percentile Rankings AX5")
+        #if FST_UIKIT_PORT
+        app.buttons["fst.first-run.next"].tap()
+        waitForPage(app, "6 of 6")
+        let rankedSongs = slide(app, titled: "Highest and Lowest Rank Breakdown")
+        XCTAssertTrue(rankedSongs.waitForExistence(timeout: FestivalApp.budget(5)))
+        try assertGuidePageAccessible(app, slide: rankedSongs, page: 6, last: true, form: "Top Songs AX5")
+        #endif
+    }
+
+    /// A swiped-to preview settles as one narration; Back restores the preceding lesson.
+    @MainActor
+    func testStatisticsGuideSwipeAndBackExposeOnlyTheSettledLesson() throws {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        replayGuide("statistics", in: app)
+        waitForPage(app, "1 of 6")
+        for page in 2...4 {
+            app.buttons["fst.first-run.next"].tap()
+            waitForPage(app, "\(page) of 6")
+        }
+        let instrument = slide(app, titled: "Per-Instrument Stats")
+        let percentile = slide(app, titled: "Percentile Rankings")
+        XCTAssertTrue(instrument.waitForExistence(timeout: FestivalApp.budget(5)))
+        instrument.swipeLeft()
+        waitForPage(app, "5 of 6")
+        XCTAssertTrue(percentile.waitForExistence(timeout: FestivalApp.budget(5)))
+        XCTAssertFalse(instrument.exists)
+        #if FST_UIKIT_PORT
+        try assertGuidePageAccessible(app, slide: percentile, page: 5, last: false, form: "swiped Statistics guide")
+        #endif
+
+        app.buttons["fst.first-run.back"].tap()
+        waitForPage(app, "4 of 6")
+        XCTAssertTrue(instrument.waitForExistence(timeout: FestivalApp.budget(5)))
+        XCTAssertFalse(percentile.exists)
+    }
+
+    @MainActor
+    private func assertRankingDemo(
+        _ title: String, score: String, hiddenName: String, in app: XCUIApplication,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        let page = slide(app, titled: title)
+        XCTAssertTrue(page.waitForExistence(timeout: FestivalApp.budget(5)), file: file, line: line)
+        XCTAssertEqual(page.elementType, .staticText, file: file, line: line)
+        SongsUITestSupport.record(app, name: "ranking-guide-\(title)")
+        let lines = RecognizedText.lines(in: page.screenshot())
+        XCTAssertTrue(lines.contains { $0.text.contains(score) },
+                      "\(title) draws its sample board; recognized \(lines.map(\.text))", file: file, line: line)
+        XCTAssertFalse(page.buttons.firstMatch.exists, file: file, line: line)
+        XCTAssertFalse(page.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@ OR label == %@",
+                        score, hiddenName, "View all rankings (12,480)")
+        ).firstMatch.exists, "the sample is decorative", file: file, line: line)
+    }
+
+    /// - Returns: The app opening the First Run Guides settings without automatic tours.
+    @MainActor
+    private func guideReplayApp() -> XCUIApplication {
+        let app = fixtureApp(mode: "off")
+        app.launchEnvironment["FST_DEBUG_TAB"] = "settings"
+        app.launchEnvironment["FST_DEBUG_ROUTE"] = "settingsTopic:firstRun"
+        app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
+        return app
+    }
+
+    /// - Parameters:
+    ///   - guide: The settings row's guide identifier.
+    ///   - app: An unlaunched app configured by ``guideReplayApp()``.
+    @MainActor
+    private func replayGuide(_ guide: String, in app: XCUIApplication) {
+        app.launch()
+        let replay = app.buttons["fst.settings.first-run.\(guide)"]
+        SongsUITestSupport.reveal(replay, in: app, scrollingUp: true)
+        XCTAssertTrue(replay.isHittable)
+        replay.tap()
+    }
+
+    /// The category and scrolling lessons show sample categories over the catalogue, never live player results.
+    @MainActor
+    func testSuggestionsGuideShowsReadOnlySampleCards() {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        visitSuggestionsCardLessons(in: app) { narration, page in
+            SongsUITestSupport.record(app, name: "suggestions-guide-card-\(page)")
+            XCTAssertNotNil(RecognizedText.recognizeLine("Finish the Lead FCs", in: narration).text,
+                            "The opening category heading must fit on page \(page)")
+            XCTAssertNotNil(RecognizedText.recognizeLine("Fixture Pulse", in: narration).text,
+                            "The first song title must fit on page \(page)")
+            XCTAssertFalse(narration.descendants(matching: .any).matching(
+                NSPredicate(format: "label == %@", "Finish the Lead FCs")
+            ).firstMatch.exists, "The illustration's category heading is not a second stop")
+            XCTAssertFalse(app.descendants(matching: .any).matching(
+                NSPredicate(format: "identifier BEGINSWITH %@", "fst.suggestions.row.")
+            ).firstMatch.exists)
+        }
+    }
+
+    /// At accessibility text sizes the illustration stays out of narration and page controls.
+    @MainActor
+    func testSuggestionsGuideCardsAreDecorativeAtLargestText() throws {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        try visitSuggestionsCardLessons(in: app) { narration, page in
+            try assertGuidePageAccessible(app, slide: narration, page: page, last: page == 4, form: "Suggestions cards AX5")
+        }
+    }
+
+    /// Catalogue failure retains the sample categories but never prints invented song names.
+    @MainActor
+    func testSuggestionsGuideRedactsCatalogueUnderReduceMotion() {
+        continueAfterFailure = false
+        let app = guideReplayApp()
+        app.launchEnvironment.removeValue(forKey: "FST_DEBUG_STILL_BACKGROUND")
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "error"
+        app.launchArguments += ["-fst.accessibility.reduceMotion", "YES", "-fst.accessibility.lessTransparency", "YES"]
+        visitSuggestionsCardLessons(in: app) { narration, page in
+            SongsUITestSupport.record(app, name: "suggestions-guide-redacted-\(page)")
+            XCTAssertNotNil(RecognizedText.recognizeLine("Finish the Lead FCs", in: narration).text,
+                            "The opening category heading must fit on page \(page)")
+            let text = RecognizedText.lines(in: narration.screenshot()).map(\.text).joined(separator: " ")
+            XCTAssertFalse(text.localizedCaseInsensitiveContains("placeholder"), text)
+            XCTAssertFalse(text.localizedCaseInsensitiveContains("fixture"), text)
+        }
+    }
+
+    /// - Parameters:
+    ///   - app: The unlaunched app configured for replay in Settings.
+    ///   - verify: The assertions for each sample-card slide and its page number.
+    @MainActor
+    private func visitSuggestionsCardLessons(
+        in app: XCUIApplication, verify: (XCUIElement, Int) throws -> Void
+    ) rethrows {
+        replayGuide("suggestions", in: app)
+        for (page, title) in [(1, "Suggestion Cards"), (4, "More Suggestions")] {
+            if page == 4 {
+                for index in 2...4 {
+                    app.buttons["fst.first-run.next"].tap()
+                    waitForPage(app, "\(index) of 4")
+                }
+            } else {
+                waitForPage(app, "1 of 4")
+            }
+            let narration = slide(app, titled: title)
+            XCTAssertTrue(narration.waitForExistence(timeout: FestivalApp.budget(5)))
+            try verify(narration, page)
+        }
+    }
+
+    /// Suggestions shows the global category switches and the four instrument switches
+    /// in separate guide previews, without letting the user activate them.
+    @MainActor
+    func testSuggestionsGuideShowsReadOnlyGlobalAndInstrumentFilters() {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_TAB"] = "suggestions"
+        app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
+        app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
+        app.launch()
+        let next = app.buttons["fst.first-run.next"]
+        XCTAssertTrue(next.waitForExistence(timeout: FestivalApp.budget(15)))
+        next.tap()
+        waitForPage(app, "2 of 4")
+        let global = slide(app, titled: "Filter Suggestions")
+        XCTAssertTrue(global.waitForExistence(timeout: 5))
+        XCTAssertEqual(global.elementType, .staticText)
+        XCTAssertNotNil(RecognizedText.recognizeLine("Star Progress", in: global).text)
+        XCTAssertFalse(app.switches["fst.suggestions.filter.type.starProgress"].exists)
+
+        next.tap()
+        waitForPage(app, "3 of 4")
+        let instruments = slide(app, titled: "Per-Instrument Filters")
+        XCTAssertTrue(instruments.waitForExistence(timeout: 5))
+        XCTAssertEqual(instruments.elementType, .staticText)
+        XCTAssertNotNil(RecognizedText.recognizeLine("Drums", in: instruments).text)
+        XCTAssertFalse(app.switches["fst.suggestions.filter.instrument.Solo_Drums"].exists)
+        XCTAssertTrue(next.isHittable)
+    }
+
+    /// The Score History guide uses sample scores and the local sort form without interactive controls.
+    @MainActor
+    func testHistoryGuideShowsReadOnlySortForm() {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-history-multi:Multi History"
+        app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
+        app.launch()
+        let close = app.buttons["fst.first-run.close"]
+        XCTAssertTrue(slide(app, titled: "Song List").waitForExistence(timeout: FestivalApp.budget(15)))
+        close.tap()
+        let song = songsRow(app, "fixture-pulse")
+        XCTAssertTrue(song.waitForExistence(timeout: 10))
+        song.tap()
+        XCTAssertTrue(close.waitForExistence(timeout: FestivalApp.budget(15)))
+        close.tap()
+        let viewAll = app.descendants(matching: .any).matching(identifier: "fst.song-detail.history.view-all").firstMatch
+        for _ in 0..<8 where !viewAll.isHittable { app.swipeUp() }
+        XCTAssertTrue(viewAll.isHittable, "The fixture needs more than five tracked scores")
+        viewAll.tap()
+
+        let next = app.buttons["fst.first-run.next"]
+        let scores = slide(app, titled: "Score History")
+        XCTAssertTrue(scores.waitForExistence(timeout: FestivalApp.budget(15)))
+        XCTAssertEqual(scores.elementType, .staticText)
+        for score in ["486,500", "412,300", "289,600"] {
+            XCTAssertTrue(
+                RecognizedText.showsWhole(score, in: RecognizedText.recognizeLine(score, in: scores).text),
+                "The preview draws the sample score \(score)"
+            )
+        }
+        XCTAssertFalse(scores.descendants(matching: .any)["fst.first-run.history.0"].exists)
+        XCTAssertFalse(scores.buttons.firstMatch.exists)
+        SongsUITestSupport.record(app, name: "first-run-history-sample-scores")
+        XCTAssertTrue(next.isHittable)
+        next.tap()
+        waitForPage(app, "2 of 2")
+        let sort = slide(app, titled: "Sort Scores")
+        XCTAssertTrue(sort.waitForExistence(timeout: 5))
+        XCTAssertEqual(sort.elementType, .staticText)
+        XCTAssertNotNil(RecognizedText.recognizeLine("Accuracy", in: sort).text)
+        XCTAssertFalse(app.descendants(matching: .any)["fst.history.sort.mode"].exists)
+        XCTAssertTrue(app.buttons["fst.first-run.done"].isHittable)
     }
 
     /// Wait until the carousel has closed and Songs is interactive again.
@@ -130,7 +1162,16 @@ final class FirstRunJourneyTests: XCTestCase {
         XCTAssertTrue(done.waitForExistence(timeout: 5))
         XCTAssertEqual(done.frame.minY, nextFrame.minY, accuracy: 1, "Done takes Next's place")
         XCTAssertFalse(app.buttons["fst.first-run.skip"].exists, "No Skip on the last page")
-        XCTAssertTrue(app.navigationBars.buttons["fst.first-run.back"].exists, "Back on the last page")
+        let back = app.buttons.matching(identifier: "fst.first-run.back")
+        XCTAssertEqual(back.count, 1, "Back on the last page")
+        let backButton = back.firstMatch
+        XCTAssertTrue(backButton.isHittable, "Back remains reachable when the native bar moves it onto the rail")
+        XCTAssertEqual(backButton.label, "Back")
+        let image = try XCTUnwrap(app.screenshot().image.cgImage)
+        let pixels = try XCTUnwrap(ButtonFillPixels(image: image, pointWidth: app.windows.firstMatch.frame.width))
+        let glyph = backButton.frame.insetBy(dx: backButton.frame.width / 4, dy: backButton.frame.height / 4)
+        let blue = try XCTUnwrap(pixels.fraction(in: glyph, matching: ButtonFillPixels.accentBlue))
+        XCTAssertGreaterThan(blue, 0.01, "The Back chevron keeps its tint when the native bar moves it onto the rail.")
         SongsUITestSupport.record(app, name: "first-run-last-page")
         done.tap()
         assertCarouselClosed(app)

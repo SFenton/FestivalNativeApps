@@ -1,4 +1,5 @@
 import SwiftUI
+import FestivalAppSupport
 import FestivalCore
 import FestivalDesign
 
@@ -227,9 +228,9 @@ struct ShopScreen: View {
         }
         // HIG Toolbars › macOS: "Every toolbar item must also be a menu-bar command"
         // (also the iPadOS menu bar).
-        .macPageCommands(MacPageCommands(
+        .macPageCommands(PageMenuCommands(
             sort: { sortPresented = true }, filter: { filterPresented = true },
-            layout: showsViewToggle ? MacLayoutChoice(isGrid: viewMode == .grid) { grid in
+            layout: showsViewToggle ? PageMenuLayoutChoice(isGrid: viewMode == .grid) { grid in
                 staggerSettled = false
                 preferredMode = grid ? .grid : .list
             } : nil
@@ -535,6 +536,9 @@ struct ShopScreen: View {
     /// Why a saved Duration sort shows title order (`catalogue-sort` R7).
     static let sortPausedMessage = "Duration sort paused until song lengths for this "
         + "Item Shop load. Showing title order; your preference is saved."
+
+    /// What Songs announces when Settings removes an open Shop route.
+    static let hiddenNavigationNotice = "Item Shop was hidden. Returned to Songs."
 
     /// What the Filter button announces after its label.
     ///

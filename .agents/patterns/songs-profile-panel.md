@@ -42,6 +42,18 @@ The web has no wide split row; its desktop row puts the same pills inline. The p
 
 Tests: `SongProfilePanelPolicyTests` (gate, fit including the 600 pt threshold, the fold's trailing width, player and band tiles), `SelectedBandSessionTests` (band index load, publication gate, 503), `SelectedSongRowRenderTests` (`wideSongRowsSplitOnlyForASelectedPlayersScores`, `wideSongRowsAtTheBreakpointKeepCompactCardsOnOneLine`, `wideSongRowsShowTheSelectedBandsScoreCard`, `wideSongRowsReadTheProfileCardsAfterTheSongLink`: the real Mac Songs tree reads the link, then the panel, then each player or band card), `FestivalAPIBandsTests` (`bandSongRows…`), `OnDemandSplitPolicyTests.songsGridColumnsWithSelectedPlayer`.
 
+The band index's settled state must invalidate existing Songs rows even when their IDs and order are unchanged. UIKit observes `bandLoadState` before applying the snapshot; cells configured later do not register that dependency. A validated empty index removes the Loading status from paint and from each row's accessible name without a reload ([HIG Loading](https://developer.apple.com/design/human-interface-guidelines/loading), recommendation: replace loading placeholders as content becomes available).
+
+The shell's layout and measured list width can update in either order. UIKit reconfigures selected-profile rows on each change so unfolding can replace inline fields with the trailing card, and folding replaces the card with inline fields without navigating or changing selection ([HIG Layout](https://developer.apple.com/design/human-interface-guidelines/layout): adapt to size classes; [Duo guidance](../design/apple/duo.md): preserve access as the display changes).
+
+In book pose, UIKit uses `UKHinge` across the row's safe content span, inside the card padding and any trailing index reserve. The same band supplies both the compact fit and the rendered column widths. Remeasure it even when the collection width stays unchanged, and leave the full fold clearance between the song and its score cards ([HIG Designing for iPhone Duo](https://developer.apple.com/design/human-interface-guidelines/designing-for-iphone-duo): move important content out of the folding region).
+
+`SongsJourneyTests.testScoreMetadataSurvivesPhysicalDuoDisplays` exercises both renderers with `XCUIHinge` on a dedicated Duo and the metadata-edge loopback fixture (`FST_DUO_SONGS_HINGE_TEST=1`, `FST_METADATA_FIXTURE_URL`). The same list must switch from the cover's individual metadata fields to the inner display's named Lead tile and back, never moving the Shop marker across the book fold or losing the painted score.
+
+UIKit's player cards fit the decorative chart artwork to the same 24 pt image inside a 28 pt slot as SwiftUI ([HIG Icons](https://developer.apple.com/design/human-interface-guidelines/icons): add padding for alignment when needed). Card stops use the panel's layout plan as soon as the row has placed the panel, not geometry saved by a later subview layout callback. `UKSongsJourneyTests.testBookSongsExposeBothPlayerScoreCardsInRowOrder` checks two adjacent scored rows and their separate card stops.
+
+The leading half measures title and chips after reserving the spacer and stack gaps before the invalid-score and Shop groups. Shop badges keep their own internal spacing; they are not independent stack items. Let the chips wrap within that proposal rather than shrinking their glyphs or borrowing fold clearance ([HIG Layout](https://developer.apple.com/design/human-interface-guidelines/layout): adapt content to the available space).
+
 ## Agent decision (#340, 2026-10-07)
 
 With a profile selected on wide Songs, the right side of **each wide row** holds that profile's score cards (option A). Owner may override with `/choose`.

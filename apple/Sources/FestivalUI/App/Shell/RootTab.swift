@@ -1,3 +1,5 @@
+import FestivalAppSupport
+
 // MARK: - Root tab selection
 
 /// A tab in the phone tab bar: a root section, or the trailing Search tab (issue #92).

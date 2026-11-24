@@ -6,47 +6,13 @@ import AppKit
 
 // MARK: - Page commands
 
-/// Page tools a focused page offers to the menu bar on macOS and iPadOS (HIG Toolbars ›
-/// macOS: "Every toolbar item must also be a menu-bar command"; The menu bar › iPadOS).
-/// Songs and the Item Shop publish Sort and Filter, Suggestions Filter, Rivals Find
-/// Rival and the Item Shop its List/Grid choice.
-struct MacPageCommands: Equatable {
-    /// Opens the page's Sort options, or nil when the page has none.
-    var sort: (@MainActor () -> Void)?
-    /// Opens the page's Filter options, or nil when unavailable.
-    var filter: (@MainActor () -> Void)?
-    /// Opens Find Rival (Rivals), or nil elsewhere.
-    var findRival: (@MainActor () -> Void)?
-    /// The page's List/Grid choice (the Item Shop's toolbar toggle), or nil when the
-    /// page offers none.
-    var layout: MacLayoutChoice?
-
-    /// Equal when the same commands are offered and the List/Grid checkmark matches:
-    /// the closures only flip the page's own presentation state.
-    static func == (lhs: Self, rhs: Self) -> Bool {
-        (lhs.sort == nil) == (rhs.sort == nil) && (lhs.filter == nil) == (rhs.filter == nil)
-            && (lhs.findRival == nil) == (rhs.findRival == nil) && lhs.layout == rhs.layout
-    }
-}
-
-/// A page's List/Grid choice for View › as List / as Grid (Finder's View-menu
-/// convention; HIG Menus: "Consider a checkmark to show an attribute is in effect").
-struct MacLayoutChoice: Equatable {
-    /// Whether the grid is in effect (else the list).
-    var isGrid: Bool
-    /// Shows the grid (true) or the list (false).
-    var select: @MainActor (Bool) -> Void
-
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.isGrid == rhs.isGrid }
-}
-
 private struct MacPageCommandsKey: FocusedValueKey {
-    typealias Value = MacPageCommands
+    typealias Value = PageMenuCommands
 }
 
 extension FocusedValues {
     /// Sort/Filter actions of the page in the key window.
-    var macPageCommands: MacPageCommands? {
+    var macPageCommands: PageMenuCommands? {
         get { self[MacPageCommandsKey.self] }
         set { self[MacPageCommandsKey.self] = newValue }
     }
@@ -58,7 +24,7 @@ extension View {
     ///
     /// - Parameter commands: The page's actions.
     /// - Returns: The view.
-    func macPageCommands(_ commands: MacPageCommands) -> some View {
+    func macPageCommands(_ commands: PageMenuCommands) -> some View {
         #if os(macOS)
         focusedSceneValue(\.macPageCommands, commands)
         #else
@@ -69,30 +35,13 @@ extension View {
 
 // MARK: - Song commands
 
-/// Song Detail's toolbar tools for the menu bar (HIG Toolbars › macOS: "Every toolbar
-/// item must also be a menu-bar command"): Paths and the official Item Shop link.
-/// A separate key from ``MacPageCommands`` because the Songs list beside the song
-/// publishes Sort/Filter at the same time.
-struct MacSongCommands: Equatable {
-    /// The song shown (for menu titles and equality).
-    var songId: String
-    /// Opens the Paths sheet, or nil when the song has no path charts.
-    var paths: (@MainActor () -> Void)?
-    /// The official Item Shop page while the song is in the Shop.
-    var shopURL: URL?
-
-    static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.songId == rhs.songId && (lhs.paths == nil) == (rhs.paths == nil) && lhs.shopURL == rhs.shopURL
-    }
-}
-
 private struct MacSongCommandsKey: FocusedValueKey {
-    typealias Value = MacSongCommands
+    typealias Value = SongMenuCommands
 }
 
 extension FocusedValues {
     /// Song Detail's tools in the key window.
-    var macSongCommands: MacSongCommands? {
+    var macSongCommands: SongMenuCommands? {
         get { self[MacSongCommandsKey.self] }
         set { self[MacSongCommandsKey.self] = newValue }
     }
@@ -104,7 +53,7 @@ extension View {
     ///
     /// - Parameter commands: The song's tools.
     /// - Returns: The view.
-    func macSongCommands(_ commands: MacSongCommands) -> some View {
+    func macSongCommands(_ commands: SongMenuCommands) -> some View {
         #if os(macOS)
         focusedSceneValue(\.macSongCommands, commands)
         #else
@@ -115,43 +64,13 @@ extension View {
 
 // MARK: - Profile page commands
 
-/// A player or rival page's toolbar actions for the Profile menu (HIG Toolbars › macOS:
-/// "Every toolbar item must also be a menu-bar command"; issue #633): the player page's
-/// Select / Switch and Rivalry's and Rival Detail's View Profile. A separate key from
-/// ``MacPageCommands`` because the Rivals list beside a rival publishes Find Rival at
-/// the same time.
-struct MacProfilePageCommands: Equatable {
-    /// The player page's Select / Switch for the shown player, or nil when the page
-    /// offers none (never Deselect, which lives in the drawer and the Profile menu).
-    var identity: ProfileIdentityAction?
-    /// Performs ``identity``, or nil while the page's read has not proven it (the
-    /// toolbar button shows disabled then, and so does the menu item).
-    var performIdentity: (@MainActor () -> Void)?
-    /// Opens the shown rival's player page (Rivalry, Rival Detail), or nil elsewhere.
-    var viewRivalProfile: (@MainActor () -> Void)?
-
-    static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.identity == rhs.identity && (lhs.performIdentity == nil) == (rhs.performIdentity == nil)
-            && (lhs.viewRivalProfile == nil) == (rhs.viewRivalProfile == nil)
-    }
-
-    /// The Profile menu title for the player page's identity action. Not "Select
-    /// Profile…", which opens profile selection; this acts on the player shown.
-    ///
-    /// - Parameter identity: The published action, if any.
-    /// - Returns: "Switch to This Profile" for a switch, else "Select This Profile".
-    static func identityMenuTitle(for identity: ProfileIdentityAction?) -> String {
-        identity == .switchTo ? "Switch to This Profile" : "Select This Profile"
-    }
-}
-
 private struct MacProfilePageCommandsKey: FocusedValueKey {
-    typealias Value = MacProfilePageCommands
+    typealias Value = ProfilePageMenuCommands
 }
 
 extension FocusedValues {
     /// The player or rival page's Profile-menu actions in the key window.
-    var macProfilePageCommands: MacProfilePageCommands? {
+    var macProfilePageCommands: ProfilePageMenuCommands? {
         get { self[MacProfilePageCommandsKey.self] }
         set { self[MacProfilePageCommandsKey.self] = newValue }
     }
@@ -163,7 +82,7 @@ extension View {
     ///
     /// - Parameter commands: The page's actions.
     /// - Returns: The view.
-    func macProfilePageCommands(_ commands: MacProfilePageCommands) -> some View {
+    func macProfilePageCommands(_ commands: ProfilePageMenuCommands) -> some View {
         #if os(macOS)
         focusedSceneValue(\.macProfilePageCommands, commands)
         #else
@@ -313,8 +232,8 @@ public struct MacCommands: Commands {
         let controller = (pageQuickLinks ?? listQuickLinks)?.controller
         let sections = controller?.isAvailable == true ? controller?.sections ?? [] : []
         let ids = sections.map(\.id)
-        let next = MacQuickLinksCommand.neighbor(of: controller?.activeID, in: ids, offset: 1)
-        let previous = MacQuickLinksCommand.neighbor(of: controller?.activeID, in: ids, offset: -1)
+        let next = QuickLinksMenuCommand.neighbor(of: controller?.activeID, in: ids, offset: 1)
+        let previous = QuickLinksMenuCommand.neighbor(of: controller?.activeID, in: ids, offset: -1)
         Menu("Quick Links") {
             if sections.isEmpty {
                 Button("No Sections") {}.disabled(true)

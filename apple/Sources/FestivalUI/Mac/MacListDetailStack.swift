@@ -1,5 +1,6 @@
 #if os(macOS)
 import SwiftUI
+import FestivalAppSupport
 import FestivalCore
 import FestivalDesign
 
@@ -93,7 +94,7 @@ struct MacStack<Root: View>: View {
                 .environment(\.pageToolsRegistry, isCovered ? coveredTools : nil)
                 .modifier(MacGlobalToolbar(isEnabled: providesGlobalToolbar))
                 .navigationDestination(for: AppRoute.self) { route in
-                    AppRouteDestination(
+                    MacRouteDestination(
                         route: route, session: session, visibleInstruments: visibleInstruments,
                         path: $fullPath, isVisible: isVisible
                     )
@@ -331,7 +332,7 @@ struct MacListDetailStack<Root: View>: View {
     }
 
     private func destination(_ route: AppRoute) -> some View {
-        AppRouteDestination(
+        MacRouteDestination(
             route: route, session: session, visibleInstruments: visibleInstruments,
             path: $path, isVisible: isVisible
         )

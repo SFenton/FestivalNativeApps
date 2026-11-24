@@ -11,6 +11,13 @@
 | `.serviceStatusOverlay(issue, title:, retry:)` | Opaque cover over existing content while `issue != nil` |
 | `ServiceUnavailableView(title:message:retry:)` | Legacy plain-message form; renders through `ServiceStatusView(.other)`. Use only for non-service failures (local sort/filter) |
 
+UIKit's `UKServiceStatusInlineView` centers Retry on the message's first line at standard text sizes.
+The row contains the whole action, sized to its label or 44 pt, whichever is wider. At accessibility
+sizes the action moves below the countdown, and the leading symbol scales with the system body
+style without pushing the text outside the row. Keep the message, countdown, and action in
+spoken order. [HIG Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility)
+recommends a 44×44 pt target and scaling text and symbols.
+
 `ServiceIssue`, `ServiceRetryBackoff` and `ServiceFreezeReason` are pure Core types (`FestivalCore/ServiceIssue.swift`, unit-tested). `ServiceRetryScheduler` holds one process-wide backoff so it survives each failure recreating the view.
 
 ## Adopting on a screen

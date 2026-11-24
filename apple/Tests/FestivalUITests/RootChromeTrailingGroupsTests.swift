@@ -87,8 +87,9 @@ struct PushedPageAvatarPlacementTests {
         var scanned = 0
         for case let url as URL in files where url.pathExtension == "swift" {
             let relative = String(url.path.dropFirst(sources.path.count + 1))
-            // The Mac shell owns its own window toolbar (no pushed-page avatar).
-            guard !relative.hasPrefix("Mac/"), !allowed.contains(relative) else { continue }
+            // This rule concerns SwiftUI ToolbarItemPlacement, not UIKit's primary actions.
+            guard !relative.hasPrefix("Mac/"), !relative.hasPrefix("UIKit/"),
+                  !allowed.contains(relative) else { continue }
             scanned += 1
             let text = try String(contentsOf: url, encoding: .utf8)
             for (index, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {

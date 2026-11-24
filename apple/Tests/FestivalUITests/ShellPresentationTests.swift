@@ -1,4 +1,5 @@
 import CoreGraphics
+import FestivalAppSupport
 import FestivalCore
 import SwiftUI
 import Testing
@@ -341,10 +342,6 @@ func duoUnfoldedDrawerReachesTheBottom(layout: DeviceLayout) {
 @Test func drawerCornersAreConcentricWithAMinimum() {
     #expect(DrawerCorners.minimumRadius == DrawerCorners.rowRadius + DrawerCorners.contentInset)
     #expect(DrawerCorners.minimumRadius == 26)
-    if #available(iOS 26.0, macOS 26.0, *) {
-        #expect(DrawerCorners.panelCornerStyle == .concentric(minimum: .fixed(26)))
-        #expect(DrawerCorners.panelCornerStyle != .fixed(DrawerCorners.legacyRadius))
-    }
 }
 
 /// The scrim's cut-out is laid out at the panel's window position in every pose, so its

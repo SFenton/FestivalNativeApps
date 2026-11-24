@@ -49,6 +49,28 @@ final class NotificationsPinnedTitleJourneyTests: XCTestCase {
         try assertPinnedTitle(duoWindow: "folded")
     }
 
+    #if compiler(>=6.4.4) && targetEnvironment(simulator)
+    /// On the real Duo cover, the first heading and row start directly below the native
+    /// header at both text sizes, without an extra gap hidden by a visual title lift.
+    @MainActor
+    func testUnreadHeadingStartsAtCoverBody() throws {
+        guard #available(iOS 27.3, *) else { throw XCTSkip("Requires the Duo hinge runtime") }
+        guard let hinge = XCUIDevice.shared.hinge else { throw XCTSkip("Requires an iPhone Duo") }
+        try XCTSkipUnless(hinge.angle < 0.05, "Requires the folded cover display")
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        for (label, size) in [("default", nil), ("AX5", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue)] {
+            let app = try openSheet(size: size, duoWindow: nil)
+            defer { app.terminate() }
+            let frames = try rest(in: app, size: label)
+            let title = app.navigationBars["Notifications"]
+            XCTAssertTrue(title.exists)
+            XCTAssertEqual(frames.heading.minY, title.frame.maxY, accuracy: 1, "Cover pin line (\(label))")
+            XCTAssertEqual(frames.row.minY, frames.heading.maxY, accuracy: 1, "First row follows New (\(label))")
+        }
+    }
+    #endif
+
     // MARK: - Assertions
 
     /// Open the sheet at the default size and at AX5, then check names, roles, order,

@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import Testing
+import FestivalAppSupport
 @testable import FestivalUI
 
 // MARK: - Sidebar policy

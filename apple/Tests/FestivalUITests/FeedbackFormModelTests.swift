@@ -273,6 +273,28 @@ struct FeedbackFormModelTests {
         model.discardMedia()
     }
 
+    @Test("A continuous system pick returns its attachment ID and surfaces a refused provider")
+    func systemPhotoProvider() async throws {
+        let source = try sourceImage("library.png")
+        defer { try? FileManager.default.removeItem(at: source.deletingLastPathComponent()) }
+        let model = FeedbackFormModel(kind: .feature)
+        defer { model.discardMedia() }
+
+        let photo = try #require(NSItemProvider(contentsOf: source))
+        let id = await model.importPhoto(photo)
+        let attachment = try #require(model.attachments.first)
+        #expect(id == attachment.id)
+        #expect(attachment.fileURL != source)
+
+        let text = NSItemProvider(object: "Not a photo" as NSString)
+        #expect(await model.importPhoto(text) == nil)
+        #expect(model.attachments.count == 1)
+        #expect(model.attachmentMessage == FeedbackAttachmentRejection.unreadable.errorDescription)
+        #expect(model.importing == 0)
+        model.remove(id: attachment.id)
+        #expect(!FileManager.default.fileExists(atPath: attachment.fileURL.path))
+    }
+
     @Test("Photo Library opens beside the form only on regular-width iPad and Duo windows")
     func libraryPlacement() {
         #expect(FeedbackPhotoLibraryPlacement.resolve(isMac: false, windowWidthClass: .regular) == .beside)

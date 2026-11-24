@@ -18,8 +18,8 @@ import XCTest
 ///   least 44 × 44 pt, both are hittable, and the field stays above the keyboard;
 /// - text scaling: at AX5 the field grows taller than at the standard size, its text
 ///   stays whole and Clear Search keeps its target;
-/// - a `performAccessibilityAudit` (hit region, element description, Dynamic Type,
-///   clipped text) scoped to the field and Clear Search reports nothing.
+/// - the scoped audit checks hit regions, names, Dynamic Type and clipping;
+///   the query must also be recognized in rendered pixels at each size.
 ///
 /// The hosted `SongsBottomFilterFieldAccessibilityTests` cover the book pose's right page,
 /// AXPress on Clear and the order of field and Clear; `BottomSearchFieldSurfaceRenderTests`
@@ -56,8 +56,10 @@ final class SongsBottomFilterFieldJourneyTests: XCTestCase {
         continueAfterFailure = false
         let standard = try checkField(typeSize: Self.standard, name: "standard")
         let largest = try checkField(typeSize: Self.ax5, name: "ax5")
-        XCTAssertGreaterThan(largest.height, standard.height + 4,
-                             "the AX5 field \(largest) did not grow past the standard field \(standard)")
+        XCTAssertGreaterThan(largest.frame.height, standard.frame.height + 4,
+                             "the AX5 field \(largest.frame) did not grow past the standard field \(standard.frame)")
+        XCTAssertGreaterThanOrEqual(largest.glyphHeight, standard.glyphHeight * RecognizedText.minimumGrowth,
+                                    "The rendered query must scale at AX5")
     }
 
     // MARK: - Checks
@@ -67,9 +69,9 @@ final class SongsBottomFilterFieldJourneyTests: XCTestCase {
     /// - Parameters:
     ///   - typeSize: A `UIContentSizeCategory` raw value.
     ///   - name: Attachment suffix.
-    /// - Returns: The empty field's frame.
+    /// - Returns: The empty field's frame and the rendered query's glyph height.
     @MainActor
-    private func checkField(typeSize: String, name: String) throws -> CGRect {
+    private func checkField(typeSize: String, name: String) throws -> (frame: CGRect, glyphHeight: CGFloat) {
         let app = try launchSongs(typeSize: typeSize)
         defer { app.terminate() }
         let window = app.windows.firstMatch.frame
@@ -93,12 +95,17 @@ final class SongsBottomFilterFieldJourneyTests: XCTestCase {
         XCTAssertLessThanOrEqual(frame.maxY, window.maxY + 0.5, "the field \(frame) leaves \(window)")
         XCTAssertGreaterThanOrEqual(frame.minX, window.minX - 0.5, "the field \(frame) leaves \(window)")
         XCTAssertLessThanOrEqual(frame.maxX, window.maxX + 0.5, "the field \(frame) leaves \(window)")
+        let cover = window.size == CGSize(width: 466, height: 678)
+        if cover, app.buttons["Settings"].firstMatch.frame.midX > window.midX {
+            XCTAssertEqual(frame.minX, window.minX + 16, accuracy: 1,
+                           "The empty field's target starts at the capsule margin, not after its magnifier")
+        }
         if let bar = entries.firstIndex(where: { $0.elementType == .navigationBar }) {
             XCTAssertLessThan(bar, index, "the field reads before the navigation bar\n\(dump)")
         }
         let rowsAbove = entries.indices.filter { row in
             entries[row].elementType == .button && entries[row].identifier.hasPrefix("fst.songs.row.")
-                && entries[row].frame.maxY <= frame.minY
+                && entries[row].frame.minY < frame.minY && entries[row].frame.maxY > window.minY
         }
         XCTAssertFalse(rowsAbove.isEmpty, "no song row drawn above the field\n\(dump)")
         XCTAssertTrue(rowsAbove.allSatisfy { $0 < index }, "the field reads before a row above it\n\(dump)")
@@ -134,6 +141,10 @@ final class SongsBottomFilterFieldJourneyTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(clearNode.frame.height, 44, "Clear Search \(clearNode.frame)")
         let typedField = try XCTUnwrap(typed.firstIndex { $0.identifier == Self.fieldID })
         XCTAssertGreaterThan(clearIndex, typedField, "Clear Search reads before the field\n\(typedDump)")
+        #if FST_UIKIT_PORT
+        XCTAssertLessThanOrEqual(typed[typedField].frame.intersection(clearNode.frame).width, 0.5,
+                                 "The editable region must not cover the separate Clear Search button")
+        #endif
         // VoiceOver skips unnamed containers; nothing it reads may come between. Images are
         // left out: the iOS snapshot also lists views marked `accessibilityHidden(true)`,
         // such as the decorative magnifier at AX5 (testing/apple/accessibility.md), and the
@@ -148,6 +159,9 @@ final class SongsBottomFilterFieldJourneyTests: XCTestCase {
         XCTAssertEqual(typed[typedField].value as? String, Self.query, "the field's value")
         XCTAssertTrue(clear.isHittable, "Clear Search is not hittable")
 
+        let reading = RecognizedText.recognize(fieldElement, label: Self.query, frame: fieldElement.frame)
+        XCTAssertTrue(RecognizedText.showsWhole(Self.query, in: reading.text),
+                      "The field paints '\(reading.text ?? "")', not '\(Self.query)'")
         try audit(app, name: name)
 
         clear.tap()
@@ -156,7 +170,7 @@ final class SongsBottomFilterFieldJourneyTests: XCTestCase {
                        "Clear Search stayed after clearing")
         let value = (fieldElement.value as? String) ?? ""
         XCTAssertTrue(value.isEmpty || value == "Filter Songs", "the field kept '\(value)'")
-        return frame
+        return (frame, try XCTUnwrap(reading.lineHeight))
     }
 
     /// The scoped audit: only the field and Clear Search (other regions have their own
@@ -168,7 +182,13 @@ final class SongsBottomFilterFieldJourneyTests: XCTestCase {
         try SongsUITestSupport.performAuditRetryingTimeout(app, types, name: name, reset: { issues = [] }) { issue in
             guard let element = issue.element,
                   [Self.fieldID, Self.clearID].contains(element.identifier) else { return true }
-            issues.append("\(element.identifier): \(issue.compactDescription)")
+            if issue.auditType == .textClipped, element.identifier == Self.fieldID,
+               issue.detailedDescription.contains("may be clipped at larger Dynamic Type sizes") {
+                // This predictive result does not inspect the query at AX5; the pixel check does.
+                XCTContext.runActivity(named: issue.detailedDescription) { _ in }
+                return true
+            }
+            issues.append("\(element.identifier): \(issue.compactDescription)\n\(issue.detailedDescription)")
             return true
         }
         XCTAssertTrue(issues.isEmpty, "audit \(name):\n\(issues.joined(separator: "\n"))")
@@ -187,7 +207,10 @@ final class SongsBottomFilterFieldJourneyTests: XCTestCase {
             "FST_API_BASE_URL": SongsUITestSupport.fixtureURL,
             "FST_UI_TEST_CLEAR_PROFILE": "1",
         ])
-        app.launchArguments += ["-UIPreferredContentSizeCategoryName", typeSize]
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", typeSize,
+            "-fst.songs.sortMode", "title", "-fst.songs.sortAscending", "YES",
+        ]
         app.launch()
         guard isVerticalBar(app) else {
             app.terminate()

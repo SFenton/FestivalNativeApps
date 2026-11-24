@@ -23,7 +23,7 @@ import XCTest
 /// unidentified element inside the menu.
 ///
 /// Forms, each at the default size and AX5: the iPhone tool sheet, the folded
-/// iPhone Duo's menu (simulated on the iPhone, `FST_DEBUG_DUO_WINDOW`) and the iPad
+/// iPhone Duo's menu (real outer display or `FST_DEBUG_DUO_WINDOW`) and the iPad
 /// navigation-bar menu. Hosted macOS twins: `QuickLinksInstrumentIconAccessibilityTests`.
 ///
 /// Runs against the CI fixture (`tools/mock_service.py --large-catalogue`, port 8765;
@@ -78,14 +78,14 @@ final class QuickLinksIconAccessibilityJourneyTests: XCTestCase {
     /// Folded iPhone Duo (outer display) menu at the default text size.
     @MainActor
     func testDuoMenuInstrumentIconMatchesSymbolRow() throws {
-        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "The Duo window is simulated on an iPhone")
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "This journey uses the folded Duo menu")
         try assertInstrumentRow(category: nil, duoWindow: "folded", menu: true, name: "quick-links-icon-duo")
     }
 
     /// Folded iPhone Duo menu at the largest accessibility size.
     @MainActor
     func testDuoMenuInstrumentIconMatchesSymbolRowAtAX5() throws {
-        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "The Duo window is simulated on an iPhone")
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "This journey uses the folded Duo menu")
         try assertInstrumentRow(category: Self.largest, duoWindow: "folded", menu: true, name: "quick-links-icon-duo-ax5")
     }
 
@@ -197,6 +197,18 @@ final class QuickLinksIconAccessibilityJourneyTests: XCTestCase {
             return true
         }
         XCTAssertEqual(issues, [], "Quick Links chooser audit issues")
+
+        if duoWindow == "folded" {
+            let global = FestivalApp.quickLinkRow("global", label: "Global Statistics", in: app)
+            XCTAssertTrue(global.isSelected, "The menu names the current section as selected")
+            symbol.tap()
+            XCTAssertTrue(symbol.waitForNonExistence(timeout: FestivalApp.budget(10)), "Choosing Rank History closes the menu")
+            XCTAssertTrue(open.isHittable)
+            open.tap()
+            let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: symbol)
+            XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: FestivalApp.budget(10)), .completed,
+                           "The nested section remains selected when the menu reopens")
+        }
     }
 
     // MARK: - Helpers
@@ -233,13 +245,15 @@ final class QuickLinksIconAccessibilityJourneyTests: XCTestCase {
     /// - Throws: A skip when the fixture profile never loads.
     @MainActor
     private func launchProfile(category: String?, duoWindow: String?) throws -> XCUIApplication {
+        let device = ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] ?? UIDevice.current.name
+        let realDuo = device.contains("Duo")
         var environment = [
             "FST_API_BASE_URL": SongsUITestSupport.fixtureURL,
             "FST_UI_TEST_CLEAR_PROFILE": "1",
             "FST_DEBUG_TAB": "settings",
             "FST_DEBUG_ROUTE": "player:fixture-player-1",
         ]
-        if let duoWindow {
+        if let duoWindow, !realDuo {
             environment["FST_DEBUG_DUO_WINDOW_REMOTE"] = "1"
             environment["FST_DEBUG_DUO_WINDOW"] = duoWindow
         }
@@ -250,7 +264,10 @@ final class QuickLinksIconAccessibilityJourneyTests: XCTestCase {
         guard history.waitForExistence(timeout: FestivalApp.budget(30)) else {
             throw XCTSkip("The fixture profile never loaded; run tools/mock_service.py on \(SongsUITestSupport.fixtureURL).")
         }
-        if let duoWindow {
+        if duoWindow == "folded", realDuo {
+            let window = app.windows.firstMatch.frame
+            try XCTSkipUnless(window.size == CGSize(width: 466, height: 678), "Requires the folded Duo outer display")
+        } else if let duoWindow {
             let readout = app.staticTexts["fst.shell.debug.duo-window"]
             let reached = XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "label BEGINSWITH %@", "\(duoWindow) "), object: readout

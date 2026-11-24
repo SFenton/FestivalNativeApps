@@ -77,6 +77,8 @@ Chose **B**: R9's behavior is kept; only the scale follows R3 inside a picker th
 | Debt | Breaks | Plan |
 |---|---|---|
 
+UIKit: `UKSectionHeaderView` (headline, heading trait) and `UKViewAllButton` (44 pt, "View All <list>") in `UIKit/Design/UKSections.swift`; the card section is `UKGroupSectionView`; the pinned Songs bar is `UKSongsSectionBar` (`UIKit/Features/Songs/UKSongsSupportViews.swift`), owned by `UKSongsViewController`. For R10, a full-span header in a fold-aware host uses `UKSectionHeaderView`'s `hingeProvider` and `HingeColumns.titleWidth`. Prepare it when the fold changes, even without a resize. Leave the header's outer frame full width and only constrain its text; pane-local and modal headers do not supply a fold.
+
 ## Guards (`tools/pattern_guard.py`)
 
 - `section-headers/apple-songs-bar`

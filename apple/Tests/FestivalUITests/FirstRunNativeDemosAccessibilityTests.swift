@@ -52,6 +52,8 @@ struct FirstRunNativeDemosAccessibilityTests {
         (.songInfo, "songinfo-view-all"), (.songInfo, "songinfo-paths"), (.songInfo, "songinfo-shop-button"),
         (.playerHistory, "playerhistory-sort"), (.statistics, "statistics-select-profile"),
         (.suggestions, "suggestions-global-filter"), (.suggestions, "suggestions-instrument-filter"),
+        (.leaderboards, "leaderboards-overview"), (.leaderboards, "leaderboards-your-rank"),
+        (.compete, "compete-leaderboards"),
     ].map { CatalogueSlide(page: $0.0, id: $0.1) }
 
     /// The slide with `id` on `page`.

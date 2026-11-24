@@ -11,6 +11,7 @@ import math
 import re
 import socketserver
 import struct
+import sys
 import threading
 import time
 import zlib
@@ -25,6 +26,10 @@ ROOT = Path(__file__).resolve().parents[1]
 # global-search spinner, even on a slow CI simulator (issue #624). Below the app's
 # 30 s request timeout.
 SLOW_ACCOUNT_SEARCH_SECONDS = 8
+ACCOUNT_SEARCH_HOLD_SECONDS = 75
+ACCOUNT_SEARCH_KEEPALIVE_SECONDS = 5
+# An abandoned notification journey must not hold service threads indefinitely.
+NOTIFICATION_HOLD_LIMIT_SECONDS = 28
 # `--song-leaderboard-paging` (issue #316): `fixture-pulse` Lead grows to four full
 # 25-row pages; a page after the first waits this long, long enough for a UI test to
 # see the reload spinner under a kept song header, and the last page fails with 500.
@@ -711,6 +716,8 @@ FEEDBACK_FAILED_JOB = "f" * 32
 #: runner's checks of the sending stage (#662: two closed the sheet under them).
 FEEDBACK_SLOW_JOB = "0" * 31 + "2"
 FEEDBACK_SLOW_UPLOAD_S = 2.0
+# The with-media journey reads the live progress bar and Stop before filing.
+FEEDBACK_SLOW_MEDIA_UPLOAD_S = 5.0
 FEEDBACK_SLOW_READS = 4
 _feedback_slow_reads = 0
 _feedback_slow_lock = threading.Lock()
@@ -860,6 +867,7 @@ class FixtureServer(ThreadingHTTPServer):
         self._publication_id = 7
         self._last_score_query: dict | None = None
         self._last_full_score_query: dict | None = None
+        self._syncing_profile_reads = 0
         self._fail_first_white_catalogue = fail_first_white_catalogue
         self._stop_after_first_songs = stop_after_first_songs
         self._stop_after_first_score = stop_after_first_score
@@ -870,10 +878,95 @@ class FixtureServer(ThreadingHTTPServer):
         }
         self._lock = threading.Lock()
         self._path_hold = threading.Condition(self._lock)
+        self._notification_hold = threading.Condition(self._lock)
+        self._notification_phase = "fail"
+        self._account_search_hold = threading.Condition(self._lock)
+        self._account_search_held = False
+        self._account_search_waiting = 0
+        self._shop_ready = threading.Event()
+        self._shop_ready.set()
+        self._empty_band_ready = threading.Event()
+        self._empty_band_ready.set()
+        self._band_search_frozen = False
         self._path_hold_until = 0.0
         self._path_hold_form: str | None = None
         self._path_hold_waiting = 0
         super().__init__(address, handler)
+
+    def set_notification_phase(self, phase: str) -> None:
+        """Release or hold only the synthetic notification retry account."""
+        with self._notification_hold:
+            self._notification_phase = phase
+            self._notification_hold.notify_all()
+
+    def notification_recovers(self) -> bool:
+        """Wait for the journey to choose failure or recovery, failing on timeout."""
+        with self._notification_hold:
+            self._notification_hold.wait_for(
+                lambda: self._notification_phase != "hold", timeout=NOTIFICATION_HOLD_LIMIT_SECONDS,
+            )
+            return self._notification_phase == "recover"
+
+    def account_search_hold(self, held: bool | None = None) -> dict:
+        """Set or read the gate for the fixture's single held search term."""
+        with self._account_search_hold:
+            if held is not None:
+                self._account_search_held = held
+                self._account_search_hold.notify_all()
+            return {"held": self._account_search_held, "waiting": self._account_search_waiting}
+
+    def wait_for_account_search(self, keepalive: Callable[[], None]) -> bool:
+        """Report release or expiry, ticking the pending response outside the lock."""
+        deadline = time.monotonic() + ACCOUNT_SEARCH_HOLD_SECONDS
+        with self._account_search_hold:
+            self._account_search_waiting += 1
+        try:
+            while True:
+                with self._account_search_hold:
+                    remaining = deadline - time.monotonic()
+                    if self._account_search_hold.wait_for(
+                        lambda: not self._account_search_held,
+                        timeout=max(0, min(remaining, ACCOUNT_SEARCH_KEEPALIVE_SECONDS)),
+                    ):
+                        return True
+                    if time.monotonic() >= deadline:
+                        return False
+                keepalive()
+        finally:
+            with self._account_search_hold:
+                self._account_search_waiting -= 1
+
+    def set_shop_held(self, held: bool) -> None:
+        """Hold only fixture Shop reads until the test has observed the spinner."""
+        if held:
+            self._shop_ready.clear()
+        else:
+            self._shop_ready.set()
+
+    def wait_for_shop(self) -> bool:
+        """Return false on an unreleased hold instead of leaving a request hanging."""
+        return self._shop_ready.wait(timeout=25)
+
+    def set_empty_band_held(self, held: bool) -> None:
+        """Hold only the synthetic empty band's index until the journey releases it."""
+        if held:
+            self._empty_band_ready.clear()
+        else:
+            self._empty_band_ready.set()
+
+    def wait_for_empty_band(self) -> bool:
+        """Bound an abandoned empty-band hold below the client's idle timeout."""
+        return self._empty_band_ready.wait(timeout=25)
+
+    def set_band_search_frozen(self, frozen: bool) -> None:
+        """Freeze only the synthetic recovery query, without affecting other reads."""
+        with self._lock:
+            self._band_search_frozen = frozen
+
+    def band_search_frozen(self) -> bool:
+        """Return whether the synthetic recovery query should still fail."""
+        with self._lock:
+            return self._band_search_frozen
 
     @property
     def publication_id(self) -> int:
@@ -1000,6 +1093,16 @@ class FixtureServer(ThreadingHTTPServer):
         """Return only the most recent full chart query, ignoring ten-row previews."""
         with self._lock:
             return self._last_full_score_query
+
+    def record_syncing_profile_read(self) -> None:
+        """Count a validated GET for the synthetic syncing profile."""
+        with self._lock:
+            self._syncing_profile_reads += 1
+
+    def syncing_profile_reads(self) -> int:
+        """Return the number of synthetic syncing-profile reads."""
+        with self._lock:
+            return self._syncing_profile_reads
 
     def should_fail_white_catalogue(self) -> bool:
         """Consume one configured white-art 503 without advancing publication.
@@ -1271,6 +1374,16 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self.fixture.wait_for_path_release(form)
             respond()
             return
+        self._respond_during_hold(respond, lambda keepalive: self.fixture.wait_for_path_release(form, keepalive))
+
+    def _respond_during_hold(
+        self, respond: Callable[[], None], wait: Callable[[Callable[[], None]], bool | None],
+    ) -> None:
+        """Send headers and a byte per tick, keeping the last byte for release.
+
+        A waiter that returns false expired, so the client gets an incomplete
+        transfer rather than an empty success.
+        """
         stream, buffer = self.wfile, io.BytesIO()
         self.wfile = buffer
         try:
@@ -1290,7 +1403,10 @@ class FixtureHandler(BaseHTTPRequestHandler):
         try:
             stream.write(data[:sent])
             stream.flush()
-            self.fixture.wait_for_path_release(form, keepalive)
+            if wait(keepalive) is False:
+                print("Held fixture response expired before release", file=sys.stderr, flush=True)
+                self.close_connection = True
+                return
             stream.write(data[sent:])
             stream.flush()
         except (BrokenPipeError, ConnectionResetError):
@@ -1347,10 +1463,47 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 self._json(400, {"status": "invalid_fixture_query"})
             else:
                 self._json(200, self.fixture.hold_paths(int(seconds[0]), forms[0] if forms else None))
+        elif path == "/__fixture__/notification-retry":
+            phases = query.get("phase", [])
+            if set(query) != {"phase"} or len(phases) != 1 or phases[0] not in {"hold", "fail", "recover"}:
+                self._json(400, {"status": "invalid_fixture_query"})
+            else:
+                self.fixture.set_notification_phase(phases[0])
+                self._json(200, {"phase": phases[0]})
+        elif path == "/__fixture__/hold-account-search":
+            phases = query.get("phase", [])
+            if query and (set(query) != {"phase"} or phases not in (["hold"], ["release"])):
+                self._json(400, {"status": "invalid_fixture_query"})
+            else:
+                held = phases == ["hold"] if phases else None
+                self._json(200, self.fixture.account_search_hold(held))
+        elif path == "/__fixture__/hold-shop":
+            phases = query.get("phase", [])
+            if set(query) != {"phase"} or phases not in (["hold"], ["release"]):
+                self._json(400, {"status": "invalid_fixture_query"})
+            else:
+                self.fixture.set_shop_held(phases == ["hold"])
+                self._json(200, {"phase": phases[0]})
+        elif path == "/__fixture__/hold-band-index":
+            phases = query.get("phase", [])
+            if set(query) != {"phase"} or phases not in (["hold"], ["release"]):
+                self._json(400, {"status": "invalid_fixture_query"})
+            else:
+                self.fixture.set_empty_band_held(phases == ["hold"])
+                self._json(200, {"phase": phases[0]})
+        elif path == "/__fixture__/band-search-freeze":
+            phases = query.get("phase", [])
+            if set(query) != {"phase"} or phases not in (["freeze"], ["recover"]):
+                self._json(400, {"status": "invalid_fixture_query"})
+            else:
+                self.fixture.set_band_search_frozen(phases == ["freeze"])
+                self._json(200, {"phase": phases[0]})
         elif path == "/__fixture__/last-score-query":
             self._json(200, {"last": self.fixture.last_score_query()})
         elif path == "/__fixture__/last-full-score-query":
             self._json(200, {"last": self.fixture.last_full_score_query()})
+        elif path == "/__fixture__/syncing-profile-reads":
+            self._json(200, {"reads": self.fixture.syncing_profile_reads()})
         elif path == "/__fixture__/shop-visible":
             if self.fixture.acknowledge_visible_shop():
                 self._json(200, {"stopping": True})
@@ -1384,21 +1537,29 @@ class FixtureHandler(BaseHTTPRequestHandler):
             if not 1 <= limit <= 10:
                 self._json(400, {"status": "invalid_account_search"})
                 return
-            if terms[0].strip().casefold() == "blocked":
+            term = terms[0].strip().casefold()
+            if term == "blocked":
                 self._json(403, {"status": "account_search_denied"})
                 return
-            if terms[0].strip().casefold() == "busy":
+            if term == "busy":
                 self._json(503, {"status": "account_search_unavailable"})
                 return
-            if terms[0].strip().casefold() == "rate":
+            if term == "rate":
                 self._json(429, {"status": "account_search_rate_limited"})
                 return
-            if terms[0].strip().casefold() == "slowpoke":
+            if term == "slowpoke":
                 # Holds the global-search spinner on screen for UI tests (issue #299).
                 time.sleep(SLOW_ACCOUNT_SEARCH_SECONDS)
                 self._json(200, {"results": []})
                 return
-            term = terms[0].strip().casefold()
+            if term == "held player search":
+                if self.fixture.account_search_hold()["held"]:
+                    self._respond_during_hold(
+                        lambda: self._json(200, {"results": []}), self.fixture.wait_for_account_search,
+                    )
+                else:
+                    self._json(200, {"results": []})
+                return
             candidates = (
                 {"accountId": _edge_profile["accountId"],
                  "displayName": _edge_profile["displayName"]},
@@ -1483,7 +1644,21 @@ class FixtureHandler(BaseHTTPRequestHandler):
             if pin is not None and pin != str(self.fixture.publication_id):
                 self._json(409, {"status": "publication_changed"})
                 return
-            if account_id == "fixture-player-1":
+            if account_id == "fixture-notify-retry" and not self.fixture.notification_recovers():
+                self._json(500, {"status": "internal_error"})
+            elif account_id in {"fixture-notify-rankings", "fixture-notify-retry"}:
+                self._json(200, {
+                    "generatedAt": "2024-01-05T00:00:00Z", "expiresAfterHours": 72,
+                    "notificationsGenerated": True, "items": [{
+                        "eventId": 1, "notificationGuid": f"{account_id}-1",
+                        "accountId": account_id, "instrument": "Solo_Guitar",
+                        "eventKind": "player_total_score_rank_improved",
+                        "oldRank": 15, "newRank": 3,
+                        "detectedAt": "2024-01-05T00:00:00Z",
+                        "expiresAt": "2024-02-05T00:00:00Z",
+                    }],
+                })
+            elif account_id in {"fixture-player-1", "fixture-notify-aggregate"}:
                 self._json(200, {
                     "generatedAt": "2024-01-05T00:00:00Z", "expiresAfterHours": 72,
                     "sourceRunId": 1, "sourceCompletedAt": "2024-01-05T00:00:00Z",
@@ -1499,12 +1674,44 @@ class FixtureHandler(BaseHTTPRequestHandler):
                         },
                         {
                             "eventId": 2, "notificationGuid": "fixture-notif-2",
-                            "accountId": account_id, "eventKind": "player_fc_achieved",
-                            "songId": "fixture-pulse", "instrument": "Solo_Guitar",
+                            "accountId": account_id, "instrument": "Solo_Guitar",
                             "detectedAt": "2024-01-04T00:00:00Z",
                             "expiresAt": "2024-02-04T00:00:00Z",
+                            **({
+                                "eventKind": "player_total_score_improved", "oldNumeric": 1200, "newNumeric": 1500,
+                            } if account_id == "fixture-notify-aggregate" else {
+                                "eventKind": "player_fc_achieved", "songId": "fixture-pulse",
+                            }),
                         },
                     ][:limit],
+                })
+            elif account_id in {"fixture-notify-multi", "fixture-notify-multi-followed"}:
+                tail = [{
+                    "eventId": 2, "notificationGuid": "fixture-notify-multi-tail",
+                    "accountId": account_id, "songId": "fixture-pulse",
+                    "eventKind": "player_fc_achieved", "instrument": "Solo_Guitar",
+                    "detectedAt": "2024-01-04T00:00:00Z",
+                    "expiresAt": "2024-02-04T00:00:00Z",
+                }] if account_id == "fixture-notify-multi-followed" else []
+                self._json(200, {
+                    "generatedAt": "2024-01-05T00:00:00Z", "expiresAfterHours": 72,
+                    "notificationsGenerated": True, "items": [{
+                        "eventId": 1, "notificationGuid": "fixture-notify-multi-1",
+                        "accountId": account_id, "songId": "fixture-pulse",
+                        "eventKind": "player_first_score", "instrument": "Solo_Guitar",
+                        "detectedAt": "2024-01-05T00:00:00Z",
+                        "expiresAt": "2024-02-05T00:00:00Z",
+                        "payload": {"coalescedEvents": [
+                            {
+                                "eventKind": "player_first_score", "instrument": instrument,
+                                "newNumeric": score, "newRank": rank, "newFullCombo": True, "newStars": 6,
+                            }
+                            for instrument, score, rank in [
+                                ("Solo_Guitar", 123450, 15), ("Solo_Bass", 104230, 21),
+                                ("Solo_Drums", 141550, 12), ("Solo_Vocals", 76840, 8),
+                            ]
+                        ]},
+                    }, *tail][:limit],
                 })
             elif account_id == NOTIFY_MANY_ACCOUNT:
                 # A feed long enough to scroll under the sheet's pinned "New" title
@@ -1528,12 +1735,13 @@ class FixtureHandler(BaseHTTPRequestHandler):
                     ][:limit],
                 })
             else:
-                # An unregistered/unknown account gets an empty *generated* envelope,
-                # never a 404 (`FestivalAPI+Notifications.swift`'s doc comment).
+                # Both empty variants are envelopes, never a 404.
+                generated = account_id == "fixture-notify-empty-generated"
                 self._json(200, {
                     "generatedAt": "2024-01-05T00:00:00Z", "expiresAfterHours": 72,
-                    "sourceRunId": None, "sourceCompletedAt": None,
-                    "notificationsGenerated": False, "items": [],
+                    "sourceRunId": 1 if generated else None,
+                    "sourceCompletedAt": "2024-01-05T00:00:00Z" if generated else None,
+                    "notificationsGenerated": generated, "items": [],
                 })
         elif match := BAND_RANKINGS.fullmatch(path):
             band_type = match.group(1)
@@ -1643,14 +1851,17 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 "history": history, "historyStatus": None, "historyMessage": None,
             })
         elif match := BAND_SONG_ROWS.fullmatch(path):
-            # Songs' band score index (#340): `fixture-team-1` scored Pulse only;
-            # `fixture-team-unavailable` is the unpublished-projection 503.
+            # Songs' band score index (#340): real selections use colon-separated member IDs.
             band_type, team_key = match.group(1), match.group(2)
             if band_type not in BAND_TYPES:
                 self._json(404, {"status": "unknown_band_type"})
                 return
-            if team_key == "fixture-team-unavailable":
+            if team_key in ("fixture-team-unavailable", "fixture-player-1:fixture-band-unavailable"):
                 self._json(503, {"title": "Published band song data unavailable"})
+                return
+            if (band_type == "Band_Duets" and team_key == "fixture-player-1:fixture-band-empty"
+                    and not self.fixture.wait_for_empty_band()):
+                self._json(503, {"status": "fixture_band_index_not_released"})
                 return
             combo = query.get("combo", [None])[0]
             entries = [{
@@ -1658,7 +1869,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 "totalEntries": 10, "percentile": 0.1, "score": 1_234_567,
                 "accuracy": 970_000, "isFullCombo": True, "stars": 6,
                 "season": 10, "endTime": "2026-09-27T00:00:00Z",
-            }] if team_key == "fixture-team-1" else []
+            }] if team_key in ("fixture-team-1", "fixture-player-1:fixture-player-2") else []
             self._json(200, {
                 "bandType": band_type, "teamKey": team_key, "comboId": combo,
                 "count": len(entries), "entries": entries,
@@ -1899,10 +2110,36 @@ class FixtureHandler(BaseHTTPRequestHandler):
             elif account_id == "fixture-denied":
                 self._json(403, {"status": "player_profile_denied"})
             elif account_id == "fixture-syncing":
+                self.fixture.record_syncing_profile_read()
                 self._json(202, {
                     "accountId": account_id, "displayName": "Syncing Player",
                     "status": "syncing", "notYetPublished": True,
                     "totalScores": 0, "scores": [],
+                })
+            elif account_id in ("fixture-song-filters", "fixture-song-top-one"):
+                top_one = account_id == "fixture-song-top-one"
+                self._json(200, {
+                    "accountId": account_id,
+                    "displayName": "Fixture Song Top One" if top_one else "Fixture Song Filters",
+                    "totalScores": 3, "scores": [
+                        {"si": "fixture-pulse", "ins": "01", "sc": 99_900, "acc": 1000,
+                         "fc": True, "st": 6, "sn": 9, "pct": 0.008 if top_one else 0.04,
+                         "rk": 1, "te": 125 if top_one else 25},
+                        {"si": "fixture-orbit", "ins": "01", "sc": 80_000, "acc": 900,
+                         "fc": False, "sn": 8, "pct": 0.5, "rk": 13, "te": 26},
+                        {"si": "fixture-orbit", "ins": "10", "sc": 90_000, "acc": 950,
+                         "fc": False, "st": 5, "sn": 8, "pct": 0.2, "rk": 2, "te": 10},
+                    ],
+                })
+            elif account_id == "fixture-leeway":
+                self._json(200, {
+                    "accountId": account_id, "displayName": "Fixture Leeway",
+                    "totalScores": 1, "scores": [{
+                        "si": "fixture-pulse", "ins": "01", "sc": 104_000,
+                        "acc": 990, "fc": False, "st": 5, "rk": 1, "te": 26, "ml": 4,
+                        "vs": [{"sc": 94_000, "acc": 970, "fc": True, "ml": -6,
+                                "rt": [{"l": -6, "r": 7}]}],
+                    }],
                 })
             elif account_id == "fixture-rank-unranked":
                 # A registered player with one Lead score but outside the
@@ -1932,6 +2169,16 @@ class FixtureHandler(BaseHTTPRequestHandler):
                     "accountId": account_id,
                     "displayName": "Empty Player" if account_id == "fixture-empty" else "C++",
                     "totalScores": 0, "scores": [],
+                })
+            elif account_id == "fixture-stat-width":
+                self._json(200, {
+                    "accountId": account_id, "displayName": "Fixture Stat Width",
+                    "totalScores": 2592,
+                    "scores": [
+                        {"si": f"fixture-stat-{i}", "ins": "01", "sc": 90_000, "acc": 950,
+                         "fc": i < 2468, "st": 5}
+                        for i in range(2592)
+                    ],
                 })
             elif account_id in PLAYER_DEMO["profiles"]:
                 profile = PLAYER_DEMO["profiles"][account_id]
@@ -1965,6 +2212,9 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 return
             if self.fixture.mismatched_shop_rollover and scenarios[0] != "demo":
                 self._json(400, {"status": "unsupported_publication_join_scenario"})
+                return
+            if not self.fixture.wait_for_shop():
+                self._json(504, {"status": "fixture_shop_hold_expired"})
                 return
             if scenarios[0] in ("error", "shop-error"):
                 self._json(503, {"status": "fixture_shop_unavailable"})
@@ -2435,7 +2685,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
             global _feedback_slow_reads
             with _feedback_slow_lock:
                 _feedback_slow_reads = 0
-            time.sleep(FEEDBACK_SLOW_UPLOAD_S)
+            delay = FEEDBACK_SLOW_MEDIA_UPLOAD_S if b"fixture-slow-media" in body else FEEDBACK_SLOW_UPLOAD_S
+            time.sleep(delay)
             self._json(202, {"id": FEEDBACK_SLOW_JOB, "status": "queued"})
             return
         job = FEEDBACK_FAILED_JOB if b"fixture-failed" in body else FEEDBACK_FILED_JOB
@@ -2445,8 +2696,9 @@ class FixtureHandler(BaseHTTPRequestHandler):
         """Serve `GET /api/bands/search?q=&page=1&pageSize=` (issue #320).
 
         Mirrors `BandSearchResponseDto`: members whose display name contains the query
-        match; "busy" answers 503 and anything else unmatched an empty envelope. Only
-        the first page with 1–100 rows is accepted, as natives request.
+        match; "busy" answers 503 and anything else unmatched an empty envelope.
+        "band recovery" targets the Syncing Player band behind a test-controlled freeze.
+        Only the first page with 1–100 rows is accepted, as natives request.
 
         Args:
             query: Parsed query string.
@@ -2462,10 +2714,19 @@ class FixtureHandler(BaseHTTPRequestHandler):
         if term == "busy":
             self._json(503, {"error": "band_search_unavailable"})
             return
+        if term == "band recovery" and self.fixture.band_search_frozen():
+            self.send_response(503)
+            self.send_header("Retry-After", "8")
+            self.send_header("X-Fst-Public-Read-Freeze-Reason", "scrape")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        member_term = "syncing" if term == "band recovery" else term
         results = [
             {**band, "ranking": None, "matchedInterpretationIds": [], "matchedAccountIds": []}
             for band in BAND_SEARCH_CANDIDATES
-            if any(term in member["displayName"].casefold() for member in band["members"])
+            if any(member_term in member["displayName"].casefold() for member in band["members"])
         ][:int(sizes[0])]
         self._json(200, {
             "query": terms[0], "normalizedQuery": term, "bandType": None, "comboId": None,

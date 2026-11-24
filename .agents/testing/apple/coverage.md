@@ -2,11 +2,11 @@
 
 > **What:** how Apple line coverage is measured and gated. **Read when:** adding unit tests or certifying coverage (not needed per slice; see [phases](../strategy.md)).
 
-## SwiftPM (Core, Design, UI host tests)
+## SwiftPM (Core, AppSupport, Design, UI host tests)
 
 - Iterate: `DEVELOPER_DIR=… swift test --package-path apple --filter <names>`.
 - Gate: `bash tools/apple_coverage.sh` — runs all three SwiftPM test bundles, merges real LLVM line coverage per binary, checks `apple/Sources` for missing/nested files, requires **95% logic / 90% UX**, and runs `python3 -m tools.contrast_gate`. Re-run after compiled-source edits; targeted tests cannot certify a new source state.
-- Exclusions (`contracts/coverage-rules.json`'s `swift.exclude`): generated `BrandTokens.swift`, plus `App/AppRoute.swift` and `Features/Settings/LicenseManifest.swift` — all three have **zero executable lines** (pure `enum`/`struct` declarations and array literals with no function bodies or control flow), so `llvm-cov export` omits them entirely rather than reporting 0 covered/0 executable; the gate's completeness check otherwise reports them as "missing coverage" once correctly classified. Never exclude a file that has real logic; the gate fails loudly (`executable source cannot be excluded`) if an excluded file ever gains one.
+- `FestivalAppSupport` counts with `FestivalCore` as logic. Exclusions (`contracts/coverage-rules.json`'s `swift.exclude`): generated `BrandTokens.swift`, `FestivalAppSupport/AppRoute.swift` and `Features/Settings/LicenseManifest.swift`. They have no executable lines in the host export. The gate rejects an excluded file if it gains executable lines.
 
 ### Fixed 2026-09-28 (Lane C): non-recursive glob undercounted UX by ~25,800 lines
 
@@ -26,12 +26,12 @@ found). Regression tests: `tools/tests/test_coverage_gate.py`'s
 `tools/tests/test_apple_xccov_gate.py`'s
 `test_target_source_patterns_reach_nested_feature_files`.
 
-## iOS app target (`FestivalUI` + mobile app on device)
+## iOS app target (UIKit, app delegate, app-support logic)
 
 - SwiftPM does **not** measure `apple/Apps/iOS` or `apple/Apps/macOS`.
-- `DEVELOPER_DIR=… python3 tools/apple_xccov_gate.py --result <iphone.xcresult> --result <ipad.xcresult>` (default `--scope paired`); `--scope iphone` for the phone-only phase. It unions **unique executable lines** across passing shards from the same simulator per family; every result must contain both coverage targets and all source files with matching executable-line sets and source timestamps older than every result. Never add or average Xcode target summaries (they double-count SwiftUI specializations).
+- `DEVELOPER_DIR=… python3 tools/apple_xccov_gate.py --result <iphone.xcresult> --result <ipad.xcresult>` (default `--scope paired`); `--scope iphone` for the phone-only phase. It unions **unique executable lines** across passing shards from the same simulator per family for the 90% device UX gate. Every result must include `FestivalUI` and `FestivalMobile.app`, with matching executable-line sets and source timestamps older than the results. Only specifically listed Mac-only or declaration-only files may be absent from the iOS report. Never add or average target summaries.
 - Xcode sometimes omits `FestivalUI` from a passing `.xcresult`; the gate rejects such bundles. Timestamps are not hashes: freeze sources across shards.
-- `FestivalCore`/`FestivalDesign` are not Xcode coverage targets; macOS SwiftPM coverage does not certify their device lines.
+- The iOS result does not report `FestivalAppSupport`, `FestivalCore` or `FestivalDesign` as coverage targets. The separate SwiftPM gate measures `FestivalAppSupport` and `FestivalCore` against the 95% logic threshold; host coverage does not certify device behavior.
 
 ## Last measured
 

@@ -22,7 +22,7 @@ struct FirstRunCompeteHubDemo: View {
         }
         .firstRunSwapRow(0, rise: 6)
         .environment(\.firstRunFadingRows, fading)
-        .accessibilityHidden(true)
+        .firstRunDecorative()
         .firstRunDemoTicker { await swap() }
     }
 

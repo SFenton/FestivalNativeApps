@@ -1,9 +1,11 @@
 import SwiftUI
+import FestivalAppSupport
 import FestivalCore
 import FestivalDesign
 
 // MARK: - RivalsScreen
 
+#if os(macOS)
 /// `/rivals` — selected player's rivals hub.
 ///
 /// Ports the web's `RivalsPage`/`LeaderboardRivalsTab`: a Song/Leaderboard segmented
@@ -111,7 +113,7 @@ struct RivalsScreen: View {
         .festivalPageTool(token: "findRival", order: PageToolOrder.primary) {
             findRivalButton
         }
-        .macPageCommands(MacPageCommands(findRival: { findRivalPresented = true }))
+        .macPageCommands(PageMenuCommands(findRival: { findRivalPresented = true }))
         .sheet(isPresented: $findRivalPresented) {
             FindRivalSheet(session: session)
                 .festivalSheet()
@@ -215,6 +217,8 @@ struct RivalsScreen: View {
         .padding(.horizontal, 16)
     }
 }
+
+#endif
 
 // MARK: - Common Rivals section
 

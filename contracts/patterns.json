@@ -103,6 +103,22 @@
           {
             "path": "apple/Sources/FestivalUI/Design/BottomChromeFade.swift",
             "symbol": "boardBottomChrome"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Design/UKEdgeFades.swift",
+            "symbol": "UKPageTopScrollEdge"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Design/UKEdgeFades.swift",
+            "symbol": "UKModalTopEdgeFade"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Design/UKEdgeFades.swift",
+            "symbol": "UKBottomChromeFade"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Design/UKEdgeFades.swift",
+            "symbol": "UKPinnedHeaderEdgeFade"
           }
         ],
         "android": [
@@ -167,7 +183,6 @@
           "regex": "\\.mask\\s*[({]",
           "allow": [
             "apple/Sources/FestivalUI/Design/**",
-            "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
             "apple/Sources/FestivalUI/Features/FirstRun/Demo/**"
           ],
           "message": "Scroll-content masks belong to the canonical edge-fade components (scroll-edge R1)."
@@ -175,12 +190,13 @@
         {
           "id": "apple-edge-effect",
           "glob": "apple/Sources/**/*.swift",
-          "regex": "scrollEdgeEffect(Style|Hidden)",
+          "regex": "scrollEdgeEffect(Style|Hidden)|\\.topEdgeEffect\\.style\\s*=",
           "allow": [
             "apple/Sources/FestivalUI/Common/Chrome/PageChrome.swift",
-            "apple/Sources/FestivalUI/Design/ModalTopEdgeFade.swift"
+            "apple/Sources/FestivalUI/Design/ModalTopEdgeFade.swift",
+            "apple/Sources/FestivalUI/UIKit/Design/UKEdgeFades.swift"
           ],
-          "message": "System scroll-edge effects are configured only by TopEdgeScrim and the modal shell (scroll-edge R1, R6)."
+          "message": "Configure system scroll-edge effects only in the canonical page or modal helper (scroll-edge R1, R6)."
         },
         {
           "id": "apple-board-chrome",
@@ -519,8 +535,20 @@
             "symbol": "SongsSectionBar"
           },
           {
+            "path": "apple/Sources/FestivalUI/UIKit/Features/Songs/UKSongsSupportViews.swift",
+            "symbol": "UKSongsSectionBar"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
             "symbol": "SongsSectionBarOverlay"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Design/UKSections.swift",
+            "symbol": "UKSectionHeaderView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Design/UKSections.swift",
+            "symbol": "UKViewAllButton"
           }
         ],
         "android": [
@@ -570,10 +598,13 @@
           "glob": "apple/Sources/**/*.swift",
           "regex": "SongsSectionBar",
           "allow": [
-            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift"
+            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
+            "apple/Sources/FestivalUI/UIKit/Features/Songs/UKSongsSupportViews.swift",
+            "apple/Sources/FestivalUI/UIKit/Features/Songs/UKSongsViewController.swift",
+            "apple/Sources/FestivalUI/UIKit/Features/Songs/UKSongsViewController+Chrome.swift"
           ],
           "debt": [],
-          "message": "Pinned Songs header rendering belongs to SongsSectionBar (section-headers R4)."
+          "message": "Pinned Songs header rendering belongs to SongsSectionBar (UIKit port: UKSongsSectionBar, owned by UKSongsViewController) (section-headers R4)."
         },
         {
           "id": "android-sticky-header",
@@ -730,6 +761,18 @@
           {
             "path": "apple/Sources/FestivalUI/Design/GlassSurface.swift",
             "symbol": "FestivalGlassModifier"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Design/UKSurfaces.swift",
+            "symbol": "UKCardView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Design/UKSurfaces.swift",
+            "symbol": "UKGlassView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Design/UKSections.swift",
+            "symbol": "UKGroupSectionView"
           }
         ],
         "android": [
@@ -787,7 +830,8 @@
           "glob": "apple/Sources/**/*.swift",
           "regex": "\\.glassEffect\\s*\\(|UIGlassEffect\\s*\\(",
           "allow": [
-            "apple/Sources/FestivalUI/Design/GlassSurface.swift"
+            "apple/Sources/FestivalUI/Design/GlassSurface.swift",
+            "apple/Sources/FestivalUI/UIKit/Design/UKSurfaces.swift"
           ],
           "debt": [],
           "message": "Liquid Glass implementation (SwiftUI glassEffect or UIKit UIGlassEffect, including the #559 drawer search field backing) belongs only to GlassSurface (surface-materials R2)."
@@ -799,7 +843,6 @@
           "allow": [
             "apple/Sources/FestivalUI/Design/GlassSurface.swift",
             "apple/Sources/FestivalUI/Design/RowCardSurface.swift",
-            "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
             "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift",
             "apple/Sources/FestivalUI/App/Shell/FloatingPageTools.swift"
           ],
@@ -956,11 +999,19 @@
             "symbol": "FestivalRootTrailingItems"
           },
           {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift",
+            "symbol": "PageTrailingItems"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/App/Chrome/UKRootChrome.swift",
+            "symbol": "UKRootChrome"
+          },
+          {
             "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
             "symbol": "RootProfileButton"
           },
           {
-            "path": "apple/Sources/FestivalUI/App/Shell/FestivalSection.swift",
+            "path": "apple/Sources/FestivalAppSupport/FestivalSection.swift",
             "symbol": "FestivalTabPolicy"
           },
           {
@@ -992,7 +1043,7 @@
             "symbol": "BottomSearchFieldPlacement"
           },
           {
-            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchTab.swift",
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchPlacement.swift",
             "symbol": "GlobalSearchFieldPlacement"
           },
           {
@@ -1012,15 +1063,19 @@
             "symbol": "PageToolMenuBarMirror"
           },
           {
-            "path": "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
+            "path": "apple/Sources/FestivalUI/UIKit/App/Shell/UKPageMenus.swift",
+            "symbol": "UKPageMenus"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/DrawerPolicy.swift",
             "symbol": "DrawerMenu"
           },
           {
-            "path": "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
-            "symbol": "FestivalDrawer"
+            "path": "apple/Sources/FestivalUI/UIKit/App/Shell/UKDrawerViewController.swift",
+            "symbol": "UKDrawerViewController"
           },
           {
-            "path": "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
+            "path": "apple/Sources/FestivalUI/App/Shell/DrawerPolicy.swift",
             "symbol": "DrawerPlacement"
           },
           {
@@ -1181,16 +1236,18 @@
           "id": "apple-menu-bar-page-tools",
           "glob": "apple/Sources/**/*.swift",
           "regex": "Button\\(\"(Sort|Filter|Find Rival)…\"\\)|Toggle\\(\"as (List|Grid)\"|Menu\\(\"(Rank By|Instrument|Band Size)\"\\)|\"View Rival's Profile\"",
-          "allow": ["apple/Sources/FestivalUI/Mac/PageToolMenuItems.swift"],
-          "message": "The macOS and iPadOS menu bars lay out page tools only through the shared PageToolViewMenuItems / PageToolProfileMenuItems, so both menu bars and their tested mirror stay one implementation (page-tools-and-nav-chrome R28, #633)."
+          "allow": [
+            "apple/Sources/FestivalUI/Mac/PageToolMenuItems.swift",
+            "apple/Sources/FestivalUI/UIKit/App/Shell/UKPageMenus.swift"
+          ],
+          "message": "Assemble page menu items in the native Mac or UIKit menu adapter from the front page's command state. Each Debug mirror must use its production adapter (page-tools-and-nav-chrome R28, #633)."
         },
         {
           "id": "apple-title-display-mode",
           "glob": "apple/Sources/FestivalUI/Features/**/*.swift",
           "regex": "\\.navigationBarTitleDisplayMode\\(|\\.toolbarTitleDisplayMode\\(",
           "allow": [
-            "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackFormSheet.swift",
-            "apple/Sources/FestivalUI/Features/Search/GlobalSearchTab.swift"
+            "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackFormSheet.swift"
           ],
           "message": "Pages set their title mode with festivalTitleDisplayMode(_:), so iPhone titles stay leading beside the drawer or Back (owner-approved, page-tools-and-nav-chrome R28, #632)."
         },
@@ -1405,6 +1462,22 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackSendingStatus.swift",
             "symbol": "FeedbackSendingStage"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Design/UKSheet.swift",
+            "symbol": "UKSheetNavigationController"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Design/UKSheet.swift",
+            "symbol": "UKSheet"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Features/Songs/UKSongsForm.swift",
+            "symbol": "UKFormViewController"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Features/Songs/UKSongsForm.swift",
+            "symbol": "UKFormContentLayout"
           }
         ],
         "android": [
@@ -1692,6 +1765,10 @@
             "symbol": "RankingsPagerView"
           },
           {
+            "path": "apple/Sources/FestivalUI/UIKit/Features/Leaderboards/UKBoardChrome.swift",
+            "symbol": "UKRankingsPagerView"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SelectedScoreFooterRow.swift",
             "symbol": "SelectedScoreFooterRow"
           },
@@ -1724,6 +1801,10 @@
             "symbol": "SongBandMemberWidthProbe"
           },
           {
+            "path": "apple/Sources/FestivalUI/UIKit/Common/UKScoreRowParts.swift",
+            "symbol": "UKSongBandScoreFooterView"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Compete/CompeteScreen.swift",
             "symbol": "CompetePreviewSpotlight"
           },
@@ -1742,6 +1823,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardEntryRow.swift",
             "symbol": "spokenRank"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Common/UKPageChrome.swift",
+            "symbol": "UKLeaderboardColumnSlot"
           }
         ],
         "android": [
@@ -2156,6 +2241,18 @@
           {
             "path": "apple/Sources/FestivalUI/Features/FirstRun/Demo/FirstRunDemoRotationViews.swift",
             "symbol": "FirstRunDemoTickerPolicy"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Common/UKLoadTransitions.swift",
+            "symbol": "UKReloadGate"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Common/UKLoadTransitions.swift",
+            "symbol": "UKFadeIn"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Common/UKStates.swift",
+            "symbol": "UKLoadingView"
           }
         ],
         "android": [
@@ -2339,7 +2436,9 @@
             "apple/Sources/FestivalUI/Common/FadeInOnLoad.swift",
             "apple/Sources/FestivalUI/Features/Leaderboards/FullRankingsScreen.swift",
             "apple/Sources/FestivalUI/Features/SongLeaderboard/SoloLeaderboardScreen.swift",
-            "apple/Sources/FestivalUI/Features/SongLeaderboard/SongBandLeaderboardScreen.swift"
+            "apple/Sources/FestivalUI/Features/SongLeaderboard/SongBandLeaderboardScreen.swift",
+            "apple/Sources/FestivalUI/UIKit/App/Search/UKGlobalSearchViewController.swift",
+            "apple/Sources/FestivalUI/UIKit/Features/Songs/UKShopViewController.swift"
           ],
           "debt": [],
           "message": "Pages install the shared entrance window with festivalFadeInScope(resetKey:) or festivalScrollFadeInScope(_:resetKey:); a page that builds its own FestivalFadeInScope must be listed so its scroll rush and selected-row reveal stay on the shared rules (load-transition R5)."
@@ -2361,9 +2460,7 @@
           "regex": "\\.navigationTitle\\s*\\(",
           "allow": [
             "apple/Sources/FestivalUI/Common/PageTitle.swift",
-            "apple/Sources/FestivalUI/App/FestivalRootView.swift",
             "apple/Sources/FestivalUI/Design/FestivalModal.swift",
-            "apple/Sources/FestivalUI/Features/Search/GlobalSearchTab.swift",
             "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackFormSheet.swift",
             "apple/Sources/FestivalUI/Features/Settings/SettingsScreen.swift",
             "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift"
@@ -2537,6 +2634,14 @@
           {
             "path": "apple/Sources/FestivalUI/Design/FestivalAccordion.swift",
             "symbol": "FestivalAccordionAccessibility"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Design/UKAccordion.swift",
+            "symbol": "UKAccordionView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Design/UKAccordion.swift",
+            "symbol": "UKDisclosureGroupView"
           }
         ],
         "android": [
@@ -2610,6 +2715,10 @@
           {
             "path": "apple/Sources/FestivalUI/App/Layout/OnDemandSplit.swift",
             "symbol": "OnDemandSplitLayout"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/App/Layout/UKSectionStack.swift",
+            "symbol": "UKSectionStack"
           },
           {
             "path": "apple/Sources/FestivalUI/App/Layout/DualSourceLayout.swift",
@@ -2742,6 +2851,14 @@
           {
             "path": "apple/Sources/FestivalCore/FestivalAPI.swift",
             "symbol": "scrapeFreezeFallback"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Common/UKStates.swift",
+            "symbol": "UKEmptyStateView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Common/UKStates.swift",
+            "symbol": "UKServiceStatusView"
           }
         ],
         "android": [
@@ -2928,6 +3045,14 @@
           {
             "path": "apple/Sources/FestivalUI/Common/QuickLinks/QuickLinksToolbar.swift",
             "symbol": "QuickLinksMenu"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/App/QuickLinks/UKQuickLinks.swift",
+            "symbol": "UKQuickLinks"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/App/QuickLinks/UKPageToolMenu.swift",
+            "symbol": "UKPageToolMenuViewController"
           }
         ],
         "android": [
@@ -3067,6 +3192,10 @@
           {
             "path": "apple/Sources/FestivalUI/Common/BarChartDateAxis.swift",
             "symbol": "barChartDateAxis"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/HistoryChartWindow.swift",
+            "symbol": "dateLabelLefts"
           }
         ],
         "android": [
@@ -3375,6 +3504,14 @@
           {
             "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
             "symbol": "songBarTitleKeepsBarVisible"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Design/UKMarquee.swift",
+            "symbol": "UKMarqueeLabel"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Common/UKPageChrome.swift",
+            "symbol": "UKSongHeaderTextView"
           }
         ],
         "android": [
@@ -3438,9 +3575,12 @@
           "glob": "apple/Sources/**/*.swift",
           "regex": "toolbarMinimizationBehavior\\(|navigationBarMinimization",
           "allow": [
-            "apple/Sources/FestivalUI/Common/SongHeaderText.swift"
+            "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "apple/Sources/FestivalUI/Design/FestivalModal.swift",
+            "apple/Sources/FestivalUI/UIKit/Common/UKSongHeaderRow.swift",
+            "apple/Sources/FestivalUI/UIKit/Design/UKSheet.swift"
           ],
-          "message": "Only the song pages keep their navigation bar from minimizing, through songBarTitleKeepsBarVisible (song-header R4 Duo variant, page-tools-and-nav-chrome R14 exception, #363)."
+          "message": "App navigation minimizes except for song-header R4; modal headers follow modal-shell R5. Use the canonical song-title or sheet component."
         }
       ],
       "related": {
@@ -4243,6 +4383,10 @@
             "symbol": "HingeColumns"
           },
           {
+            "path": "apple/Sources/FestivalUI/UIKit/App/Layout/UKLayoutAccess.swift",
+            "symbol": "UKHinge"
+          },
+          {
             "path": "apple/Sources/FestivalUI/App/Layout/HingeColumns.swift",
             "symbol": "HingeGrid"
           },
@@ -4405,6 +4549,10 @@
             "symbol": "GlobalSearchResults"
           },
           {
+            "path": "apple/Sources/FestivalUI/UIKit/Features/Profile/UKProfileSupport.swift",
+            "symbol": "UKProfileColumnGrid"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Mac/MacRootView.swift",
             "symbol": "searchSheetSize"
           },
@@ -4555,7 +4703,7 @@
             "symbol": "trailingContent"
           },
           {
-            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsTopic.swift",
+            "path": "apple/Sources/FestivalAppSupport/SettingsTopic.swift",
             "symbol": "SettingsTopic"
           }
         ],
@@ -5113,6 +5261,10 @@
             "symbol": "ShopLeavingIndicator"
           },
           {
+            "path": "apple/Sources/FestivalUI/UIKit/Features/Songs/UKSongRowCell.swift",
+            "symbol": "UKRowPulseBorderView"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Shop/ShopScreen.swift",
             "symbol": "offerBadge"
           },
@@ -5394,7 +5546,7 @@
       "title": "Search scopes: global and profile search",
       "status": "current",
       "doc": ".agents/patterns/search-scopes.md",
-      "summary": "Every song/player/band search runs the platform's global-search engine with the kinds it needs as targets; the profile search offers All · Players · Bands and starts on All with players and bands searched together (owner #600, web SearchModal targets players|bands), names the scope's targets in its prompt (\"Search players or bands\"), reuses global search's rows, order and All-only titles, opens a player or a band's page (no gate message), and uses a native scope control with an explicit All (Apple scope bar, Android M3 segmented buttons, Windows SelectorBar; agent decision #600). Find Rival stays players-only.",
+      "summary": "Every song/player/band search runs the platform's global-search engine with the kinds it needs as targets; the profile search offers All · Players · Bands and starts on All with players and bands searched together (owner #600, web SearchModal targets players|bands), names the scope's targets in its prompt (\"Search players or bands\"), reuses global search's rows, order and All-only titles, opens a player or a band's page (no gate message), and uses a native scope control with an explicit All (Apple scope bar, Android M3 segmented buttons, Windows SelectorBar; agent decision #600). UIKit single-column results use one action for the whole row without changing the painted margins. Find Rival stays players-only.",
       "keywords": [
         "search scope",
         "scope bar",
@@ -5442,6 +5594,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift",
             "symbol": "GlobalSearchIdentifiers"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/App/Search/UKGlobalSearchViewController.swift",
+            "symbol": "UKGlobalSearchViewController"
           }
         ],
         "android": [
@@ -5535,6 +5691,14 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Profile/PlayerPercentileTable.swift",
             "symbol": "PercentilePill"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongProfileMetadataPills.swift",
+            "symbol": "SongMetadataFieldView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKit/Features/Songs/UKSongMetadataViews.swift",
+            "symbol": "UKSongMetadataFieldView"
           }
         ],
         "android": [

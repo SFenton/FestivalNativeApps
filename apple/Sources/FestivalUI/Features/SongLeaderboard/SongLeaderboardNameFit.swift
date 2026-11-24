@@ -60,11 +60,9 @@ struct SongLeaderboardNameFit: ViewModifier {
         let probesRows = template != nil && !names.isEmpty
         let probesBands = !bandRows.isEmpty
         content
-            .leaderboardSectionColumns(fits ? columns.fittingName(
-                availableWidth: Double(availableWidth > 0 ? availableWidth - rowInset : 0),
-                requiredWidth: Double(Self.requiredWidth(
-                    rows: probesRows ? requiredWidth : nil, bands: probesBands ? bandRequiredWidth : nil
-                ))
+            .leaderboardSectionColumns(fits ? Self.fittedColumns(
+                columns, rowWidth: availableWidth - rowInset,
+                scoreWidth: probesRows ? requiredWidth : nil, bandWidth: probesBands ? bandRequiredWidth : nil
             ) : columns)
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { availableWidth = $0 }
             .background(alignment: .topLeading) {
@@ -93,6 +91,21 @@ struct SongLeaderboardNameFit: ViewModifier {
                         .accessibilityHidden(true)
                 }
             }
+    }
+
+    /// Resolve the common multi-row decision from a renderer's one-line measurements.
+    ///
+    /// - Parameters:
+    ///   - columns: The section's fitted columns, before wrapping.
+    ///   - rowWidth: The available width inside the pane's row margins.
+    ///   - scoreWidth: Required width for the widest score row, when measured.
+    ///   - bandWidth: Required width for the widest band member row, when measured.
+    nonisolated static func fittedColumns(
+        _ columns: LeaderboardRowColumns, rowWidth: CGFloat, scoreWidth: CGFloat?, bandWidth: CGFloat?
+    ) -> LeaderboardRowColumns {
+        columns.fittingName(
+            availableWidth: Double(rowWidth), requiredWidth: Double(requiredWidth(rows: scoreWidth, bands: bandWidth))
+        )
     }
 
     /// The width the section's widest card needs on one line per name.

@@ -6,6 +6,8 @@ import socket
 import threading
 import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from http.client import IncompleteRead
 from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -98,6 +100,21 @@ class MockServiceTests(unittest.TestCase):
         self.assertEqual(info["workerStatus"]["status"], "online")
         with urlopen(self.base + "/api/version") as response:
             self.assertEqual(json.load(response), {"version": "fixture"})
+
+    def test_band_search_freeze_only_blocks_the_recovery_query(self):
+        """A synthetic freeze carries countdown metadata and recovers in place."""
+        control = self.base + "/__fixture__/band-search-freeze?phase="
+        query = self.base + "/api/bands/search?page=1&pageSize=10&q="
+        with urlopen(control + "freeze"), self.assertRaises(HTTPError) as error:
+            urlopen(query + "band%20recovery")
+        self.assertEqual(error.exception.code, 503)
+        self.assertEqual(error.exception.headers["X-Fst-Public-Read-Freeze-Reason"], "scrape")
+        self.assertEqual(error.exception.headers["Retry-After"], "8")
+        with urlopen(query + "Syncing") as response:
+            available = json.load(response)["results"]
+        self.assertEqual(len(available), 1)
+        with urlopen(control + "recover"), urlopen(query + "band%20recovery") as response:
+            self.assertEqual(json.load(response)["results"], available)
 
     def test_rival_detail_accepts_the_web_query_shape(self):
         """Rival detail takes the web's `limit=0&sort=closest[&allowLiveFallback=true]` (#95)."""
@@ -232,17 +249,45 @@ class MockServiceTests(unittest.TestCase):
 
     def test_band_song_rows_index_one_team_and_503_while_unpublished(self):
         """Songs' band score index (#340): one row per scored song, echoing team and combo."""
-        with urlopen(self.base + "/api/rankings/bands/Band_Duets/fixture-team-1/song-rows") as response:
+        scored = "fixture-player-1:fixture-player-2"
+        with urlopen(self.base + f"/api/rankings/bands/Band_Duets/{scored}/song-rows") as response:
             body = json.load(response)
         self.assertEqual((body["bandType"], body["teamKey"], body["comboId"]),
-                         ("Band_Duets", "fixture-team-1", None))
+                         ("Band_Duets", scored, None))
         self.assertEqual(body["count"], len(body["entries"]))
         self.assertEqual([e["songId"] for e in body["entries"]], ["fixture-pulse"])
-        with urlopen(self.base + "/api/rankings/bands/Band_Duets/fixture-team-2/song-rows") as response:
+        with urlopen(self.base + "/api/rankings/bands/Band_Duets/fixture-player-1:fixture-band-empty/song-rows") as response:
             self.assertEqual(json.load(response)["entries"], [])
         with self.assertRaises(HTTPError) as error:
-            urlopen(self.base + "/api/rankings/bands/Band_Duets/fixture-team-unavailable/song-rows")
+            urlopen(self.base + "/api/rankings/bands/Band_Duets/fixture-player-1:fixture-band-unavailable/song-rows")
         self.assertEqual(error.exception.code, 503)
+
+    def test_band_index_hold_releases_only_the_empty_team(self):
+        """A held empty index settles on release without blocking a scored team."""
+        control = self.base + "/__fixture__/hold-band-index?phase="
+        index = self.base + "/api/rankings/bands/Band_Duets/fixture-player-1:"
+        entered = threading.Event()
+        wait_for_empty_band = self.server.wait_for_empty_band
+
+        def wait():
+            entered.set()
+            return wait_for_empty_band()
+
+        def read(url):
+            with urlopen(url, timeout=5) as response:
+                return json.load(response)
+
+        with patch.object(self.server, "wait_for_empty_band", side_effect=wait), ThreadPoolExecutor() as pool:
+            self.assertEqual(read(control + "hold"), {"phase": "hold"})
+            pending = pool.submit(read, index + "fixture-band-empty/song-rows")
+            try:
+                self.assertTrue(entered.wait(timeout=5))
+                scored = read(index + "fixture-player-2/song-rows")
+                self.assertEqual([entry["songId"] for entry in scored["entries"]], ["fixture-pulse"])
+                self.assertTrue(pending.running(), "The empty read must still be held")
+            finally:
+                self.assertEqual(read(control + "release"), {"phase": "release"})
+            self.assertEqual(pending.result()["entries"], [])
 
     def test_outside_viewer_ranks_outside_every_top_five(self):
         """`fixture-riv-ranked` (#370, #493) reads 45th of 60 on instrument and combo boards, never on them."""
@@ -460,6 +505,59 @@ class MockServiceTests(unittest.TestCase):
         with urlopen(self.base + "/api/player/fixture-player-1/notifications?limit=50") as response:
             self.assertEqual(len(json.load(response)["items"]), 2)
 
+    def test_notify_empty_feeds_distinguish_a_completed_detection_run(self):
+        """Only the account with a completed detection run reports generated."""
+        for account, generated in (
+            ("fixture-notify-empty-generated", True), ("fixture-empty", False),
+        ):
+            with self.subTest(account=account), \
+                 urlopen(self.base + f"/api/player/{account}/notifications") as response:
+                body = json.load(response)
+                self.assertEqual(body["items"], [])
+                self.assertIs(body["notificationsGenerated"], generated)
+                self.assertEqual(body["sourceRunId"], 1 if generated else None)
+
+    def test_notification_retry_control_releases_held_failure_and_recovers(self):
+        """A new read recovers only after the control releases its failure."""
+        control = self.base + "/__fixture__/notification-retry?phase="
+        feed = self.base + "/api/player/fixture-notify-retry/notifications"
+        with self.assertRaises(HTTPError) as invalid:
+            urlopen(control + "unexpected", timeout=2)
+        self.assertEqual(invalid.exception.code, 400)
+        with urlopen(control + "hold", timeout=2):
+            pass
+        entered = threading.Event()
+        original_wait = self.server.notification_recovers
+
+        def wait_for_release():
+            entered.set()
+            return original_wait()
+
+        codes = []
+
+        def read_feed():
+            try:
+                with urlopen(feed, timeout=3) as response:
+                    codes.append(response.status)
+            except HTTPError as error:
+                codes.append(error.code)
+
+        with patch.object(self.server, "notification_recovers", wait_for_release):
+            thread = threading.Thread(target=read_feed, daemon=True)
+            thread.start()
+            self.assertTrue(entered.wait(timeout=2))
+            self.assertTrue(thread.is_alive())
+            with urlopen(self.base + "/api/player/fixture-empty/notifications", timeout=2) as response:
+                self.assertEqual(json.load(response)["items"], [])
+            with urlopen(control + "fail", timeout=2):
+                pass
+            thread.join(timeout=3)
+        self.assertEqual(codes, [500])
+        with urlopen(control + "recover", timeout=2):
+            pass
+        with urlopen(feed, timeout=2) as response:
+            self.assertEqual(json.load(response)["items"][0]["notificationGuid"], "fixture-notify-retry-1")
+
     def test_paged_leaderboard_and_original_artwork(self):
         """One page of 25 and one page of one share a 26-entry total."""
         with urlopen(self.base + "/api/leaderboard/fixture-pulse/Solo_Guitar?top=25&offset=0") as response:
@@ -503,6 +601,46 @@ class MockServiceTests(unittest.TestCase):
         self.assertNotEqual(fixture_artwork("pulse"), fixture_artwork("orbit"))
         asset = ROOT / "apple/Tests/FestivalUITests/Fixtures/pulse.png"
         self.assertEqual(asset.read_bytes(), fixture_artwork("pulse"))
+
+    def test_account_search_hold_only_waits_for_the_synthetic_query(self):
+        """A journey can observe pending work and release it without blocking other searches."""
+        control = self.base + "/__fixture__/hold-account-search"
+        request = self.base + "/api/account/search?q=held%20player%20search&limit=10"
+
+        def read(url):
+            with urlopen(url, timeout=5) as response:
+                return json.load(response)
+
+        streaming = threading.Event()
+
+        def held_read():
+            with urlopen(request, timeout=5) as response:
+                first = response.read(1)
+                streaming.set()
+                return json.loads(first + response.read())
+
+        self.assertEqual(read(control + "?phase=hold"), {"held": True, "waiting": 0})
+        with patch("tools.mock_service.ACCOUNT_SEARCH_KEEPALIVE_SECONDS", 0.05), \
+                ThreadPoolExecutor(max_workers=1) as pool:
+            held = pool.submit(held_read)
+            try:
+                self.assertTrue(streaming.wait(2), "The held read must send a heartbeat before release")
+                self.assertEqual(read(control), {"held": True, "waiting": 1})
+                other = read(self.base + "/api/account/search?q=Fixture&limit=1")
+                self.assertEqual(other["results"][0]["accountId"], "fixture-player-1")
+                self.assertFalse(held.done())
+            finally:
+                read(control + "?phase=release")
+            self.assertEqual(held.result(timeout=2), {"results": []})
+        self.assertEqual(read(control), {"held": False, "waiting": 0})
+
+        read(control + "?phase=hold")
+        try:
+            with patch("tools.mock_service.ACCOUNT_SEARCH_HOLD_SECONDS", 0), self.assertRaises(IncompleteRead):
+                read(request)
+            self.assertEqual(read(control), {"held": True, "waiting": 0})
+        finally:
+            read(control + "?phase=release")
 
     def test_account_search_is_bounded_and_does_not_accept_selected_headers(self):
         """Player search returns only synthetic names and distinguishes a 403 from empty."""
@@ -589,6 +727,8 @@ class MockServiceTests(unittest.TestCase):
             empty = json.load(response)
         self.assertEqual(empty["totalScores"], 0)
         self.assertEqual(empty["scores"], [])
+        with urlopen(self.base + "/__fixture__/syncing-profile-reads") as response:
+            self.assertEqual(json.load(response), {"reads": 0})
         with urlopen(self.base + "/api/player/fixture-syncing") as response:
             syncing = json.load(response)
             self.assertEqual(response.status, 202)
@@ -607,6 +747,8 @@ class MockServiceTests(unittest.TestCase):
         self.assertEqual(unknown["accountId"], "fixture-missing")
         self.assertEqual(unknown["scores"], [])
         self.assertIsNone(unknown["displayName"])
+        with urlopen(self.base + "/__fixture__/syncing-profile-reads") as response:
+            self.assertEqual(json.load(response), {"reads": 1})
         stale = Request(
             self.base + "/api/player/fixture-player-1",
             headers={"X-FST-Publication-Id": "6"},

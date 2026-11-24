@@ -240,7 +240,8 @@ final class IPadShellJourneyTests: XCTestCase {
     }
 
     /// Song Detail splits on demand: its full leaderboard opens in the trailing half
-    /// beside the song page; Close returns to full width.
+    /// beside the song page; the second page and its accuracy survive pushing
+    /// in portrait and splitting again in landscape. Close returns to full width.
     @MainActor
     func testSongDetailOpensLeaderboardInTrailingHalf() throws {
         let app = fixtureApp(profile: false)
@@ -259,6 +260,42 @@ final class IPadShellJourneyTests: XCTestCase {
         // header (owner-approved song-leaderboard-header variant, #342).
         XCTAssertTrue(element(app, "fst.song-leaderboard.board-title").waitForExistence(timeout: 10))
         XCTAssertFalse(element(app, "fst.song-leaderboard.header").exists, "no repeated song header")
+
+        let next = app.buttons["fst.song-leaderboard.page-next"]
+        XCTAssertTrue(next.waitForExistence(timeout: 15))
+        next.tap()
+        let pageTwo = app.descendants(matching: .any).matching(identifier: "fst.song-leaderboard.page-info")
+            .matching(NSPredicate(format: "value == %@", "2 of 2")).firstMatch
+        let lastRow = element(app, "fst.song-leaderboard.row.fixture-player-26")
+        let badge = lastRow.staticTexts.matching(identifier: "fst.score.accuracy.fixture-player-26").firstMatch
+        let previous = app.buttons["fst.song-leaderboard.page-previous"]
+
+        func checkSecondPage(in pane: CGRect, capture: String) {
+            XCTAssertTrue(pageTwo.waitForExistence(timeout: 10), "the destination keeps page 2")
+            XCTAssertTrue(badge.waitForExistence(timeout: 10), "the same row retains its accuracy badge")
+            XCTAssertEqual(badge.label, "Full combo, accuracy 98%")
+            XCTAssertTrue(badge.isHittable)
+            XCTAssertGreaterThanOrEqual(badge.frame.minX, pane.minX - 1)
+            XCTAssertLessThanOrEqual(badge.frame.maxX, pane.maxX + 1)
+            XCTAssertTrue(previous.isHittable)
+            XCTAssertTrue(previous.isEnabled)
+            XCTAssertFalse(next.isEnabled)
+            SongsUITestSupport.record(app, name: capture)
+        }
+
+        checkSecondPage(in: trailing.frame, capture: "ipad-solo-page2-split")
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "portrait pushes the board")
+        XCTAssertTrue(element(app, "fst.song-leaderboard.header").waitForExistence(timeout: 10))
+        checkSecondPage(in: app.windows.firstMatch.frame, capture: "ipad-solo-page2-pushed")
+
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(trailing.waitForExistence(timeout: 10), "landscape restores the split")
+        checkSecondPage(in: trailing.frame, capture: "ipad-solo-page2-split-restored")
+        previous.tap()
+        let pageOne = app.descendants(matching: .any).matching(identifier: "fst.song-leaderboard.page-info")
+            .matching(NSPredicate(format: "value == %@", "1 of 2")).firstMatch
+        XCTAssertTrue(pageOne.waitForExistence(timeout: 10), "pagination still works after reflow")
         element(app, "fst.split.close").tap()
         XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "Close returns to full width")
     }
@@ -371,6 +408,8 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertTrue(viewAll.waitForExistence(timeout: 15))
         let trailing = element(app, "fst.split.trailing")
         XCTAssertFalse(trailing.exists, "starts full width: nothing auto-selected")
+        XCTAssertFalse(viewAll.isSelected, "no ranking is selected before opening the pane")
+        XCTAssertGreaterThanOrEqual(viewAll.frame.height, 47.5, "the button includes the SwiftUI label's vertical padding")
         viewAll.tap()
         XCTAssertTrue(trailing.waitForExistence(timeout: 10), "Full Rankings opens in the trailing half")
         XCTAssertTrue(viewAll.waitForSelection(timeout: 5), "View All Rankings stays selected")
@@ -400,6 +439,7 @@ final class IPadShellJourneyTests: XCTestCase {
         element(app, "fst.split.close").tap()
         XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "Close returns to full width")
         XCTAssertTrue(viewAll.isHittable, "the overview is full width again")
+        XCTAssertFalse(viewAll.isSelected, "Close clears the ranking selection")
     }
 
     /// A player row on the Leaderboards overview pushes the full profile page (no

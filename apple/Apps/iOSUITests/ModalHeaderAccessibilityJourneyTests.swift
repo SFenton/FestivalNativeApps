@@ -107,9 +107,7 @@ final class ModalHeaderAccessibilityJourneyTests: XCTestCase {
     private func notificationsJourney(_ run: Run, baseline: TextSizes? = nil, measureOnly: Bool = false) throws -> TextSizes {
         let app = launch(run, profile: true)
         defer { app.terminate() }
-        let bell = app.buttons["fst.shell.notifications"]
-        XCTAssertTrue(bell.waitForExistence(timeout: FestivalApp.budget(20)), "No bell")
-        bell.tap()
+        ShellUITestSupport.tapToolbarItem("fst.shell.notifications", overflowLabels: ["Notifications"], in: app)
         let bar = app.navigationBars["Notifications"]
         XCTAssertTrue(bar.waitForExistence(timeout: FestivalApp.budget(15)), "No Notifications sheet")
         let rows = ["fst.notifications.row.fixture-notif-1", "fst.notifications.row.fixture-notif-2"]

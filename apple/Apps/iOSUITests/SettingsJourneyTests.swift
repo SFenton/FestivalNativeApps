@@ -169,19 +169,46 @@ final class SettingsJourneyTests: XCTestCase {
         XCTAssertTrue(firstHeading.exists)
         SongsUITestSupport.record(app, name: "settings-privacy-policy-top")
 
-        let contact = app.staticTexts["fst.privacy-policy.section.contact"]
+        let window = app.windows.firstMatch
         let content = app.scrollViews["fst.privacy-policy.content"]
-        for _ in 0..<12 where !contact.isHittable {
-            content.swipeUp()
+        if #available(iOS 27.0, *),
+           [CGSize(width: 402, height: 874), CGSize(width: 466, height: 678)].contains(window.frame.size) {
+            XCTAssertEqual(content.frame.maxY, window.frame.maxY, accuracy: 1,
+                           "The full-height sheet scrolls to the display edge, not just the safe-area edge")
+            let screenshot = window.screenshot()
+            let lines = RecognizedText.lines(in: screenshot)
+            let pointsPerPixel = window.frame.height / screenshot.image.size.height
+            let overview = try XCTUnwrap(lines.first { $0.text == "Overview" })
+            let information = try XCTUnwrap(lines.first { $0.text == "Information We Collect" })
+            XCTAssertEqual((information.frame.minY - overview.frame.minY) * pointsPerPixel, 303, accuracy: 1.5,
+                           "Wrapped policy paragraphs do not accumulate extra leading")
+            if window.frame.width == 466 {
+                let first = try XCTUnwrap(lines.first { $0.text.hasPrefix("Festival Score Tracker is an independent") })
+                let last = try XCTUnwrap(lines.first { $0.text.hasSuffix("by Epic Games.") })
+                let opening = lines.filter {
+                    $0.frame.minY >= first.frame.minY && $0.frame.minY <= last.frame.minY
+                        && abs($0.frame.minX - first.frame.minX) * pointsPerPixel <= 4
+                }
+                XCTAssertEqual(opening.count, 5, "The opening paragraph wraps like the reference")
+                let close = app.buttons["fst.privacy-policy.close"]
+                let rightEdge = try XCTUnwrap(opening.map(\.frame.maxX).max())
+                XCTAssertLessThanOrEqual(rightEdge * window.frame.width / screenshot.image.size.width, close.frame.minX - 20,
+                                         "The folded policy keeps rendered text clear of the Close rail")
+            }
         }
-        XCTAssertTrue(contact.isHittable, "The policy does not scroll to its Contact section")
-        let contactText = app.staticTexts.matching(
+
+        let contact = app.staticTexts["fst.privacy-policy.section.contact"]
+        let contactLink = app.links.matching(
             NSPredicate(format: "label CONTAINS %@", "github.com/SFenton/FestivalNativeApps/issues")
         ).firstMatch
-        XCTAssertTrue(contactText.exists, "Contact Us names the public issues page")
+        for _ in 0..<12 where !contactLink.isHittable { content.swipeUp() }
+        XCTAssertTrue(contact.isHittable, "The policy does not scroll to its Contact section")
+        XCTAssertTrue(contactLink.isHittable, "Contact Us exposes the public issues address as a link")
+        XCTAssertGreaterThan(contactLink.frame.minY, contact.frame.minY, "The link follows the Contact heading")
         SongsUITestSupport.record(app, name: "settings-privacy-policy-contact")
 
-        let close = app.navigationBars.buttons["fst.privacy-policy.close"]
+        let close = app.buttons["fst.privacy-policy.close"]
+        XCTAssertTrue(close.isHittable)
         XCTAssertEqual(close.label, "Close")
         close.tap()
         XCTAssertTrue(row.waitForExistence(timeout: 10))
@@ -189,6 +216,64 @@ final class SettingsJourneyTests: XCTestCase {
             predicate: NSPredicate(format: "exists == false"), object: app.navigationBars["Privacy Policy"]
         )
         XCTAssertEqual(XCTWaiter.wait(for: [closed], timeout: 10), .completed)
+    }
+
+    /// The policy's body grows at AX5 and offers native selection without entering edit mode.
+    @MainActor
+    func testPrivacyPolicyBodyGrowsAndOffersCopyAtLargestText() throws {
+        continueAfterFailure = false
+        var standardLineHeight: CGFloat = 0
+        for size in [UIContentSizeCategory.large, .accessibilityExtraExtraExtraLarge] {
+            let app = fixtureApp()
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", size.rawValue]
+            app.launch()
+            let row = app.buttons["fst.settings.privacy-policy"]
+            let window = app.windows.firstMatch
+            let quickLinks = app.buttons["fst.quick-links.open"]
+            XCTAssertTrue(quickLinks.waitForExistence(timeout: 15))
+            quickLinks.tap()
+            let link = Self.quickLinkRow("privacy-policy", in: app)
+            for _ in 0..<8 where !(link.isHittable && link.frame.maxY <= window.frame.maxY) {
+                window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)).press(
+                    forDuration: 0.05,
+                    thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+                )
+            }
+            XCTAssertTrue(link.isHittable, "Quick Links offers the Privacy Policy section")
+            link.tap()
+            let landed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: row)
+            XCTAssertEqual(XCTWaiter.wait(for: [landed], timeout: 10), .completed)
+            row.tap()
+            XCTAssertTrue(app.navigationBars["Privacy Policy"].waitForExistence(timeout: 10))
+            let screenshot = window.screenshot()
+            let lines = RecognizedText.lines(in: screenshot)
+            let line = try XCTUnwrap(lines.first { $0.text.hasPrefix("Festival") })
+            let scale = window.frame.height / screenshot.image.size.height
+            if size == .large {
+                standardLineHeight = line.frame.height * scale
+                app.terminate()
+                continue
+            }
+
+            XCTAssertGreaterThan(line.frame.height * scale, standardLineHeight * RecognizedText.minimumGrowth)
+            if #available(iOS 27.0, *),
+               [CGSize(width: 402, height: 874), CGSize(width: 466, height: 678)].contains(window.frame.size) {
+                let third = try XCTUnwrap(lines.first { $0.text.hasPrefix("independent") })
+                XCTAssertEqual((third.frame.minY - line.frame.minY) * scale / 2, 63, accuracy: 2,
+                               "AX5 body uses the reference line advance without accumulating extra leading")
+            }
+            let x = (line.frame.minX + line.frame.height / 2) * window.frame.width / screenshot.image.size.width
+            let word = window.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: x, dy: line.frame.midY * scale))
+            word.press(forDuration: 1)
+            let copy = app.descendants(matching: .any).matching(
+                NSPredicate(format: "label == %@ AND (elementType == %d OR elementType == %d)",
+                            "Copy", XCUIElement.ElementType.button.rawValue, XCUIElement.ElementType.menuItem.rawValue)
+            ).firstMatch
+            XCTAssertTrue(copy.waitForExistence(timeout: 5), "Selecting policy text offers Copy")
+            XCTAssertFalse(app.keyboards.firstMatch.exists, "Selecting read-only text must not enter edit mode")
+            SongsUITestSupport.record(app, name: "settings-privacy-policy-ax5-selection")
+        }
     }
 
     /// Reset App Settings restores a changed toggle to its registered default.

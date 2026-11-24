@@ -41,9 +41,9 @@ import FestivalDesign
 }
 
 @Test func statTileHintsNameTheirDestination() {
-    #expect(PlayerStatTileView.hint(for: .songs(.instrument(.hasScores, .lead))) == "Shows these songs in Songs")
-    #expect(PlayerStatTileView.hint(for: .songDetail(songId: "pulse", instrument: .lead)) == "Opens the song")
-    #expect(PlayerStatTileView.hint(for: .fullRankings(.lead, rankBy: "totalscore")) == "Opens the full rankings")
+    #expect(StatTilePresentation.hint(for: .songs(.instrument(.hasScores, .lead))) == "Shows these songs in Songs")
+    #expect(StatTilePresentation.hint(for: .songDetail(songId: "pulse", instrument: .lead)) == "Opens the song")
+    #expect(StatTilePresentation.hint(for: .fullRankings(.lead, rankBy: "totalscore")) == "Opens the full rankings")
 }
 
 // MARK: - Rank history sizing
@@ -52,12 +52,10 @@ import FestivalDesign
 /// "2 (66.6%)" in an iPad tile).
 @MainActor
 @Test func statTileValuesWrapOnlyAtAccessibilitySizes() {
-    #expect(PlayerStatTileView.valueLineLimit(.large) == 1)
-    #expect(PlayerStatTileView.valueLineLimit(.xxxLarge) == 1)
-    #expect(PlayerStatTileView.valueLineLimit(.accessibility1) == 2)
-    #expect(PlayerStatTileView.valueLineLimit(.accessibility5) == 2)
-    #expect(PlayerStatTileView.valueMinimumScale(.large) == 0.6)
-    #expect(PlayerStatTileView.valueMinimumScale(.accessibility5) == 0.5)
+    #expect(StatTilePresentation.valueLineLimit(accessibility: false) == 1)
+    #expect(StatTilePresentation.valueLineLimit(accessibility: true) == 2)
+    #expect(StatTilePresentation.valueMinimumScale(accessibility: false) == 0.6)
+    #expect(StatTilePresentation.valueMinimumScale(accessibility: true) == 0.5)
 }
 
 @Test func rankHistoryChartWidthComesFromTheCardWidth() {

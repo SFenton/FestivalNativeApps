@@ -2,7 +2,7 @@
 
 > **What:** the Mac shell and page-layout decisions, each with the `apple-hig` file it rests on. **Read when:** changing the Mac window, sidebar, toolbar, menus, Settings window or a page's Mac layout. Host limits and the evidence tool: [platforms/apple/macos.md](../../platforms/apple/macos.md).
 
-Code: `apple/Apps/macOS/FestivalDesktopApp.swift` (scenes) and `apple/Sources/FestivalUI/Mac/**` (`MacRootView`, `MacNavigation`, `MacListDetailStack` (on-demand split), `MacKeyboardNavigation`, `MacCommands`, `MacPageMenus`, `MacCopy`, `MacSettingsView`, `MacDebugHooks`); shared Mac-aware pieces: `Features/Settings/SettingsPane.swift`, `Common/FestivalRowButtonStyle.swift`, `Features/Songs/SongRowLayoutPolicy.swift`. The iPhone/iPad `FestivalRootView` is not used on the Mac; pages, `AppRouteDestination`, `ListDetailPolicy` and `FestivalSession` are shared. HIG files are `~/.claude/skills/apple-hig/references/hig/<file>.md`.
+Code: `apple/Apps/macOS/FestivalDesktopApp.swift` (scenes) and `apple/Sources/FestivalUI/Mac/**` (`MacRootView`, `MacNavigation`, `MacRouteDestination`, `MacListDetailStack` (on-demand split), `MacKeyboardNavigation`, `MacCommands`, `MacPageMenus`, `MacCopy`, `MacSettingsView`, `MacDebugHooks`). Native Mac uses SwiftUI pages; it shares `AppRoute`, `ListDetailPolicy`, `FestivalSession` and feature policies with UIKit, not its shell or route renderer. HIG files are `~/.claude/skills/apple-hig/references/hig/<file>.md`.
 
 ## Shell decisions
 

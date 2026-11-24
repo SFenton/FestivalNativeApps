@@ -1,5 +1,7 @@
+#if os(macOS)
 import Foundation
 import SwiftUI
+import FestivalAppSupport
 import FestivalCore
 import FestivalDesign
 
@@ -63,7 +65,7 @@ struct FindRivalSheet: View {
             .scrollContentBackground(.hidden)
             .background(BrandTokens.appBackground)
             .navigationDestination(for: AppRoute.self) { route in
-                AppRouteDestination(
+                MacRouteDestination(
                     route: route, session: session, visibleInstruments: [],
                     path: $path, isVisible: true
                 )
@@ -188,3 +190,4 @@ struct FindRivalSheet: View {
         }
     }
 }
+#endif

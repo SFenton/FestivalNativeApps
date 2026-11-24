@@ -1,4 +1,5 @@
 import SwiftUI
+import FestivalAppSupport
 import FestivalCore
 import FestivalDesign
 
@@ -977,7 +978,7 @@ extension View {
 ///
 /// Unfolded (or in book pose) in landscape a full-width board divides into two screens:
 /// at the hinge in book pose, at the midpoint of the free space beside the vertical bar
-/// when flat (``DeviceLayout/screenDivide(layoutDirection:)``, owner #361), where the
+/// when flat (``DeviceLayout/screenDivide(layoutDirection:flatContentFrame:)``, owner #361), where the
 /// board's two columns meet. The pager moves to the screen beside the vertical bar (the
 /// right screen in the usual landscape), within thumb reach of the rail, as Android's
 /// unfolded song band board puts its pager on the trailing side. HIG Designing for iPhone Duo: "use
@@ -992,7 +993,7 @@ enum PagerScreenPlacement {
     ///
     /// - Parameters:
     ///   - container: The pager container's frame in window coordinates (leading-edge x).
-    ///   - hinge: ``DeviceLayout/screenDivide(layoutDirection:)``: the book-pose hinge,
+    ///   - hinge: ``DeviceLayout/screenDivide(layoutDirection:flatContentFrame:)``: the book-pose hinge,
     ///     or the flat inner display's free-space midline; nil without either.
     ///   - preferredEdge: The vertical bar's edge (the pager's screen); `.trailing`
     ///     when there is no vertical bar.
@@ -1023,7 +1024,8 @@ private struct PagerScreenPlacementModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         let region = PagerScreenPlacement.region(
-            container: container, hinge: layout.screenDivide(layoutDirection: layoutDirection),
+            container: container,
+            hinge: layout.screenDivide(layoutDirection: layoutDirection, flatContentFrame: flatContentFrame),
             preferredEdge: preferredEdge
         )
         content
@@ -1031,6 +1033,16 @@ private struct PagerScreenPlacementModifier: ViewModifier {
             .padding(.leading, region?.minX ?? 0)
             .frame(maxWidth: .infinity, alignment: region == nil ? .center : .leading)
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { container = $0 }
+    }
+
+    /// The full board already excludes the rail. SwiftUI's root geometry can report
+    /// that same width *and* the rail inset, so subtracting the inset again shifts the
+    /// divider. Inside a split or a simulated window, keep using the window divider.
+    private var flatContentFrame: CGRect? {
+        #if DEBUG && os(iOS)
+        guard DebugDuoWindowRemote.shared.window == nil else { return nil }
+        #endif
+        return layout.windowWidthClassOverride == nil ? container : nil
     }
 
     /// The vertical bar's edge, else trailing.

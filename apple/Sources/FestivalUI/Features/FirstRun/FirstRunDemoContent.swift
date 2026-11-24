@@ -34,7 +34,7 @@ struct FirstRunDemoContent: View {
         case "songs-filter": FirstRunNativeFilterDemo()
         case "songs-icons": FirstRunNativeIconsDemo()
         case "songs-metadata": FirstRunNativeMetadataDemo()
-        case "songs-shop-highlight": FirstRunNativeShopDemo(kind: .highlight)
+        case "songs-shop-highlight": FirstRunNativeShopDemo(kind: .highlights)
         case "songs-new-in-shop": FirstRunNativeShopDemo(kind: .new)
         case "songs-leaving-tomorrow": FirstRunNativeShopDemo(kind: .leaving)
 

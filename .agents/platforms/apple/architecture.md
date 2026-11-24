@@ -8,13 +8,32 @@
 |---|---|
 | `apple/Sources/FestivalCore` | URLSession wire models, publication consistency (pin / 409 retry / 304 ETag), session cache, policies (`SongShopFilter`, `SongPlayerScoreFilter`, `SongInstrumentStatusPolicy`, …). New domains go in `FestivalAPI+<Domain>.swift` |
 | `apple/Sources/FestivalDesign` | Generated `BrandTokens.swift` ([tokens](../../design/fluent.md)), `FestivalText` (text colour rule), branded controls (difficulty meter) |
-| `apple/Sources/FestivalUI/App` | `AppRoute`, `AppRouteDestination`, `FestivalTabStack` (orchestrator); `FestivalRootView`, `Shell/*`; `FestivalSession` (+ `FestivalSession+<Feature>.swift`) |
-| `apple/Sources/FestivalUI/{Background,Common,Design}` | Animated background host; status views; `festivalGlass`, `FestivalSectionHeader`, `InstrumentIcon`, `StarRating` |
-| `apple/Sources/FestivalUI/Features/<Feature>` | One folder per page family (Songs, SongDetail, Shop, Profile, Leaderboards, SongLeaderboard, Settings, Rivals, …) |
-| `apple/Apps/{iOS,macOS}`, `apple/Apps/*UITests` | App entry points and XCUITests (UITests frozen during Wave 1) |
+| `apple/Sources/FestivalAppSupport` | Package-internal, renderer-free `AppRoute`, root sections and tab policy, Settings topics, Debug launch routing and the public client factory. Depends only on `FestivalCore`. |
+| `apple/Sources/FestivalUI/{App,Features}` | `FestivalSession`, shared `PageMenuCommands`, and per-feature state, policies, loaders and SwiftUI views retained for native Mac. Extract shared logic from mixed files instead of moving a SwiftUI view into UIKit. |
+| `apple/Sources/FestivalUI/{Background,Common,Design}` | Shared metrics, surface and content policies, and native SwiftUI components for the Mac renderer. |
+| `apple/Sources/FestivalUI/UIKit` | Primary iPhone, iPad and Duo renderer. Owns the root and route-to-controller map (`UKRouteDestination`), Fenton split/push containment, and UIKit feature and control adapters. No SwiftUI hosts or imports. |
+| `apple/Sources/FestivalUI/Mac` | Native SwiftUI window, sidebar, menu and route assembly (`MacRouteDestination`). |
+| `apple/Apps/{iOS,macOS}`, `apple/Apps/*UITests` | `FestivalMobile` UIKit application/scene delegates, `FestivalDesktop` native Mac scenes, and the platform journey bundles. |
 | `apple/Tests/{FestivalCoreTests,FestivalDesignTests,FestivalUITests}` | SwiftPM tests; hosted snapshot helpers in `FestivalUITests` |
 
-Separate navigation shells for iOS/iPadOS and macOS share Core, Design and screen state. Deployment targets: iOS 17, macOS 14.
+`FestivalUI` remains one target for the renderers and existing feature state. Each renderer
+adapts the shared page commands to its own menu API; UIKit does not use SwiftUI focused
+values. The app-support boundary does not depend on either renderer. Keep app identity,
+preferences and the launch screen on the application target when changing a renderer.
+Deployment targets: iOS 17, macOS 14.
+
+Declare `UKSceneDelegate` in `FestivalMobile`'s scene manifest. Do not rely on
+[`configurationForConnecting`](https://developer.apple.com/documentation/uikit/uiapplicationdelegate/application(_:configurationforconnecting:options:))
+alone: it configures new scenes, but the same app identity can reconnect a window
+from an older renderer after an update. At scene foreground, attach the same UIKit root
+to a restored application scene only if it has neither the UIKit delegate nor a normal
+window with a root controller. Keep this recovery in the app target; it must not reset
+preferences or replace a working window.
+
+Mac Catalyst can reuse the UIKit app and route factory in an opt-in XcodeGen overlay. It is
+not the native `FestivalDesktop` product or a supported shipping destination. Put any future
+Catalyst-specific chrome, commands and window policy at the UIKit app/shell boundary;
+do not fork data or feature logic. A Catalyst build does not certify desktop behavior.
 
 ## Runtime invariants
 
@@ -31,7 +50,7 @@ Separate navigation shells for iOS/iPadOS and macOS share Core, Design and scree
 
 A screen showing one account, band or rival must reset its state when that entity changes. It must never draw, or accept a late response for, a different entity.
 
-- **Key identity with the entity.** Apply `.id(entityId)` wherever the entity can change under a surviving view: `AppRouteDestination` does this for `.player`/`.playerBands` (the viewed account) and for `.allRivals`/`.rivalDetail`/`.rivalry` (the selected account). `StatisticsScreen` keys `PlayerProfileContent` by `selected.accountId`, and the Rivals/Compete hubs key their sections by `session.selectedPlayer?.accountId`. `.id` must be applied by the *parent*: inside a view's own `body` it resets only children, not that view's `@State`.
+- **Key identity with the entity.** Apply `.id(entityId)` wherever the entity can change under a surviving view: `MacRouteDestination` does this for `.player`/`.playerBands` (the viewed account) and for `.allRivals`/`.rivalDetail`/`.rivalry` (the selected account). `StatisticsScreen` keys `PlayerProfileContent` by `selected.accountId`, and the Rivals/Compete hubs key their sections by `session.selectedPlayer?.accountId`. `.id` must be applied by the *parent*: inside a view's own `body` it resets only children, not that view's `@State`.
 - **Include the id in `task(id:)`**, and in any late-response guard key (`PlayerBandsScreen.RequestKey` carries `accountId`). `task(id:)` alone is not enough: it reloads *after* the new id has already rendered once with the old state. That is why `PlayerProfilePhase.shown(for:)` also refuses to draw a payload whose `accountId` differs.
 - **Selected-player reads** (`FestivalSession+Rivals`) resolve `session.selectedPlayer` at call time. Their views must therefore key on the selected account, not just on instrument/scope.
 - **Never cache the entity in session-level singletons.** `FestivalSession` holds only the *selected* identity and its score index, never a "last viewed" profile.
@@ -92,7 +111,7 @@ Loaded content never pops in: apply `.festivalFadeIn(isLoaded:)` (`Common/FadeIn
 A new score publication never pops a stack or shows a "returned to Songs" notice. The visible page runs the load-transition R3 phases (`PublicationRefreshTransition`): content out 300 ms, spinner in 150 ms and held at least 400 ms and until the page has prepared for the new generation, spinner out 500 ms, then the rebuilt page fades in, like the web `PublicationBoundary` with `useLoadPhase` timings. Preparation (for example re-reading the route's song) starts only once the old content is hidden, so a fading page never draws new data. Under system or in-app Reduce Motion every fade is an instant swap and the 400 ms hold stays. HIG: `apple-hig/references/hig/progress-indicators.md` ("Perform automatic content updates regularly; don't make people initiate every update"), `hig/accessibility.md` (Reduce Motion) and `hig/loading.md`.
 
 - **Live updates:** `PublicationLiveConnection` (`App/`) keeps one anonymous `URLSessionWebSocketTask` per process on `/api/ws?publicationId=N` while any scene is active; `PublicationLiveUpdates.run` (FestivalCore) re-reads `/api/publication` on connect and on `publication_changed`, reconnecting with 1 s → 30 s backoff. It sends nothing ([service safety](../service-safety.md)). Disabled for loopback fixture origins (Debug `FST_LIVE_PUBLICATION_UPDATES=1/0` overrides). With the override on, the mock (no `/api/ws`) still drives it: each reconnect round re-reads `/api/publication`, so `testLiveRolloverKeepsVoiceOverOnDetail` sees an advance with no user action; other fixture tests change generations through Settings → Check Publication.
-- **Boundary:** `Common/PublicationRefreshBoundary` keys its content with a generation (`PublicationRefreshTransition`, FestivalCore), so the rebuilt page cannot draw rows from the old publication. Hidden old content stays mounted, without hit testing or accessibility, so the navigation title and toolbar persist. `AppRouteDestination` wraps every pushed page (iPhone stacks, iPad trailing pane, Mac stacks); song routes re-resolve their `Song` against the new catalogue first (`RouteSongRefresh`). The Suggestions, Leaderboards, Compete, Rivals, Statistics and Shop roots use `.refreshesOnPublication(session:)`. Songs already runs its own `FestivalReloadGate` (issue #71) and Settings must keep its publication-check status, so neither is wrapped.
+- **SwiftUI boundary:** `Common/PublicationRefreshBoundary` keys native Mac content with a generation (`PublicationRefreshTransition`, FestivalCore), so the rebuilt page cannot draw rows from the old publication. Hidden old content is not hit-testable or accessible. `MacRouteDestination` wraps pushed pages; `RouteSongRefresh` resolves songs against the current catalogue. UIKit reloads its visible pages through its own lifecycle. Songs runs `FestivalReloadGate` (issue #71), and Settings retains its publication-check status.
 - **VoiceOver (load-transition R9):** hiding the old content would drop a VoiceOver focus inside it. Just before hiding it, `Common/PublicationFocusProbe` (an inert `UIView` behind the page) reads `UIAccessibility.focusedElement(using: .notificationVoiceOver)` and `PublicationRefreshFocus.Location` (FestivalCore) decides whether that element is inside the page: the page is on screen (appeared), nothing is presented over its view controller, the element is not in another view hierarchy (its accessibility containers lead to a view outside the page controller's view) and its frame's centre lies in the page's screen frame (so the tab bar, navigation bar and toolbar never count). Only then does the boundary show a page anchor, a clear 44 pt heading overlay (`fst.publication.page-anchor`) whose label is the page title and whose value is "Loading new scores", and move focus there with `@AccessibilityFocusState`, and back after the rebuild unless the reader moved elsewhere during the spinner. Otherwise focus is left alone and one on-screen page posts an `AccessibilityNotification.Announcement("Loading new scores")` per publication (`PublicationRefreshAnnouncements`; a page that claims focus for the same publication cancels it). macOS exposes no VoiceOver cursor to apps, so the Mac always announces and never moves focus. Debug `FST_UI_TEST_PAGE_ANCHOR=inside|outside` simulates the focus location for XCUITest, which cannot run VoiceOver; under `outside` the announcing boundary also shows a 1 pt `fst.publication.announced` marker (value: the revision), because XCUITest cannot hear announcements and a slow simulator query can miss the ~1 s spinner. The anchor label comes from `festivalNavigationTitle(_:)` (`Common/PageTitle.swift`), which sets `navigationTitle` and the `FestivalPageTitleKey` preference; guard `load-transition/apple-page-title` keeps pages inside the boundary on it.
 
 ## Loading indicators (operator rule)
@@ -114,11 +133,13 @@ Measured with [`tools/apple_perf.py`](../../../tools/apple_perf.py) (live SFento
 
 ### Methodology
 
+Compare mobile UIKit with the pinned SwiftUI reference for scroll, launch and navigation using [`tools/uikit_perf.py`](../../../tools/uikit_perf.py): [testing/apple/uikit-perf.md](../../testing/apple/uikit-perf.md).
+
 | Command | Measures |
 |---|---|
 | `apple_perf.py build mac\|ipad [--configuration Release] [--probe]` | `--probe` = Release optimization with the `DEBUG` condition (own DerivedData), so the Debug overrides and stall monitor run on optimized code. True Release ignores `FST_DEBUG_*` and opens on the persisted page (the first-run sheet over Songs on this Mac) |
 | `apple_perf.py mac\|ipad --tab songs` | Process CPU (`ps` time delta, one core = 100%) in 2 s windows over 20 s after a 20 s settle; the Mac window must be uncovered (occlusion pauses everything) |
-| `… --stress` | `FST_DEBUG_SONGS_SCROLL_STRESS` (6 rounds of animated section jumps) with `MainThreadStallMonitor`; counts units ≥ 100 ms between the pass's `marks` |
+| `… --stress` (native Mac or the SwiftUI reference) | `FST_DEBUG_SONGS_SCROLL_STRESS` (6 rounds of animated section jumps) with `MainThreadStallMonitor`; counts units ≥ 100 ms between the pass's `marks`. Use `--fling` for UIKit. |
 | `ipad [--device iphone27] --probe --fling --tab …\|--route …` | `FST_DEBUG_FLING_STRESS` (`Common/ScrollFlingStress.swift`): after 14 s, 2 rounds × 8 flings each way at 5000 pt/s with UIKit's normal deceleration, driven on the page's largest scroll view by a display link. Prints `frames` (`FrameBudgetTally`): `late` (interval > 1.5× target), `hitchMsPerS` (Apple's hitch-time ratio), `over8ms`/`over16ms` (frames whose main-thread CPU missed the 120/60 Hz budget; the sim display link runs at 60 Hz, so `over8ms` stands in for ProMotion), `meanWorkMs`, `worstWorkMs` |
 | `… --sample 30` | macOS `sample` of the app for 30 s from the pass's start mark (`<label>-sample.txt` in `apple/DerivedData/perf`); count a symbol's inclusive main-thread samples to compare runs on a loaded host |
 | `mac … --trace 'Time Profiler' --top 30` (or `'SwiftUI'`, `'Animation Hitches'`; xctrace cannot attach to simulator apps here) | `xctrace record --attach` for `--duration`; with `--stress` it covers the pass. `--top` lists leaf and first-app-frame symbols |

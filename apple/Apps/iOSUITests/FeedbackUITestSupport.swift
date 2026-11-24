@@ -47,9 +47,10 @@ enum FeedbackJourney {
     /// - Parameters:
     ///   - kind: `bug` or `feature`.
     ///   - app: The fixture app on Settings.
-    static func openForm(_ kind: String = "bug", in app: XCUIApplication) {
+    ///   - maximumSwipes: The number of full-page swipes allowed to reach the row.
+    static func openForm(_ kind: String = "bug", in app: XCUIApplication, maximumSwipes: Int = 12) {
         let row = row(kind, in: app)
-        XCTAssertTrue(scrollTo(row, in: app), "The \(kind) feedback row is missing from Settings")
+        XCTAssertTrue(scrollTo(row, in: app, maximumSwipes: maximumSwipes), "The \(kind) feedback row is missing from Settings")
         row.tap()
         XCTAssertTrue(app.textFields["fst.settings.feedback.field.title"].waitForExistence(timeout: FestivalApp.budget(10)),
                       "The \(kind) feedback form did not open")
@@ -76,16 +77,20 @@ enum FeedbackJourney {
     /// where a tap scrolls the page to the top instead (a short landscape Duo window let
     /// one swipe carry the row there).
     ///
+    /// - Parameters:
+    ///   - element: The row to reveal.
+    ///   - app: The app containing the row.
+    ///   - maximumSwipes: Full-page swipes before settling the row with short drags.
     /// - Returns: Whether it became hittable within the attempts.
-    static func scrollTo(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+    static func scrollTo(_ element: XCUIElement, in app: XCUIApplication, maximumSwipes: Int = 12) -> Bool {
         _ = element.waitForExistence(timeout: FestivalApp.budget(15))
         let page = app.windows.firstMatch
         var attempts = 0
-        while !(element.exists && element.isHittable) && attempts < 12 {
+        while !(element.exists && element.isHittable) && attempts < maximumSwipes {
             page.swipeUp()
             attempts += 1
         }
-        while element.exists && attempts < 24 {
+        while element.exists && attempts < maximumSwipes + 12 {
             let row = element.frame, window = page.frame
             let low = window.maxY - 140, high = window.minY + 120
             if row.maxY > low {

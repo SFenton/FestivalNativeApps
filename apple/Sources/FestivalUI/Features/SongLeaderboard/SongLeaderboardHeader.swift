@@ -2,6 +2,14 @@ import SwiftUI
 import FestivalCore
 import FestivalDesign
 
+// MARK: - Song board header layout
+
+/// Layout shared by the SwiftUI and UIKit song boards.
+enum SongBoardHeaderLayout {
+    /// Space below the band board's song header or split-pane title, before its grouped cards.
+    static let bandBottomGap: CGFloat = 12
+}
+
 // MARK: - Song leaderboard board line
 
 /// The board line under a song leaderboard header's artist: the board's name (an

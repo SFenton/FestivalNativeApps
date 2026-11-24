@@ -54,7 +54,7 @@ struct RootChromeRailPriorityTests {
         for item in RootChromeRailItem.allCases {
             _ = item.staysVisibleAheadOfOthers
         }
-        #expect(RootChromeRailItem.allCases.count == 6)
+        #expect(RootChromeRailItem.allCases.count == 7)
     }
 }
 

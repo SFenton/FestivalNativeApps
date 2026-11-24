@@ -56,9 +56,9 @@ struct SuggestionsScreen: View {
     }
 
     /// View › Filter… while the page offers its Filter tool.
-    private var macCommands: MacPageCommands {
-        guard showsFilter else { return MacPageCommands() }
-        return MacPageCommands(filter: { filterPresented = true })
+    private var macCommands: PageMenuCommands {
+        guard showsFilter else { return PageMenuCommands() }
+        return PageMenuCommands(filter: { filterPresented = true })
     }
 
     /// Filter is offered with a selected, available player.

@@ -2,8 +2,8 @@ import UIKit
 import XCTest
 
 /// Fixture-backed native journeys for the Suggestions tab: the no-profile guard, the
-/// generated-list-or-empty transition once a player is selected, the Filter sheet's staged
-/// live filter (Done/Reset) and incremental loading when enough categories
+/// generated-list-or-empty transition once a player is selected, the Filter sheet's
+/// live filter (Close/Reset) and incremental loading when enough categories
 /// exist.
 ///
 /// The shared loopback fixture (`tools/mock_service.py`, default scenario) only serves two
@@ -22,7 +22,7 @@ final class SuggestionsJourneyTests: XCTestCase {
     private func fixtureApp() -> XCUIApplication {
         FestivalApp.makeApp([
             "FST_UI_TEST_CLEAR_PROFILE": "1",
-            "FST_API_BASE_URL": "http://127.0.0.1:8765",
+            "FST_API_BASE_URL": SongsUITestSupport.fixtureURL,
             "FST_DEBUG_TAB": "suggestions",
         ])
     }
@@ -81,118 +81,241 @@ final class SuggestionsJourneyTests: XCTestCase {
     }
 
     /// Filter changes apply live (no Cancel/Apply), persist across reopening, and Reset
-    /// restores defaults; Done is the sheet's only toolbar action.
+    /// restores defaults; Close is the sheet's only toolbar action.
     ///
     /// - Throws: A missing form control or a change that did not persist.
     @MainActor
     func testSuggestionsFilterAppliesLiveAndResets() throws {
         continueAfterFailure = false
-        let app = fixtureApp()
-        app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
-        app.launch()
-        awaitSuggestionsSettled(in: app)
-        let filterButton = app.buttons["fst.suggestions.filter-button"]
-        XCTAssertTrue(filterButton.waitForExistence(timeout: 15))
-        filterButton.tap()
+        let app = launchFilterFixture()
 
-        XCTAssertTrue(app.navigationBars["Filter Suggestions"].waitForExistence(timeout: 10))
-        let form = app.descendants(matching: .any)
-            .matching(identifier: "fst.suggestions.filter.form").firstMatch
-        XCTAssertTrue(form.exists)
+        var form = openFilter(in: app)
         let done = app.buttons["fst.suggestions.filter.done"]
-        XCTAssertTrue(done.exists)
         XCTAssertFalse(app.buttons["fst.suggestions.filter.apply"].exists)
         XCTAssertFalse(app.buttons["fst.suggestions.filter.cancel"].exists)
         record(app, name: "suggestions-filter-default")
 
         let nearFC = app.switches["fst.suggestions.filter.type.nearFC"]
-        XCTAssertTrue(nearFC.waitForExistence(timeout: 10))
-        let before = nearFC.value as? String
+        reveal([nearFC], in: form)
+        let before = try XCTUnwrap(nearFC.value as? String)
         nearFC.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         let changed = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value != %@", before ?? "1"), object: nearFC
+            predicate: NSPredicate(format: "value != %@", before), object: nearFC
         )
         XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 5), .completed)
-        record(app, name: "suggestions-filter-live-changed")
+        let saved = try XCTUnwrap(nearFC.value as? String)
         done.tap()
-        XCTAssertTrue(filterButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(done.waitForNonExistence(timeout: 10))
 
-        filterButton.tap()
-        XCTAssertTrue(nearFC.waitForExistence(timeout: 10))
-        XCTAssertNotEqual(nearFC.value as? String, before, "A live change did not persist")
+        form = openFilter(in: app)
+        reveal([nearFC], in: form)
+        XCTAssertEqual(nearFC.value as? String, saved, "A live change did not persist")
         let reset = app.buttons["fst.suggestions.filter.reset"]
-        // Reset sits after the instrument selector section at the end of the form.
-        for _ in 0..<8 where !reset.exists { app.swipeUp() }
-        XCTAssertTrue(reset.waitForExistence(timeout: 10))
+        reveal([reset], in: form)
         reset.tap()
-        for _ in 0..<8 where !nearFC.isHittable { app.swipeDown() }
-        XCTAssertEqual(nearFC.value as? String, before)
-        app.buttons["fst.suggestions.filter.done"].tap()
-        XCTAssertTrue(filterButton.waitForExistence(timeout: 10))
+        reveal([nearFC], in: form, scrollingUp: false)
+        XCTAssertEqual(nearFC.value as? String, "1")
+        done.tap()
+        XCTAssertTrue(done.waitForNonExistence(timeout: 10))
         record(app, name: "suggestions-filter-reset")
+    }
+
+    /// A General row exposes one switch and paints its full title and caption at AX5.
+    @MainActor
+    func testSuggestionsGeneralSwitchIncludesCaptionAndScales() throws {
+        continueAfterFailure = false
+        let nearFCID = "fst.suggestions.filter.type.nearFC"
+        let caption = "Songs you're close to full-comboing."
+        var defaultHeight: CGFloat = 0
+        for (size, name) in [("UICTContentSizeCategoryL", "default"),
+                             ("UICTContentSizeCategoryAccessibilityXXXL", "ax5")] {
+            let app = launchFilterFixture(category: size)
+            defer { app.terminate() }
+            let form = openFilter(in: app)
+            let nearFC = app.switches[nearFCID]
+            reveal([nearFC], in: form)
+            XCTAssertEqual(nearFC.label, "Near FC, \(caption)")
+            let standaloneCaptions = try FestivalApp.snapshotNodes(in: form) {
+                $0.elementType == .staticText && $0.label == caption
+            }
+            let switchCaptions = try FestivalApp.snapshotNodes(in: nearFC) {
+                $0.elementType == .staticText && $0.label == caption
+            }
+            XCTAssertEqual(standaloneCaptions.count, switchCaptions.count, "The caption is repeated outside the switch")
+            XCTAssertGreaterThanOrEqual(nearFC.frame.width, 44)
+            let height = nearFC.frame.height
+            if name == "default" {
+                defaultHeight = height
+                XCTAssertGreaterThanOrEqual(height, 60, "Title and caption need the native vertical inset")
+                let general = try FestivalApp.snapshotNodes(in: form) {
+                    $0.elementType == .switch && $0.identifier.hasPrefix("fst.suggestions.filter.type.")
+                }
+                XCTAssertEqual(Array(general.prefix(2).map(\.identifier)), [
+                    nearFCID, "fst.suggestions.filter.type.starProgress",
+                ])
+            } else {
+                XCTAssertGreaterThan(height, defaultHeight * 1.35)
+            }
+            record(app, name: "suggestions-filter-general-\(name)")
+            if name == "ax5" {
+                let starProgress = app.switches["fst.suggestions.filter.type.starProgress"]
+                reveal([starProgress], in: form)
+                let viewport = form.frame.intersection(app.windows.firstMatch.frame)
+                let top = viewport.minY + 60
+                let bottom = viewport.maxY - 8
+                let start = form.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.55))
+                for _ in 0..<5 {
+                    let frame = starProgress.frame
+                    if frame.minY >= top && frame.maxY <= bottom { break }
+                    let travel = viewport.height * 0.3
+                    let shift = min(travel, max(-travel, (top + bottom) / 2 - frame.midY))
+                    let end = start.withOffset(CGVector(dx: 0, dy: shift))
+                    start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.25)
+                }
+                record(app, name: "suggestions-filter-general-star-progress-ax5")
+                XCTAssertLessThanOrEqual(starProgress.frame.maxY, bottom, "The whole switch row must be visible")
+                XCTAssertGreaterThanOrEqual(starProgress.frame.minY, top, "The title must clear the top fade")
+                let expected = ["Star Progress", "Push five-star runs to gold, or gain more stars."]
+                let paint = RecognizedText.recognize(
+                    starProgress, label: expected.joined(separator: " "), frame: starProgress.frame
+                )
+                for text in expected {
+                    XCTAssertTrue(RecognizedText.showsWhole(text, in: paint.text), paint.text ?? "Missing switch text")
+                }
+            }
+        }
+    }
+
+    /// Hiding an instrument updates the rows of an existing mixed-instrument card in place.
+    @MainActor
+    func testSuggestionsInstrumentFilterRefreshesExistingMixedCard() {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
+        app.launchEnvironment["FST_DEBUG_ROUTE"] = "suggestions"
+        app.launchArguments += ["-fst.suggestions.filter", ""]
+        app.launch()
+
+        let hidden = app.buttons.matching(identifier: "fst.suggestions.row.fixture-pulse|Solo_Drums").firstMatch
+        let retained = app.buttons.matching(identifier: "fst.suggestions.row.fixture-orbit|Solo_PeripheralDrums").firstMatch
+        XCTAssertTrue(hidden.waitForExistence(timeout: 15))
+        XCTAssertTrue(retained.exists)
+        XCTAssertTrue(hidden.label.hasSuffix("Drums"))
+
+        let filter = app.buttons["fst.suggestions.filter-button"]
+        XCTAssertTrue(filter.isHittable)
+        filter.tap()
+        let drums = app.switches["fst.suggestions.filter.instrument.Solo_Drums"]
+        XCTAssertTrue(drums.waitForExistence(timeout: 5))
+        let bass = app.switches["fst.suggestions.filter.instrument.Solo_Bass"]
+        XCTAssertTrue(bass.isHittable && drums.isHittable)
+        XCTAssertTrue(drums.label.hasPrefix("Drums"))
+        XCTAssertGreaterThanOrEqual(drums.frame.height, 56)
+        XCTAssertEqual(drums.frame.minY - bass.frame.minY, 58, accuracy: 1)
+        XCTAssertEqual(drums.value as? String, "1")
+        drums.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertEqual(drums.value as? String, "0")
+        app.buttons["fst.suggestions.filter.done"].tap()
+
+        let removed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: hidden)
+        XCTAssertEqual(XCTWaiter.wait(for: [removed], timeout: 5), .completed, "The existing card still speaks the excluded row")
+        XCTAssertTrue(retained.isHittable, "The remaining mixed-card row should stay accessible")
+        XCTAssertTrue(retained.label.hasSuffix("Pro Drums"))
     }
 
     /// The Instrument-Specific section is the shared InstrumentSelector (deferred mode,
     /// web): nothing selected on open and no per-instrument toggles; choosing an
     /// instrument (a circle, or the compact centre after cycling) reveals its toggles.
     ///
-    /// - Throws: A missing selector or toggles that never appear.
     @MainActor
-    func testSuggestionsFilterInstrumentSelectorRevealsPerInstrumentToggles() throws {
+    func testSuggestionsFilterInstrumentSelectorRevealsPerInstrumentToggles() {
         continueAfterFailure = false
-        let app = fixtureApp()
-        app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
-        app.launch()
-        awaitSuggestionsSettled(in: app)
-        let filterButton = app.buttons["fst.suggestions.filter-button"]
-        XCTAssertTrue(filterButton.waitForExistence(timeout: 15))
-        filterButton.tap()
-        XCTAssertTrue(app.navigationBars["Filter Suggestions"].waitForExistence(timeout: 10))
+        let app = launchFilterFixture()
+        let form = openFilter(in: app)
 
         let prefix = "fst.suggestions.filter.instrument-picker"
         let lead = app.buttons["\(prefix).Solo_Guitar"]
         let centre = app.buttons["\(prefix).centre"]
-        for _ in 0..<8 where !(lead.exists || centre.exists) { app.swipeUp() }
-        XCTAssertTrue(lead.exists || centre.exists, "The instrument selector is missing")
-        let leadToggles = app.switches.matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "fst.suggestions.filter.type.Solo_Guitar.")
-        )
-        XCTAssertEqual(leadToggles.count, 0, "Per-instrument toggles showed before a choice")
-        if lead.exists {
-            lead.tap()
-        } else {
-            // Compact: the centre previews Lead first; tapping it commits.
-            centre.tap()
+        reveal([lead, centre], in: form)
+        let isCompact = !lead.isHittable
+        let selection = isCompact ? centre : lead
+        let chart = isCompact ? "Solo_Bass" : "Solo_Guitar"
+        let firstToggle = app.switches["fst.suggestions.filter.type.\(chart).nearFC"]
+        XCTAssertFalse(firstToggle.exists, "Per-instrument toggles showed before a choice")
+        XCTAssertFalse(selection.isSelected)
+        if isCompact {
+            app.buttons["\(prefix).next"].tap()
+            XCTAssertEqual(centre.label, "Bass")
+            XCTAssertFalse(centre.isSelected)
+            XCTAssertFalse(firstToggle.exists, "A preview opened the chart's switches")
         }
-        XCTAssertTrue(leadToggles.firstMatch.waitForExistence(timeout: 5), "Choosing Lead did not reveal its toggles")
-        // Pattern `accordion` (#561): once the section has grown and the toggles faded in,
-        // they are readable, hittable switches with a full-size target.
-        let firstToggle = leadToggles.firstMatch
-        XCTAssertTrue(firstToggle.isHittable, "The revealed toggle is not hittable")
-        XCTAssertFalse(firstToggle.label.isEmpty, "The revealed toggle has no label")
-        XCTAssertGreaterThanOrEqual(firstToggle.frame.height, 44, "The revealed toggle's target is too short")
+        selection.tap()
+        XCTAssertTrue(firstToggle.waitForExistence(timeout: 5), "Choosing a chart did not reveal its toggles")
+        reveal([firstToggle], in: form)
+        XCTAssertTrue(selection.isSelected)
+        XCTAssertEqual(firstToggle.label, "Near FC")
+        XCTAssertGreaterThanOrEqual(firstToggle.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(firstToggle.frame.height, 44)
+        XCTAssertGreaterThan(firstToggle.frame.midY, selection.frame.midY)
         record(app, name: "suggestions-filter-instrument-selector")
-        if lead.exists {
-            // Deselecting fades the toggles out, then the section collapses.
-            lead.tap()
-            XCTAssertTrue(
-                firstToggle.waitForNonExistence(timeout: 5), "Deselecting Lead did not collapse its toggles"
-            )
-        }
+        reveal([selection], in: form, scrollingUp: false)
+        selection.tap()
+        XCTAssertTrue(firstToggle.waitForNonExistence(timeout: 5), "Clearing the chart did not hide its toggles")
+        XCTAssertFalse(selection.isSelected)
         app.buttons["fst.suggestions.filter.done"].tap()
     }
 
-    /// Filter plus account items are navigation-bar items, so they stay in the bar row,
-    /// hittable (and so reachable by VoiceOver), at the top and while scrolled; the
-    /// large title collapses under them and returns at the top.
+    /// Launch a selected player on Suggestions, optionally with two visible charts to
+    /// put General near the top at both Dynamic Type sizes.
+    @MainActor
+    private func launchFilterFixture(category: String? = nil) -> XCUIApplication {
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
+        app.launchEnvironment["FST_DEBUG_ROUTE"] = "suggestions"
+        if let category {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", category]
+            for name in ["Drums", "Vocals", "ProLead", "ProBass", "Karaoke", "ProCymbals", "ProDrums"] {
+                app.launchArguments += ["-fst.settings.show\(name)", "NO"]
+            }
+            app.launchArguments += ["-fst.settings.showLead", "YES", "-fst.settings.showBass", "YES"]
+        }
+        app.launch()
+        XCTAssertTrue(awaitSuggestionsSettled(in: app).exists)
+        return app
+    }
+
+    /// Open the page tool directly or through folded Duo's native toolbar overflow.
+    @MainActor
+    private func openFilter(in app: XCUIApplication) -> XCUIElement {
+        ShellUITestSupport.tapToolbarItem(
+            "fst.suggestions.filter-button", overflowLabels: ["Filter", "Filter Suggestions"], in: app
+        )
+        XCTAssertTrue(app.buttons["fst.suggestions.filter.done"].waitForExistence(timeout: 10))
+        let form = app.descendants(matching: .any).matching(identifier: "fst.suggestions.filter.form").firstMatch
+        XCTAssertTrue(form.waitForExistence(timeout: 10))
+        return form
+    }
+
+    /// Scroll the sheet's Form until a target (or its compact equivalent) is hittable.
+    @MainActor
+    private func reveal(_ targets: [XCUIElement], in form: XCUIElement, scrollingUp: Bool = true) {
+        for _ in 0..<12 {
+            if targets.contains(where: \.isHittable) { return }
+            if scrollingUp { form.swipeUp() } else { form.swipeDown() }
+        }
+        XCTAssertTrue(targets.contains(where: \.isHittable), "\(targets.map(\.identifier)) not reachable in Filter")
+    }
+
+    /// With horizontal tab chrome, Filter stays in its own 44 pt circle above the tab
+    /// bar while Notifications and Profile stay grouped in the navigation bar.
     ///
     /// Scrolling needs a populated mix: pass a richer catalogue as
     /// `TEST_RUNNER_FST_SONGS_SCROLL_FIXTURE_URL` (`mock_service.py --large-catalogue`);
     /// the two-song default checks only the top state.
     ///
-    /// - Throws: A control that leaves the bar or stops being hittable.
+    /// - Throws: A skip outside a horizontal-tab layout.
     @MainActor
-    func testSuggestionsToolbarItemsStayInTheBarWhileScrolled() throws {
+    func testSuggestionsFilterFloatsWhileAccountItemsStayInTheBar() throws {
         continueAfterFailure = false
         let app = fixtureApp()
         if let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"] {
@@ -201,39 +324,38 @@ final class SuggestionsJourneyTests: XCTestCase {
         app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
         app.launch()
         let settled = awaitSuggestionsSettled(in: app)
+        let tabBar = app.tabBars.firstMatch
+        try XCTSkipUnless(tabBar.exists && tabBar.frame.width > tabBar.frame.height * 2, "Needs a horizontal tab bar")
         let bar = app.navigationBars.firstMatch
-        let controls = [
-            "fst.suggestions.filter-button", "fst.shell.notifications", "fst.shell.profile",
-        ].map { app.buttons[$0] }
-        func assertInBar(_ state: String) {
-            for control in controls {
-                XCTAssertTrue(control.waitForExistence(timeout: 10), "\(control) missing \(state)")
-                XCTAssertTrue(control.isHittable, "\(control) not hittable \(state)")
-                XCTAssertLessThanOrEqual(control.frame.maxY, bar.frame.maxY + 1, "\(control) left the bar \(state)")
+        let filter = app.buttons["fst.suggestions.filter-button"]
+        func assertPlacement(_ state: String) {
+            for id in ["fst.shell.notifications", "fst.shell.profile"] {
+                let control = bar.buttons[id]
+                XCTAssertTrue(control.waitForExistence(timeout: 10), "\(id) missing \(state)")
+                XCTAssertTrue(control.isHittable, "\(id) not hittable \(state)")
             }
+            XCTAssertTrue(filter.waitForExistence(timeout: 10), "Filter missing \(state)")
+            XCTAssertTrue(filter.isHittable)
+            XCTAssertEqual(filter.label, "Filter")
+            XCTAssertGreaterThanOrEqual(filter.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(filter.frame.height, 44)
+            XCTAssertGreaterThan(filter.frame.minY, bar.frame.maxY)
+            XCTAssertLessThanOrEqual(filter.frame.maxY, tabBar.frame.minY + 1)
         }
-        assertInBar("at the top")
-        let expanded = bar.frame.height
-        guard settled.identifier == "fst.suggestions.list" else {
-            throw XCTSkip("Fixture mix produced no categories; nothing to scroll")
+        assertPlacement("at the top")
+        if settled.identifier == "fst.suggestions.list", settled.isHittable, !settled.frame.isEmpty {
+            let initial = filter.frame
+            settled.swipeUp()
+            settled.swipeUp()
+            assertPlacement("while scrolled")
+            XCTAssertEqual(filter.frame.minY, initial.minY, accuracy: 1)
         }
-        guard settled.isHittable, !settled.frame.isEmpty else {
-            throw XCTSkip("Fixture mix produced no visible list viewport; nothing to scroll")
-        }
-        settled.swipeUp()
-        settled.swipeUp()
-        let collapsed = XCTNSPredicateExpectation(
-            predicate: NSPredicate { _, _ in bar.frame.height < expanded - 20 }, object: nil
-        )
-        XCTAssertEqual(XCTWaiter.wait(for: [collapsed], timeout: 5), .completed, "Large title did not collapse")
-        assertInBar("while scrolled")
-        record(app, name: "suggestions-tools-in-bar-scrolled")
-        for _ in 0..<4 { settled.swipeDown() }
-        let restored = XCTNSPredicateExpectation(
-            predicate: NSPredicate { _, _ in abs(bar.frame.height - expanded) < 2 }, object: nil
-        )
-        XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 5), .completed, "Large title did not return")
-        assertInBar("back at the top")
+        filter.tap()
+        let close = app.buttons["fst.suggestions.filter.done"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+        XCTAssertFalse(filter.isHittable, "The sheet covers the page tool")
+        close.tap()
+        assertPlacement("after dismissing the filter")
     }
 
     /// Prove incremental loading when the fixture mix exceeds one page, otherwise skip

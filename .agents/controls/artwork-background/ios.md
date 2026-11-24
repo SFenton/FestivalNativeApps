@@ -44,4 +44,6 @@ Last measured (iPhone 17 Pro sim, iOS 26.5, 15 s idle, `ps` CPU of the app / sim
 
 Gotcha: the 16×16 grid samples the empty page behind Songs, and a saved Shop sort once put a card inside the crop. Visual tests pin Sort to Title per launch.
 
+`UKBackgroundJourneyTests` checks the same backdrop across a real scene deactivation. Switch to another app; opening the Duo app switcher alone does not establish a scene transition. Compare the cover at deactivation and just before activation restarts playback, not before dispatching the gesture. An inactive dwell must preserve the cover, stop motion and resume without rebuilding the backdrop.
+
 Open: under a page that passes no `visible` input (e.g. Shop → Song Detail), a cancelled interactive swipe-back briefly starts the fade to the carousel (the covered page's `onAppear` fires), then returns to the cover. Songs is immune because its `visible` input tracks the path. Other open items: hardware Low Data/Low Power toggles, device frame pacing and power on a ProMotion iPhone, macOS GUI, iOS 17 runtime, Duo poses.

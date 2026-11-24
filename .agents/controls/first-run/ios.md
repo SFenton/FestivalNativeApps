@@ -3,6 +3,155 @@
 > **What:** the SwiftUI carousel, seen-state store and Settings replay as built, decisions and
 > open gaps (Lane F). Spec: [spec.md](spec.md).
 
+## UIKit live previews
+
+- The Song List slide reuses the native Songs card and row, with the shared bounded
+  catalogue selection and row-swap timing. Without usable catalogue songs it shows
+  redacted rows, never invented titles. It does not expose preview rows as actions;
+  the slide's narration is one static-text element.
+- Only an active, visible slide can rotate, and decorative artwork stops under Low Data
+  Mode or opaque presentation. Reduce Motion freezes rotation. HIG
+  [Onboarding](https://developer.apple.com/design/human-interface-guidelines/onboarding)
+  recommends onboarding that is optional and focused on the app's actual experience.
+- The three Songs Shop slides explain sample statuses on catalogue rows, without looking
+  up Shop membership or exposing purchase actions. They use the shared
+  [Shop offer status](../../patterns/shop-offer-status.md) components; inactive previews
+  and Reduce Motion keep the outline still ([HIG Motion](https://developer.apple.com/design/human-interface-guidelines/motion)).
+- The Item Shop guide shows a three-column artwork overview and native catalogue rows
+  for the three highlight lessons. A loaded Shop feed from the catalogue's observed
+  publication can put Shop songs first; the guide does not fetch offers. The green,
+  gold, and red phases are examples, not a report of the displayed songs' offer states.
+  Use the shared 60 ms tile and 80 ms row entrance intervals. The narration is the only
+  slide element exposed to VoiceOver; demos never open the store
+  ([HIG Onboarding](https://developer.apple.com/design/human-interface-guidelines/onboarding)).
+- The Songs Instrument Icons and Song Metadata slides render the shared sample chips and
+  score fields on catalogue rows. Their examples do not read the user's scores or apply
+  the saved visual order. They rotate on the same clock as Song List. Both renderers
+  keep those illustrative rows and their fields out of the accessibility tree; the
+  narration explains them instead ([HIG VoiceOver](https://developer.apple.com/design/human-interface-guidelines/voiceover)).
+- In both renderers, decorative catalogue rows keep artwork and illustrative Shop styling,
+  but omit the active player's or band's score fields and load status. The Instrument Icons
+  and Song Metadata lessons use their own sample scores. This does not change the publication
+  checks for rows in the real Songs list.
+- The Score History overview uses the [shared Score History row](../../patterns/leaderboard-row.md)
+  with the same illustrative scores as SwiftUI. Rows cascade before the text and are
+  visible immediately under Reduce Motion ([HIG Motion](https://developer.apple.com/design/human-interface-guidelines/motion)).
+- Song Info's two chart lessons draw the same three sample accuracy bars, with
+  score annotations or a selection outline and detail strip. They share the
+  [UIKit chart date axis](../../patterns/chart-date-axis.md), not the live chart's
+  score axis or loader. Only the active selection lesson rotates: it uses the
+  shared 2.5 s wait and 300 ms detail fades, and rests on the first bar under
+  Reduce Motion. The narration is the only accessible element in the slide
+  ([HIG Charts](https://developer.apple.com/design/human-interface-guidelines/charts):
+  "Hide visible axis and tick text labels from assistive technologies").
+- Optimal Paths reuses the viewer's collapsed selector labels with a local placeholder.
+  It creates no native menus and never requests a path. The selectors enter before
+  the placeholder; both are decorative, including at accessibility text sizes
+  ([HIG Menus](https://developer.apple.com/design/human-interface-guidelines/menus),
+  [HIG VoiceOver](https://developer.apple.com/design/human-interface-guidelines/voiceover)).
+- Song Info's three Item Shop lessons use one bounded catalogue example and the
+  real action's presentation policy: a green, gold or red disc in horizontal
+  chrome, a plain labelled capsule on the folded rail or with highlighting off.
+  In a narrow preview the capsule wraps its two words before compressing the
+  song header. In a wide preview the label stays on one line.
+  They redact song content without a catalogue, never fetch Shop offers or open
+  the store, and use the shared three-second pulse only while active and motion
+  is allowed. The narration describes the sample state without relying on colour
+  or exposing the decorative button ([HIG Motion](https://developer.apple.com/design/human-interface-guidelines/motion)).
+- Suggestions' category and scrolling lessons use the native category card with sample
+  templates and bounded catalogue songs, never the selected player's recommendation feed.
+  Rows cannot open songs and stay out of the narration; unavailable catalogue titles and
+  artists are redacted. SwiftUI removes the decorative nodes from the pager's underlying
+  accessibility tree instead of relying on a hidden ancestor. In short UIKit viewports,
+  the rotating card keeps its heading at the top if it cannot fit centered.
+  The single category swaps on the shared five-second clock using
+  400 ms fades. The scrolling track uses the shared 100 ms wait, 30 pt/s glide and
+  [scroll edge fades](../../patterns/scroll-edge.md). Keep both illustrations still
+  under Reduce Motion, and stop decorative motion and artwork when the slide or scene
+  is inactive, the network is constrained, or cards use opaque accessibility presentation
+  ([HIG Motion](https://developer.apple.com/design/human-interface-guidelines/motion)).
+- Song Info's View Player Scores and Top Scores Per Instrument lessons use the shared
+  [score rows](../../patterns/leaderboard-row.md) and [View All button](../../patterns/view-all-cta.md)
+  in one card with synthetic data. The history illustration mutes its last row;
+  the leaderboard illustration introduces the Lead heading before its rows.
+  Cascades use the 125 ms guide step. The CTA is inert and its pulse stays still
+  off-slide and under Reduce Motion. These examples add no stops or sample data to
+  the narration ([HIG VoiceOver](https://developer.apple.com/design/human-interface-guidelines/voiceover),
+  [HIG Motion](https://developer.apple.com/design/human-interface-guidelines/motion)).
+- Global Rankings and Compete's Leaderboards slide share one illustrative Lead card;
+  Your Rank uses the same native [ranking rows](../../patterns/leaderboard-row.md)
+  with the sample player's purple band. All three use the grouped
+  [View All surface](../../patterns/view-all-cta.md), the 80 ms ranking cascade,
+  and the shared pulse, which stays still under Reduce Motion or when the slide
+  or scene is inactive. The rows and View All are decorative, not live scores or
+  actions; the slide has one narration before the pager.
+  [HIG Onboarding](https://developer.apple.com/design/human-interface-guidelines/onboarding)
+  recommends focusing lessons on the actual experience;
+  [HIG Motion](https://developer.apple.com/design/human-interface-guidelines/motion)
+  calls for making motion optional.
+- The automatic Experimental Ranking Metrics lesson follows the same Settings gate as the
+  Rank By menu; Settings can still replay the full guide. It illustrates the four choices
+  without opening a menu or changing the selected metric. At standard heights, center the
+  illustration in the space left by narration, allowing the rim to crop instead of crowding
+  the pager. Short previews prioritize the first choices. Compete Hub alternates between
+  sample rankings and Above You/Below You cards. Compete Rivals and Your Rivals alternate the group that changes;
+  Per-Instrument Rivals changes two rows without replacing their headers. These previews
+  use the shared ranking and rival rows, five-second swap clock and 80 ms entrance steps
+  where applicable. Head-to-Head uses sample rank pairs and three bounded catalogue
+  songs, redacts missing titles, and restaggers rows as its example category changes.
+  The compact preview clips rows after the category heading, not the heading itself.
+  These lessons do not query rivals or scores. Only narration and pager controls are
+  interactive or spoken; Reduce Motion keeps each sample still
+  ([HIG Onboarding](https://developer.apple.com/design/human-interface-guidelines/onboarding),
+  [HIG Motion](https://developer.apple.com/design/human-interface-guidelines/motion),
+  [HIG VoiceOver](https://developer.apple.com/design/human-interface-guidelines/voiceover)).
+- Global Statistics, Per-Instrument Stats and Percentile Rankings use the same sample
+  data in both renderers. The UIKit previews reuse the native Statistics tiles,
+  instrument header and percentile table without linking to Songs or reading the
+  selected player's scores. The instrument header and table enter before the narration
+  with motion on. The SwiftUI grid and table replace their accessibility representation
+  so their stat links cannot appear inside the narration; the UIKit examples likewise
+  expose no sample actions
+  ([HIG Onboarding](https://developer.apple.com/design/human-interface-guidelines/onboarding),
+  [HIG VoiceOver](https://developer.apple.com/design/human-interface-guidelines/voiceover)).
+- Select Player Profile draws a decorative Select button for the shared example player;
+  Drill Into Your Data draws the actual Statistics tiles with sample values and the
+  production chevrons. They do not change selection or apply a filter. Both reuse the
+  guide's two-second outline pulse, stationary when the slide or scene is inactive
+  or Reduce Motion is on ([HIG Motion](https://developer.apple.com/design/human-interface-guidelines/motion)).
+- Highest and Lowest Rank Breakdown centers four catalogue cards in the clipped preview.
+  The artist and optional year accompany each title, and the gold sample percentage stays
+  with its slot as two songs rotate on the shared catalogue clock. A missing catalogue
+  redacts art and song text, not the illustrative percentages. The preview is decorative;
+  only the narration reaches VoiceOver, and Reduce Motion keeps the rows still
+  ([HIG VoiceOver](https://developer.apple.com/design/human-interface-guidelines/voiceover),
+  [HIG Motion](https://developer.apple.com/design/human-interface-guidelines/motion)).
+- The UIKit pager starts an incoming slide's fade as soon as its movement is committed,
+  not after the movement settles. Only the settled slide is readable and recorded as seen.
+  Reduce Motion displays slides fully drawn with no entrance
+  ([HIG Motion](https://developer.apple.com/design/human-interface-guidelines/motion)).
+- Settings' Show buttons keep their blue fill through the guide sheet's native backdrop
+  dimming, like the explicitly tinted SwiftUI buttons. The backdrop stays noninteractive
+  until the guide closes ([HIG Sheets](https://developer.apple.com/design/human-interface-guidelines/sheets)).
+  UIKit centers the compact painted capsule within a minimum 44 pt hit target and lets
+  the fill grow with the label ([HIG Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility)).
+- Back keeps the guide's accent tint on both the horizontal navigation bar and the
+  folded Duo rail. It stays a single native, named button, absent on the first
+  lesson ([HIG Toolbars](https://developer.apple.com/design/human-interface-guidelines/toolbars)).
+- At standard text sizes the preview takes the space left by the narration and its bottom
+  gap, bounded to 170–320 pt as in SwiftUI. On a short viewport the decorative insets yield
+  to the narration before it needs to scroll. Compact height and accessibility sizes keep
+  the 120 pt preview and scrollable narration
+  ([HIG Typography](https://developer.apple.com/design/human-interface-guidelines/typography)).
+  For Songs and Shop row previews taller than the available space, crop the lower rows
+  rather than cutting off both the first and last examples.
+- Songs Sort and Filter, Player History Sort, and the two Suggestions Filter slides embed
+  their native forms, cropped to the preview viewport without sheet navigation. The forms
+  are inert and do not read or write the user's settings. The slide, not its preview rows,
+  is the accessible element.
+- The Songs Navigation slide uses a native tab controller with the same sample sections as
+  SwiftUI, but no routes, accessory or exposed actions ([HIG Tab bars](https://developer.apple.com/design/human-interface-guidelines/tab-bars)).
+
 ## Architecture
 
 - **Core (pure logic, `FestivalCore/`):**
