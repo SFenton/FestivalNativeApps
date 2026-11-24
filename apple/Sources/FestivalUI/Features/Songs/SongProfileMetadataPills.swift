@@ -216,8 +216,8 @@ struct SongMetadataFieldView: View {
                 }
         case let .percentile(label, tier):
             let highlighted = tier != .ordinary
-            let text: Text = tier == .topOne
-                ? Text(label).italic() : Text(label)
+            let skewed = tier == .topOne
+            let text: Text = skewed ? Text(label).italic() : Text(label)
             text
                 .font(.callout.bold())
                 .foregroundStyle(
@@ -229,15 +229,18 @@ struct SongMetadataFieldView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, horizontalInset)
                 .frame(minWidth: 80, minHeight: badgeHeight)
-                .background(
-                    highlighted ? BrandTokens.cardBackground : BrandTokens.surfaceMuted,
-                    in: RoundedRectangle(cornerRadius: 6)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 6).stroke(
-                        highlighted ? BrandTokens.goldStroke : Color.clear,
-                        lineWidth: 2
-                    )
+                .background {
+                    if skewed {
+                        let shape = GoldSkewBadgeShape(skewed: true)
+                        shape.fill(BrandTokens.cardBackground)
+                            .overlay { shape.strokeBorder(BrandTokens.goldStroke, lineWidth: 2) }
+                    } else {
+                        let shape = RoundedRectangle(cornerRadius: 6)
+                        shape.fill(highlighted ? BrandTokens.cardBackground : BrandTokens.surfaceMuted)
+                            .overlay {
+                                if highlighted { shape.stroke(BrandTokens.goldStroke, lineWidth: 2) }
+                            }
+                    }
                 }
         case let .stars(count, gold):
             if dynamicTypeSize.isAccessibilitySize {

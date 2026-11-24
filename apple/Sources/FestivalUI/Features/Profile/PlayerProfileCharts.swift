@@ -27,8 +27,11 @@ struct ChartMotion {
     let system: Bool
     let app: Bool
 
+    /// Apple chart paging timing, shared by both native renderers.
+    static let duration = 0.35
+
     /// The data-change animation to use, or nil when motion is reduced.
-    var animation: Animation? { system || app ? nil : .easeOut(duration: 0.35) }
+    var animation: Animation? { system || app ? nil : .easeOut(duration: Self.duration) }
 }
 
 // MARK: - PlayerRankHistoryCard
@@ -277,7 +280,7 @@ struct RankHistoryCharts: View {
     /// Web `Colors.accentBlueBright` (#4C7DFF), the rank line and its dots.
     static let rankLineColor = Color(.sRGB, red: 76 / 255, green: 125 / 255, blue: 1, opacity: 1)
     /// Width reserved for the two y-axis label columns when sizing the page.
-    private static let axisOverhead: CGFloat = 96
+    static let axisOverhead: CGFloat = 96
     /// Plot height.
     static let plotHeight: CGFloat = 220
     /// Pager row height (44 pt buttons).

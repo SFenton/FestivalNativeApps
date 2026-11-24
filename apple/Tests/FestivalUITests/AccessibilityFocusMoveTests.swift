@@ -1,5 +1,6 @@
 import CoreGraphics
 import Testing
+import FestivalAppSupport
 @testable import FestivalCore
 @testable import FestivalUI
 

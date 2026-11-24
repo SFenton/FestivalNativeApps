@@ -77,6 +77,25 @@ final class SongsDeselectAccessibilityJourneyTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(element.frame.height, 44, "\(name) target \(element.frame)", file: file, line: line)
     }
 
+    /// The native rail's AX frame describes the glass, not its hit region (R27).
+    /// Taps beyond the glass must still open the reset Filter sheet.
+    @MainActor
+    private func assertRailFilterTarget(_ filter: XCUIElement, in app: XCUIApplication) {
+        let id = filter.identifier
+        XCTAssertTrue(app.navigationBars.buttons[id].exists || app.toolbars.buttons[id].exists)
+        XCTAssertTrue(filter.isHittable)
+        let frame = filter.frame
+        let origin = app.coordinate(withNormalizedOffset: .zero)
+        let done = app.buttons["fst.songs.filter.done"]
+        for offset in [CGVector(dx: -20, dy: 0), CGVector(dx: 20, dy: 0),
+                       CGVector(dx: 0, dy: -20), CGVector(dx: 0, dy: 20)] {
+            origin.withOffset(CGVector(dx: frame.midX + offset.dx, dy: frame.midY + offset.dy)).tap()
+            XCTAssertTrue(done.waitForExistence(timeout: FestivalApp.budget(5)), "Filter rail target ignored \(offset)")
+            done.tap()
+            XCTAssertTrue(done.waitForNonExistence(timeout: FestivalApp.budget(10)))
+        }
+    }
+
     /// No paused card, and no text naming a pause or a missing player, anywhere on Songs.
     @MainActor
     private func assertNoPausedState(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
@@ -89,35 +108,43 @@ final class SongsDeselectAccessibilityJourneyTests: XCTestCase {
         }
     }
 
-    /// Open Filter from the floating tools, or from the folded Sort and Filter menu.
+    /// Open a Songs sheet from the floating row, the folded menu or the native rail overflow.
     @MainActor
-    private func openFilter(_ app: XCUIApplication) {
-        let folded = app.buttons["fst.songs.tools"]
-        if folded.exists {
-            folded.tap()
-            let item = app.buttons["fst.songs.tools.filter"]
-            XCTAssertTrue(item.waitForExistence(timeout: FestivalApp.budget(5)), "Filter… missing")
+    private func openTool(_ tool: String, label: String, in app: XCUIApplication) {
+        let direct = app.buttons["fst.songs.\(tool)"]
+        let menu = app.buttons.matching(NSPredicate(
+            format: "identifier == %@ OR label == %@", "fst.songs.tools", "Sort and Filter"
+        )).firstMatch
+        let item = app.buttons.matching(NSPredicate(
+            format: "identifier == %@ OR label == %@", "fst.songs.tools.\(tool)", "\(label)…"
+        )).firstMatch
+        if direct.isHittable {
+            direct.tap()
+        } else if menu.isHittable {
+            menu.tap()
+            XCTAssertTrue(item.waitForExistence(timeout: FestivalApp.budget(5)), "\(label)… missing")
             item.tap()
         } else {
-            app.buttons["fst.songs.filter"].tap()
+            let more = app.buttons["BottomOverflowBarButtonItem"].firstMatch
+            XCTAssertTrue(more.waitForExistence(timeout: FestivalApp.budget(5)), "No \(label) control or rail overflow")
+            more.tap()
+            if menu.isHittable { menu.tap() }
+            let entry = app.buttons.matching(NSPredicate(
+                format: "identifier IN %@ OR label IN %@",
+                ["fst.songs.\(tool)", "fst.songs.tools.\(tool)"],
+                [label, "\(label)…", tool == "filter" ? "Filter Songs" : label]
+            )).allElementsBoundByIndex.first(where: \.isHittable)
+            XCTAssertNotNil(entry, "No \(label) in the rail overflow")
+            entry?.tap()
         }
-        XCTAssertTrue(app.buttons["fst.songs.filter.done"].waitForExistence(timeout: FestivalApp.budget(10)))
+        XCTAssertTrue(app.buttons["fst.songs.\(tool).done"].waitForExistence(timeout: FestivalApp.budget(10)))
     }
 
-    /// Open Sort from the floating tools, or from the folded Sort and Filter menu.
     @MainActor
-    private func openSort(_ app: XCUIApplication) {
-        let folded = app.buttons["fst.songs.tools"]
-        if folded.exists {
-            folded.tap()
-            let item = app.buttons["fst.songs.tools.sort"]
-            XCTAssertTrue(item.waitForExistence(timeout: FestivalApp.budget(5)), "Sort… missing")
-            item.tap()
-        } else {
-            app.buttons["fst.songs.sort"].tap()
-        }
-        XCTAssertTrue(app.buttons["fst.songs.sort.done"].waitForExistence(timeout: FestivalApp.budget(10)))
-    }
+    private func openFilter(_ app: XCUIApplication) { openTool("filter", label: "Filter", in: app) }
+
+    @MainActor
+    private func openSort(_ app: XCUIApplication) { openTool("sort", label: "Sort", in: app) }
 
     /// Save an Item Shop filter (and, at the default size, the Lead instrument) through
     /// the Filter sheet.
@@ -170,9 +197,11 @@ final class SongsDeselectAccessibilityJourneyTests: XCTestCase {
         let app = launchSongs()
         let sort = app.buttons["fst.songs.sort"]
         let filter = app.buttons["fst.songs.filter"]
-        XCTAssertTrue(sort.waitForExistence(timeout: FestivalApp.budget(10)) && filter.exists)
+        let directTools = sort.isHittable && filter.isHittable
         saveFilters(app, instrument: true)
-        XCTAssertTrue((filter.value as? String)?.contains("Item Shop filter") == true, "\(filter.value ?? "")")
+        if directTools {
+            XCTAssertTrue((filter.value as? String)?.contains("Item Shop filter") == true, "\(filter.value ?? "")")
+        }
 
         openSort(app)
         let score = app.buttons.matching(NSPredicate(format: "label == %@", "Score")).firstMatch
@@ -180,18 +209,26 @@ final class SongsDeselectAccessibilityJourneyTests: XCTestCase {
         score.tap()
         app.buttons["fst.songs.sort.direction.descending"].tap()
         app.buttons["fst.songs.sort.done"].tap()
-        waitForValue(sort, "Score, descending")
+        if directTools { waitForValue(sort, "Score, descending") }
         SongsUITestSupport.record(app, name: "songs-deselect-before")
 
         try SongsUITestSupport.deselectFixturePlayer(in: app)
         // No `reshowSongsToolbar`: VoiceOver must hear the reset without leaving the page.
-        waitForValue(sort, "Title, ascending")
-        waitForValue(filter, "No filters")
+        if directTools {
+            waitForValue(sort, "Title, ascending")
+            waitForValue(filter, "No filters")
+            XCTAssertEqual(sort.label, "Sort")
+            XCTAssertEqual(filter.label, "Filter Songs")
+            assertTarget(sort, "Sort")
+            assertTarget(filter, "Filter Songs")
+        } else {
+            openSort(app)
+            XCTAssertTrue(app.buttons["Title"].isSelected, "The rail's Sort sheet kept the old sort mode")
+            XCTAssertTrue(app.buttons["fst.songs.sort.direction.ascending"].isSelected)
+            app.buttons["fst.songs.sort.done"].tap()
+            XCTAssertTrue(app.buttons["fst.songs.sort.done"].waitForNonExistence(timeout: FestivalApp.budget(10)))
+        }
         SongsUITestSupport.record(app, name: "songs-deselect-after")
-        XCTAssertEqual(sort.label, "Sort")
-        XCTAssertEqual(filter.label, "Filter Songs")
-        assertTarget(sort, "Sort")
-        assertTarget(filter, "Filter Songs")
         assertNoPausedState(app)
 
         let orbit = app.buttons["fst.songs.row.fixture-orbit"]
@@ -227,12 +264,19 @@ final class SongsDeselectAccessibilityJourneyTests: XCTestCase {
         saveFilters(app, instrument: false)
         try SongsUITestSupport.deselectFixturePlayer(in: app)
         let folded = app.buttons["fst.songs.tools"]
-        if folded.waitForExistence(timeout: FestivalApp.budget(5)) {
+        let filter = app.buttons["fst.songs.filter"]
+        if folded.isHittable {
             XCTAssertEqual(folded.label, "Sort and Filter")
             assertTarget(folded, "Sort and Filter")
+        } else if filter.exists {
+            waitForValue(filter, "No filters")
+            if app.navigationBars.buttons["fst.songs.filter"].exists || app.toolbars.buttons["fst.songs.filter"].exists {
+                assertRailFilterTarget(filter, in: app)
+            } else {
+                assertTarget(filter, "Filter Songs")
+            }
         } else {
-            waitForValue(app.buttons["fst.songs.filter"], "No filters")
-            assertTarget(app.buttons["fst.songs.filter"], "Filter Songs")
+            assertTarget(app.buttons["BottomOverflowBarButtonItem"].firstMatch, "More")
         }
         assertNoPausedState(app)
         SongsUITestSupport.record(app, name: "songs-deselect-after-ax5")

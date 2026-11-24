@@ -2,6 +2,7 @@
 import AppKit
 import Foundation
 import Testing
+import FestivalAppSupport
 @testable import FestivalCore
 @testable import FestivalUI
 

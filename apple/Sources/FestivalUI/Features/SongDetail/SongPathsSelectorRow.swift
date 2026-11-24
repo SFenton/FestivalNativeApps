@@ -34,6 +34,8 @@ struct SongPathsSelectorRow: View {
     let instruments: [Instrument]
     /// Whether the song's Lead charts show the keys artwork.
     let songUsesKeyboardIcon: Bool
+    /// Draw the collapsed labels without making native menus for a guide illustration.
+    var isIllustration = false
 
     private var selectorLayout: AnyLayout {
         dynamicTypeSize.isAccessibilitySize
@@ -71,7 +73,7 @@ struct SongPathsSelectorRow: View {
 
     /// The instrument menu (icon + name; icon alone where the row is narrow).
     private var instrumentMenu: some View {
-        selectorMenu("Instrument", selection: $instrument, value: instrument.label, fills: !hugsIcon) {
+        selectorMenu("Instrument", identifier: "fst.paths.instrument", selection: $instrument, value: instrument.label, fills: !hugsIcon) {
             ForEach(instruments) { choice in
                 Label {
                     Text(choice.label)
@@ -91,19 +93,17 @@ struct SongPathsSelectorRow: View {
                     .accessibilityHidden(true)
             }
         }
-        .accessibilityIdentifier("fst.paths.instrument")
     }
 
     /// The difficulty menu.
     private var difficultyMenu: some View {
-        selectorMenu("Difficulty", selection: $difficulty, value: difficulty.label, fills: true) {
+        selectorMenu("Difficulty", identifier: "fst.paths.difficulty", selection: $difficulty, value: difficulty.label, fills: true) {
             ForEach(PathDifficulty.allCases) { choice in
                 Text(choice.label).tag(choice)
             }
         } current: {
             Text(difficulty.label)
         }
-        .accessibilityIdentifier("fst.paths.difficulty")
     }
 
     /// The View menu: Image and Text, plus Side by Side where the layout allows it.
@@ -111,7 +111,7 @@ struct SongPathsSelectorRow: View {
     /// Every option carries its symbol (menus › "icons for all or none"), so the icon a
     /// narrow row shows alone matches an item in the open menu.
     private var viewMenu: some View {
-        selectorMenu("View", selection: $viewMode, value: viewMode.label, fills: !hugsIcon) {
+        selectorMenu("View", identifier: "fst.paths.display", selection: $viewMode, value: viewMode.label, fills: !hugsIcon) {
             ForEach(SongPathsPolicy.modes(for: deviceLayout)) { choice in
                 Label(choice.label, systemImage: choice.systemImage).tag(choice)
             }
@@ -126,7 +126,6 @@ struct SongPathsSelectorRow: View {
                     .accessibilityHidden(true)
             }
         }
-        .accessibilityIdentifier("fst.paths.display")
     }
 
     /// The instrument selector's icon and name (every pose but folded iPhone Duo). The name
@@ -168,50 +167,67 @@ struct SongPathsSelectorRow: View {
     ///
     /// - Parameters:
     ///   - title: Control name VoiceOver reads before the value.
+    ///   - identifier: The live menu's accessibility identifier.
     ///   - selection: The chosen option.
     ///   - value: Current option's name, read as the accessibility value.
     ///   - fills: Whether the capsule takes the row's spare width (false: hugs its icon,
     ///     at least 44 pt wide).
     ///   - options: Tagged option rows.
     ///   - current: The collapsed control's view of the current option (iOS/iPadOS).
-    /// - Returns: The menu control.
+    /// - Returns: The menu control, or its noninteractive label in a guide.
     @ViewBuilder
     private func selectorMenu<Value: Hashable, Options: View, Current: View>(
-        _ title: String, selection: Binding<Value>, value: String, fills: Bool,
+        _ title: String, identifier: String, selection: Binding<Value>, value: String, fills: Bool,
         @ViewBuilder options: () -> Options, @ViewBuilder current: () -> Current
     ) -> some View {
-        #if os(macOS)
-        Picker(title, selection: selection, content: options)
-            .pickerStyle(.menu)
-            .tint(FestivalText.primary)
-            .font(.body)
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .festivalCardCapsule()
-        #else
-        Menu {
+        if isIllustration {
+            selectorLabel(fills: fills, current: current)
+                .accessibilityHidden(true)
+        } else {
+            #if os(macOS)
             Picker(title, selection: selection, content: options)
-                .pickerStyle(.inline)
-                .labelsHidden()
-        } label: {
-            HStack(spacing: 6) {
-                current()
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.footnote.weight(.semibold))
-                    .accessibilityHidden(true)
+                .pickerStyle(.menu)
+                .tint(FestivalText.primary)
+                .font(.body)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .festivalCardCapsule()
+                .accessibilityIdentifier(identifier)
+            #else
+            Menu {
+                Picker(title, selection: selection, content: options)
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+            } label: {
+                selectorLabel(fills: fills, current: current)
             }
-            .font(.body)
-            .lineLimit(1)
-            .foregroundStyle(FestivalText.primary)
-            .padding(.horizontal, 12)
-            .frame(minWidth: 44, maxWidth: fills ? .infinity : nil, minHeight: 44)
-            .contentShape(Capsule())
-            .festivalCardCapsule()
+            .menuOrder(.fixed)
+            .buttonStyle(.plain)
+            .accessibilityLabel(title)
+            .accessibilityValue(value)
+            .accessibilityIdentifier(identifier)
+            #endif
         }
-        // Keep options in source order when the menu opens upward from the bottom row.
-        .menuOrder(.fixed)
-        .buttonStyle(.plain)
-        .accessibilityLabel(title)
-        .accessibilityValue(value)
-        #endif
+    }
+
+    /// Builds the same collapsed label in the live menu and in an illustration.
+    ///
+    /// - Parameters:
+    ///   - fills: Whether the capsule expands beyond its content.
+    ///   - current: The selected option's symbol and, when space allows, its name.
+    /// - Returns: The capsule and its label with the native minimum height.
+    private func selectorLabel<Current: View>(fills: Bool, @ViewBuilder current: () -> Current) -> some View {
+        HStack(spacing: 6) {
+            current()
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.footnote.weight(.semibold))
+                .accessibilityHidden(true)
+        }
+        .font(.body)
+        .lineLimit(1)
+        .foregroundStyle(FestivalText.primary)
+        .padding(.horizontal, 12)
+        .frame(minWidth: 44, maxWidth: fills ? .infinity : nil, minHeight: 44)
+        .contentShape(Capsule())
+        .festivalCardCapsule()
     }
 }

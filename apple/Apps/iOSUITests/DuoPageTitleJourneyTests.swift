@@ -69,6 +69,25 @@ final class DuoPageTitleJourneyTests: XCTestCase {
         try assertRoot(tab: "rivals", title: "Rivals", withPlayer: true)
     }
 
+    /// The horizontal iPhone header draws Compete at the shared inline title size.
+    @MainActor
+    func testCompeteInlineTitleMatchesSharedTypography() throws {
+        let app = launch(tab: "compete", withPlayer: true)
+        defer { app.terminate() }
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 10))
+        try XCTSkipIf(Self.isDuoWindow(window.frame.size) || UIDevice.current.userInterfaceIdiom != .phone)
+
+        let title = titleElement("Compete", in: app)
+        XCTAssertTrue(title.waitForExistence(timeout: 15))
+        try assertFullTitle("Compete", in: app, tab: "compete")
+        XCTAssertEqual(app.navigationBars.staticTexts.matching(identifier: "Compete").count, 1)
+        let font = UIFont.systemFont(ofSize: 20, weight: .semibold)
+        XCTAssertEqual(title.frame.height, font.lineHeight, accuracy: 1)
+        let width = ("Compete" as NSString).size(withAttributes: [.font: font]).width
+        XCTAssertEqual(title.frame.width, width, accuracy: 2)
+    }
+
     /// Item Shop's title is the same size as the roots' in the simulator's real pose
     /// (#375): the system large title, never a larger or smaller custom one.
     @MainActor

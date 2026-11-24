@@ -2,8 +2,9 @@
 applyTo: "apple/**"
 ---
 
-# Apple code (SwiftUI: iOS, iPadOS, macOS, iPhone Duo)
+# Apple code (UIKit on iOS, iPadOS and Duo; SwiftUI on macOS)
 
+- UIKit pages, shell and controls live under `apple/Sources/FestivalUI/UIKit/`. Keep SwiftUI views and hosting out of that tree. Share render-independent policies, data and routes; don't move native Mac presentation into UIKit.
 - **Pattern first.** Before changing UI, run `python3 tools/pattern_guard.py which <file>` and read the owning [pattern](../../.agents/patterns/README.md) docs. Fix shared behavior in the canonical component listed there (`Design/`, `Common/`), never with a new feature-local mask, fade, material, card, row metric, header or modal treatment. `python3 tools/pattern_guard.py` must pass.
 - **Materials** ([surface-materials](../../.agents/patterns/surface-materials.md), [liquid-glass.md](../../.agents/design/apple/liquid-glass.md)): system chrome is system glass; content cards, rows and custom controls use `festivalCard` / `festivalRowCard` / `festivalCardCapsule`; only `Design/GlassSurface.swift` calls `.glassEffect`. HIG Materials: "Don't use Liquid Glass in the content layer."
 - **Chrome** ([nav-accessories.md](../../.agents/design/apple/nav-accessories.md)): iPhone page tools as individual floating glass buttons above the tab bar and Notifications · Profile in one header pill (#632, pattern R28), Search tab, inline Filter Songs. Changing placement is a documented design decision ([design-decision](../../.agents/skills/design-decision/SKILL.md)); the owner may override.

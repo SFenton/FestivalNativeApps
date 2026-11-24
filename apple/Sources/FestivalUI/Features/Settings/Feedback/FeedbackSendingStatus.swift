@@ -92,6 +92,8 @@ enum FeedbackSendingChoreography {
     static let statusOutDuration: TimeInterval = 0.15
     /// The form's fade back in.
     static let contentInDuration: TimeInterval = 0.3
+    /// Control points for the web CSS `ease` curve (`load-transition` R3).
+    static let ease = (x1: 0.25, y1: 0.1, x2: 0.25, y2: 1.0)
 
     /// What the sheet should end up showing.
     enum Target: Equatable, Sendable {
@@ -204,7 +206,7 @@ enum FeedbackSendingChoreography {
     ) -> Task<Void, Never>? {
         var remaining = steps[...]
         while let step = remaining.first, step.delay == 0 {
-            withAnimation(animation(step.fade)) { apply(step) }
+            apply(step)
             remaining = remaining.dropFirst()
         }
         guard !remaining.isEmpty else { return nil }
@@ -213,7 +215,7 @@ enum FeedbackSendingChoreography {
             for step in delayed {
                 try? await Task.sleep(for: .seconds(step.delay))
                 guard !Task.isCancelled else { return }
-                withAnimation(animation(step.fade)) { apply(step) }
+                apply(step)
             }
         }
     }
@@ -223,7 +225,7 @@ enum FeedbackSendingChoreography {
     /// - Parameter fade: The fade's length, or nil.
     /// - Returns: The curve, or nil for an immediate change.
     static func animation(_ fade: TimeInterval?) -> Animation? {
-        fade.map { .timingCurve(0.25, 0.1, 0.25, 1, duration: $0) }
+        fade.map { .timingCurve(ease.x1, ease.y1, ease.x2, ease.y2, duration: $0) }
     }
 }
 
@@ -299,7 +301,7 @@ struct FeedbackSendingStatusView: View {
         .frame(maxWidth: .infinity)
         .opacity(visible ? 1 : 0)
         .allowsHitTesting(visible)
-        .accessibilityHidden(!visible)
+        .accessibilityHidden(while: !visible)
     }
 
     /// Stop Sending at the platform's default control size (HIG Accessibility: "Strive for

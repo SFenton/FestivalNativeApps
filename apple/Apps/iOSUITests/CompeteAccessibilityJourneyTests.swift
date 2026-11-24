@@ -141,6 +141,40 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
 
     // MARK: - Journey
 
+    /// A combo card fits its counts at the smallest text size, moves them into VoiceOver's
+    /// value when they would crowd names, and shows them again in the stacked AX5 rows.
+    @MainActor
+    func testComboCardFitsSongsToItsUsableWidth() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let name = "Fixture Player 1"
+        let songs = "79 of 100 songs"
+        let score = "178,000,000"
+        let sizes: [(size: UIContentSizeCategory, hidesSongs: Bool)] = [
+            (.extraSmall, false), (.large, true), (.accessibilityExtraExtraExtraLarge, false),
+        ]
+        for (size, hidesSongs) in sizes {
+            let app = launch(contentSize: size.rawValue)
+            let row = app.buttons.matching(identifier: "fst.rankings.row.fixture-player-1").firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: FestivalApp.budget(10)))
+            XCTAssertTrue(row.isHittable, "\(size.rawValue): first combo row is a reachable button")
+            XCTAssertGreaterThanOrEqual(row.frame.height, 44)
+            XCTAssertTrue(row.label.contains(name), row.label)
+            XCTAssertTrue(row.label.contains(score), "the first match belongs to the combo card: \(row.label)")
+            XCTAssertEqual(row.label.contains(songs), !hidesSongs, row.label)
+            if hidesSongs {
+                XCTAssertEqual(row.value as? String, songs)
+                let next = app.buttons.matching(identifier: "fst.rankings.row.fixture-player-2").firstMatch
+                XCTAssertEqual(next.value as? String, "78 of 100 songs", "the entire card uses one column plan")
+                XCTAssertGreaterThan(next.frame.minY, row.frame.minY)
+            }
+            let reading = RecognizedText.recognize(row, label: name, frame: row.frame)
+            XCTAssertTrue(RecognizedText.showsWhole(name, in: reading.text), "\(size.rawValue): \(reading.text ?? "nil")")
+            record(app, name: "compete-combo-fit-\(size.rawValue)")
+            app.terminate()
+        }
+    }
+
     /// Headings, rows and View Full Leaderboard buttons grow, stay whole, in order and
     /// reachable above the bottom chrome at AX5.
     @MainActor

@@ -5,6 +5,15 @@ import XCTest
 /// Shell chrome lookups shared by the phone and iPhone Duo journeys (tabs in a
 /// horizontal or system vertical bar, toolbar items that may sit in the bar's overflow).
 enum ShellUITestSupport {
+    /// The native Back control, including the folded rail outside the navigation bar.
+    @MainActor
+    static func backButton(in app: XCUIApplication) -> XCUIElement {
+        let systemBack = app.buttons["BackButton"].firstMatch
+        return systemBack.exists ? systemBack : app.buttons.matching(
+            NSPredicate(format: "label == %@", "Back")
+        ).firstMatch
+    }
+
     /// On-screen buttons titled `title` that are not in a navigation bar or the drawer.
     ///
     /// The Duo shows its tabs in a vertical bar that XCUITest does not report as a tab

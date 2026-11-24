@@ -105,6 +105,8 @@ struct HingeColumnSpec: Sendable, Equatable {
 /// inside the trailing side, like ``OnDemandSplitPolicy``). Apple keeps the same column
 /// count on both sides (HIG Designing for iPhone Duo: "Prefer … even grid column counts").
 enum HingeColumns {
+    /// The between-column gap of a grid that does not specify one.
+    static let defaultGridGutter: CGFloat = 8
     /// Narrowest side worth splitting a fixed-count grid for; a fold nearer a container
     /// edge leaves the flat layout alone (HIG: "move only what's necessary").
     static let minimumSide: CGFloat = 120
@@ -340,7 +342,7 @@ struct HingeGrid<Content: View>: View {
     }
 
     /// The gap between flat columns (also the narrowest clearance over the fold).
-    private var gutter: CGFloat { columns.first?.spacing ?? 8 }
+    private var gutter: CGFloat { columns.first?.spacing ?? HingeColumns.defaultGridGutter }
 
     private var band: HingeBand? {
         if case let .fit(minimum) = perSide {

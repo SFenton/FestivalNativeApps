@@ -136,6 +136,12 @@ private struct FestivalSheetSizingModifier: ViewModifier {
 }
 
 /// System glass on 26+, frosted navy before it, opaque navy for accessibility overrides.
+/// Constants of the sheet background, shared with the UIKit port's `UKSheet`.
+enum FestivalSheetBackground {
+    /// Opacity of the `cardBackground` tint over the ultra-thin material before iOS 26.
+    static let frostedTintOpacity = 0.62
+}
+
 private struct SheetBackground: ViewModifier {
     let opaque: Bool
 
@@ -148,7 +154,7 @@ private struct SheetBackground: ViewModifier {
             content.presentationBackground {
                 ZStack {
                     Rectangle().fill(.ultraThinMaterial)
-                    BrandTokens.cardBackground.opacity(0.62)
+                    BrandTokens.cardBackground.opacity(FestivalSheetBackground.frostedTintOpacity)
                 }
             }
         }

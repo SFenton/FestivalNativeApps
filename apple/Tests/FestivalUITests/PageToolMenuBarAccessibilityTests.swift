@@ -3,6 +3,7 @@ import AppKit
 import Foundation
 import SwiftUI
 import Testing
+import FestivalAppSupport
 @testable import FestivalCore
 @testable import FestivalUI
 
@@ -163,10 +164,10 @@ private func menuBarSession(selected accountId: String? = nil) async throws -> F
 @MainActor
 @Test func pageToolMenuItemsAreDisabledUnderASheet() async throws {
     let page = AnyView(Color.clear
-        .macPageCommands(MacPageCommands(
-            filter: {}, findRival: {}, layout: MacLayoutChoice(isGrid: true) { _ in }
+        .macPageCommands(PageMenuCommands(
+            filter: {}, findRival: {}, layout: PageMenuLayoutChoice(isGrid: true) { _ in }
         ))
-        .macProfilePageCommands(MacProfilePageCommands(
+        .macProfilePageCommands(ProfilePageMenuCommands(
             identity: .switchTo, performIdentity: {}, viewRivalProfile: {}
         )))
     let open = MenuBarHost(page, pageWidth: 40)
@@ -186,14 +187,13 @@ private func menuBarSession(selected accountId: String? = nil) async throws -> F
     }
 }
 
-/// Both menu bars lay out the shared items over the front page's values, so the items
-/// the mirror proves here are the ones each menu bar lists: macOS `MacCommands` and the
-/// iPadOS `FestivalCommands` (a `Commands` body cannot be hosted).
+/// The Mac menu bar lists the same items as its hosted mirror. iPad uses its own
+/// UIKit adapter, exercised by `IPadMenuBarJourneyTests`.
 @Test func menuBarsLayOutTheSharedPageToolItems() throws {
     let sources = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("Sources/FestivalUI")
-    for file in ["Mac/MacCommands.swift", "App/Shell/FestivalCommands.swift"] {
+    for file in ["Mac/MacCommands.swift"] {
         let text = try String(contentsOf: sources.appendingPathComponent(file), encoding: .utf8)
         #expect(text.contains("PageToolViewMenuItems(state: pageTools)"), "\(file) lists the View page tools")
         #expect(text.contains("PageToolProfileMenuItems(state: pageTools)"), "\(file) lists the Profile page tools")

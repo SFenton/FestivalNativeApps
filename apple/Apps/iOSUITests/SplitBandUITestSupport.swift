@@ -217,10 +217,16 @@ enum SplitBandUITestSupport {
                           "\(context): Close \(close.frame) is in the trailing pane \(pane)", file: file, line: line)
             for (index, offset) in nearMisses.enumerated() {
                 let frame = close.frame
-                origin.withOffset(CGVector(dx: frame.midX + offset.dx, dy: frame.midY + offset.dy)).tap()
+                if UIDevice.current.userInterfaceIdiom == .phone {
+                    // The Duo rail can live outside the application's coordinate space.
+                    app.buttons[closeID].firstMatch
+                        .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).withOffset(offset).tap()
+                } else {
+                    origin.withOffset(CGVector(dx: frame.midX + offset.dx, dy: frame.midY + offset.dy)).tap()
+                }
                 guard waitForPane(app, open: false, timeout: 5) else {
                     XCTFail("\(context): Close \(frame) ignored a tap at (\(Int(offset.dx)), \(Int(offset.dy))) pt "
-                            + "from its centre: its hit region is under 44 × 44 pt", file: file, line: line)
+                            + "from its centre inside the 44 pt target", file: file, line: line)
                     return true
                 }
                 if index < nearMisses.count - 1 {

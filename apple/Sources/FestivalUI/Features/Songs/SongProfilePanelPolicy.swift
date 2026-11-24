@@ -67,9 +67,13 @@ enum SongProfilePanelPolicy {
     static let gap: CGFloat = 12
     /// Gap between instrument cards, horizontally and vertically.
     static let tileSpacing: CGFloat = 8
+    /// The square reserved for a chart or band glyph inside a card.
+    static let tileIconSlot: CGFloat = 28
+    /// The chart artwork is inset within the glyph slot.
+    static let tileInstrumentIconSize: CGFloat = 24
     /// A card's own width besides its pills: 8 pt padding each side, the 28 pt icon
     /// slot and its 8 pt gap.
-    static let tileChrome: CGFloat = 16 + 28 + 8
+    static let tileChrome: CGFloat = 16 + tileIconSlot + 8
     /// Gap between pills (``SongProfileMetadataPills``).
     static let pillSpacing: CGFloat = 10
     /// Fields an all-instruments or band card shows (when enabled in Settings); a single
@@ -193,19 +197,29 @@ enum SongProfilePanelPolicy {
         max(0, (contentWidth - gap) / 2)
     }
 
-    /// Width of the score cards' (trailing) side of a split row. While an iPhone Duo
-    /// fold crosses the row, the halves meet at the fold (``HingeRow``, `hinge-columns`
-    /// R1) and the cards get the trailing side; otherwise half the content.
+    /// Widths of the split row's two sides. In book pose the whole fold clearance
+    /// stays between them; without a matching fold band they divide the free space evenly.
+    ///
+    /// - Parameters:
+    ///   - contentWidth: Row width inside the card's padding.
+    ///   - band: The fold band measured across that content.
+    /// - Returns: The song's width and the score cards' width.
+    static func panelColumns(contentWidth: CGFloat, band: HingeBand?) -> (leading: CGFloat, trailing: CGFloat) {
+        if let band, abs(band.width - contentWidth) < 0.5 {
+            return (band.leadingWidth, band.trailingWidth)
+        }
+        let half = halfWidth(contentWidth: contentWidth)
+        return (half, half)
+    }
+
+    /// Width of the score cards' (trailing) side of a split row, used to measure the one-line fit.
     ///
     /// - Parameters:
     ///   - contentWidth: Row width inside the card's padding.
     ///   - band: The fold's band across the row content (``HingeColumns/band(span:fold:gutter:minimumSide:)``), or nil.
     /// - Returns: The cards' width, the one-line fit is measured against it.
     static func panelWidth(contentWidth: CGFloat, band: HingeBand?) -> CGFloat {
-        if let band, abs(band.width - contentWidth) < 0.5 {
-            return HingeColumns.spec(band: band, spacing: gap, perSide: .columns(1)).trailingColumnWidth
-        }
-        return halfWidth(contentWidth: contentWidth)
+        panelColumns(contentWidth: contentWidth, band: band).trailing
     }
 
     /// The scored charts' cards, in the chips' stable instrument order.

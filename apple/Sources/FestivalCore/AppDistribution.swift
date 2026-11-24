@@ -129,12 +129,24 @@ public final class AppDistributionResolver {
     /// - Parameter environment: Process environment; Debug builds never call StoreKit (an app
     ///   without a receipt may ask the user to sign in) and honor
     ///   `FST_DEBUG_DISTRIBUTION=appstore|testflight|development` (default `development`).
+    ///   `delayed-testflight` simulates a slow probe for the pending-state journey.
     /// - Returns: A resolver reading the main bundle's receipt and `AppTransaction`.
     static func live(
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> AppDistributionResolver {
         #if DEBUG
-        let fixed: AppDistribution? = AppDistribution.parse(environment["FST_DEBUG_DISTRIBUTION"]) ?? .development
+        let override = environment["FST_DEBUG_DISTRIBUTION"]
+        if override == "delayed-testflight" {
+            return AppDistributionResolver(
+                receiptURL: { nil },
+                storeKit: {
+                    try? await Task.sleep(for: .seconds(18))
+                    return Task.isCancelled ? nil : .testFlight
+                },
+                timeout: .seconds(25)
+            )
+        }
+        let fixed: AppDistribution? = AppDistribution.parse(override) ?? .development
         #else
         let fixed: AppDistribution? = nil
         #endif

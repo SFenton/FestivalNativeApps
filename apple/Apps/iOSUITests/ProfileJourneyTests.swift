@@ -18,7 +18,7 @@ final class ProfileJourneyTests: XCTestCase {
     @MainActor
     private func launchFixtureApp() -> XCUIApplication {
         FestivalApp.launch([
-            "FST_API_BASE_URL": "http://127.0.0.1:8765",
+            "FST_API_BASE_URL": SongsUITestSupport.fixtureURL,
             "FST_UI_TEST_CLEAR_PROFILE": "1",
         ])
     }
@@ -61,9 +61,11 @@ final class ProfileJourneyTests: XCTestCase {
     /// - Parameter app: App on the pushed player page.
     @MainActor
     private func assertSingleBackReturnsToRoot(in app: XCUIApplication) {
-        let back = app.navigationBars.buttons["BackButton"].exists
-            ? app.navigationBars.buttons["BackButton"]
-            : app.navigationBars.buttons.element(boundBy: 0)
+        let back = ShellUITestSupport.backButton(in: app)
+        guard back.waitForExistence(timeout: 10), back.isHittable else {
+            XCTFail("No reachable Back button on the pushed player page")
+            return
+        }
         back.tap()
         XCTAssertTrue(
             app.buttons["fst.shell.profile"].waitForExistence(timeout: 10),
@@ -185,11 +187,17 @@ final class ProfileJourneyTests: XCTestCase {
             NSPredicate(format: "placeholderValue == %@", "Search players or bands")
         ).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
+        let title = app.navigationBars["Profiles"].staticTexts["Profiles"]
+        XCTAssertTrue(title.exists)
+        XCTAssertLessThan(title.frame.maxY, search.frame.midY)
+        XCTAssertTrue(close.isHittable, "Native Close is not reachable before search")
+        SongsUITestSupport.record(app, name: "profile-picker-idle")
         search.tap()
         search.typeText("F")
         XCTAssertTrue(close.waitForExistence(timeout: 3))
         XCTAssertTrue(close.isHittable, "Close hid behind the focused search field")
         XCTAssertTrue(app.navigationBars["Profiles"].exists, "Sheet title hid while searching")
+        SongsUITestSupport.record(app, name: "profile-picker-focused")
         close.tap()
         XCTAssertTrue(close.waitForNonExistence(timeout: 5))
     }

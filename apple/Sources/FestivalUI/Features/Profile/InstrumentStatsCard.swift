@@ -121,14 +121,7 @@ struct InstrumentStatsCard: View {
         }
     }
 
-    private var phaseIdentifier: String {
-        switch phase {
-        case .loading: "loading"
-        case .unranked: "unranked"
-        case .available: "available"
-        case .failed: "failed"
-        }
-    }
+    private var phaseIdentifier: String { PlayerProfileTiles.rankPhaseIdentifier(phase) }
 
     private var loadFinished: Bool { phase.isFinished }
 
@@ -138,54 +131,7 @@ struct InstrumentStatsCard: View {
     /// Total Score and a rank-derived percentile; placeholders while loading and em
     /// dashes when unranked or failed, so the grid keeps its shape in every state.
     private var rankTiles: [StatTile] {
-        switch phase {
-        case .loading:
-            [
-                StatTile(id: "global-rank", label: "Global Rank", value: "#0,000", isPlaceholder: true),
-                StatTile(id: "total-score", label: "Total Score", value: "000,000,000", isPlaceholder: true),
-                StatTile(id: "percentile", label: "Percentile", value: "Top 00%", isPlaceholder: true),
-            ]
-        case .unranked:
-            [
-                StatTile(id: "global-rank", label: "Global Rank", value: "Unranked"),
-                StatTile(id: "total-score", label: "Total Score", value: "\u{2014}"),
-                StatTile(id: "percentile", label: "Percentile", value: "\u{2014}"),
-            ]
-        case .failed:
-            [
-                StatTile(id: "global-rank", label: "Global Rank", value: "\u{2014}"),
-                StatTile(id: "total-score", label: "Total Score", value: "\u{2014}"),
-                StatTile(id: "percentile", label: "Percentile", value: "\u{2014}"),
-            ]
-        case let .available(ranking):
-            availableTiles(ranking)
-        }
-    }
-
-    /// Tiles for a loaded ranking row.
-    ///
-    /// - Parameter ranking: Current validated single-account ranking row.
-    /// - Returns: The three rank tiles.
-    private func availableTiles(_ ranking: PlayerInstrumentRanking) -> [StatTile] {
-        let rank = ranking.entry.rank(for: .totalscore)
-        let percentile = ranking.percentile(for: .totalscore)
-        return [
-            StatTile(
-                id: "global-rank", label: "Global Rank", value: "#\(rank.formatted())",
-                link: linkFilter(PlayerStatLinks.globalRank(instrument, rank: rank))
-            ),
-            StatTile(
-                id: "total-score", label: "Total Score",
-                value: RankingFormatting.wholeNumber(ranking.entry.ratingValue(for: .totalscore))
-            ),
-            // "Top N%" from rank/field size: Total Score has no Bayesian percentile on
-            // the wire. Gold for a top-5% placement.
-            StatTile(
-                id: "percentile", label: "Percentile",
-                value: percentile.map(RankingFormatting.percentile) ?? "\u{2014}",
-                tint: (percentile ?? 1) * 100 <= 5 ? BrandTokens.gold : nil
-            ),
-        ]
+        PlayerProfileTiles.rank(phase, instrument: instrument, link: linkFilter)
     }
 
     // MARK: Load

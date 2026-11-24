@@ -1,4 +1,5 @@
 import SwiftUI
+import FestivalAppSupport
 import FestivalCore
 import FestivalDesign
 
@@ -9,6 +10,23 @@ extension EnvironmentValues {
     /// catalogue songs and their artwork. Nil in hosted tests and previews, where demos show
     /// redacted ``FirstRunDemoSongs/placeholders(count:)``.
     @Entry var firstRunSession: FestivalSession?
+}
+
+extension FestivalSession {
+    /// - Parameters:
+    ///   - payload: The catalogue the guide uses.
+    ///   - count: Maximum number of songs to return.
+    ///   - prefersShop: Whether to prefer an already-loaded, matching Shop feed.
+    /// - Returns: Catalogue songs with artwork, without fetching a Shop feed.
+    func firstRunDemoSongs(from payload: CatalogPayload, count: Int, prefersShop: Bool) -> [Song] {
+        let preferred: [String]
+        if prefersShop, let shop = currentShop, shop.observedPublicationId == payload.observedPublicationId {
+            preferred = shop.sortedSongs.map(\.songId)
+        } else {
+            preferred = []
+        }
+        return FirstRunDemoSongs.pick(from: payload.catalog.songs, count: count, preferring: preferred)
+    }
 }
 
 /// Supplies real catalogue songs to a first-run demo, as the web's `useDemoSongs` /
@@ -31,9 +49,6 @@ struct FirstRunCatalogueSongs<Content: View>: View {
         /// Current Item Shop songs first, then `catalogue` songs.
         case itemShop
     }
-
-    /// Songs a rotating demo cycles through; bounded so artwork stays within the shared caches.
-    static var rotationPoolSize: Int { 24 }
 
     @Environment(\.firstRunSession) private var session
     @FirstRunReduceMotion private var reduceMotion
@@ -77,13 +92,8 @@ struct FirstRunCatalogueSongs<Content: View>: View {
 
     private func load() async {
         guard live == nil, let session, let payload = try? await session.catalog() else { return }
-        var preferred: [String] = []
-        if source == .itemShop, let shop = session.currentShop,
-           shop.observedPublicationId == payload.observedPublicationId {
-            preferred = shop.sortedSongs.map(\.songId)
-        }
-        let poolSize = rotates ? max(count, Self.rotationPoolSize) : count
-        let picked = FirstRunDemoSongs.pick(from: payload.catalog.songs, count: poolSize, preferring: preferred)
+        let poolSize = rotates ? max(count, FirstRunDemoSongs.rotationPoolSize) : count
+        let picked = session.firstRunDemoSongs(from: payload, count: poolSize, prefersShop: source == .itemShop)
         guard !picked.isEmpty else { return }
         withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
             live = FirstRunRowRotation(pool: picked, visible: count)
@@ -305,10 +315,14 @@ struct FirstRunSongRow: View {
     var inShop = false
 
     var body: some View {
+        preview.firstRunDecorative()
+    }
+
+    @ViewBuilder private var preview: some View {
         if let session {
             SongRowView(
                 song: song, instrument: nil, session: session, highContrast: false,
-                shopHighlight: highlight, inShop: inShop
+                shopHighlight: highlight, inShop: inShop, isGuidePreview: true
             )
         } else {
             FirstRunRowChrome(
@@ -389,7 +403,7 @@ struct FirstRunNativeNavigationDemo: View {
     }
 
     /// The shell's own tab titles and symbols (``FestivalSection``).
-    private static let tabs: [FestivalSection] = [.songs, .suggestions, .compete, .statistics, .settings]
+    static let tabs: [FestivalSection] = [.songs, .suggestions, .compete, .statistics, .settings]
 }
 
 /// Keeps the Navigation demo's tab view to just its tab bar: the system tab-bar
@@ -426,6 +440,7 @@ struct FirstRunNativeIconsDemo: View {
                             keyboard: song.usesKeyboardIcon
                         )
                     } trailing: { EmptyView() }
+                    .firstRunDecorative()
                     .firstRunSwapRow(index)
                 }
             }
@@ -433,7 +448,8 @@ struct FirstRunNativeIconsDemo: View {
         .firstRunInert()
     }
 
-    private static let instruments: [Instrument] = [.lead, .bass, .drums, .vocals]
+    /// Charts illustrated in the Songs instrument status preview.
+    static let instruments: [Instrument] = [.lead, .bass, .drums, .vocals]
 }
 
 // MARK: - songs-metadata
@@ -445,18 +461,22 @@ struct FirstRunNativeMetadataDemo: View {
     var body: some View {
         FirstRunCatalogueSongs(count: 1, rotates: true) { songs, session in
             if let song = songs.first {
-                let meta = Self.meta(for: song)
+                let meta = FirstRunSongMetadataExample.meta(for: song)
                 FirstRunRowChrome(song: song, session: session) {
                     SongProfileMetadataPills(fields: meta.pills, songId: song.songId)
                 } trailing: {
                     SongMetadataFieldView(field: .score(meta.score), songId: song.songId)
                 }
+                .firstRunDecorative()
                 .firstRunSwapRow(0)
             }
         }
         .firstRunInert()
     }
+}
 
+/// The web demo's sample fields, shared by both native renderers.
+enum FirstRunSongMetadataExample {
     /// One of the web demo's `META_DATA` records.
     struct Meta {
         let score: Int
@@ -505,25 +525,16 @@ struct FirstRunNativeMetadataDemo: View {
 /// `ShopHighlightDemo.tsx` / `NewInShopDemo.tsx` / `LeavingTomorrowDemo.tsx`, as the real
 /// Songs rows with their Item Shop outline and badge.
 struct FirstRunNativeShopDemo: View {
-    enum Kind { case highlight, new, leaving }
-    let kind: Kind
+    let kind: FirstRunDemoSongs.ShopPreview
 
     var body: some View {
         FirstRunCatalogueSongs { songs, session in
             VStack(spacing: 8) {
                 ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
-                    FirstRunSongRow(song: song, session: session, highlight: highlight(index))
+                    FirstRunSongRow(song: song, session: session, highlight: kind.highlight(at: index))
                 }
             }
         }
         .firstRunInert()
-    }
-
-    private func highlight(_ index: Int) -> ShopHighlight? {
-        switch kind {
-        case .highlight: [ShopHighlight.new, .leavingTomorrow, nil][index % 3]
-        case .new: index == 0 ? .new : nil
-        case .leaving: index == 0 ? .leavingTomorrow : nil
-        }
     }
 }

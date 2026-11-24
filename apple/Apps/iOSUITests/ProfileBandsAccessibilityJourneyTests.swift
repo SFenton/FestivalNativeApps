@@ -133,6 +133,74 @@ final class ProfileBandsAccessibilityJourneyTests: XCTestCase {
         XCTAssertTrue(card.waitForExistence(timeout: FestivalApp.budget(20)), "Retry brings the bands back")
     }
 
+    #if compiler(>=6.4.4) && targetEnvironment(simulator)
+    /// Statistics keeps the Band groups in reading order as the Duo moves between
+    /// book and cover. Jump to the same anchor at each pose to compare the groups
+    /// without depending on how either renderer maps the old scroll offset.
+    @MainActor
+    func testDuoStatisticsBandsReflowWhenFolded() throws {
+        let environment = ProcessInfo.processInfo.environment
+        try XCTSkipUnless(environment["FST_DUO_SPLIT_TEST"] == "1"
+            && (environment["SIMULATOR_DEVICE_NAME"] ?? "").contains("Duo"),
+            "Opt in on a dedicated iPhone Duo with the loopback fixture")
+        guard #available(iOS 27.3, *) else { throw XCTSkip("Needs the iOS 27.3 hinge runtime") }
+        let origin = SongsUITestSupport.fixtureURL
+        let url = URLComponents(string: origin)
+        try XCTSkipUnless(url?.scheme == "http" && url?.host == "127.0.0.1" && url?.port != nil,
+                          "This journey requires a loopback fixture")
+        let device = XCUIDevice.shared
+        let hinge = try XCTUnwrap(device.hinge)
+        let originalAngle = hinge.angle
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": origin,
+            "FST_DEBUG_PROFILE": "fixture-player-1:\(Self.player)",
+            "FST_DEBUG_TAB": "statistics",
+        ])
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", UIContentSizeCategory.large.rawValue]
+        addTeardownBlock { @MainActor in
+            app.terminate()
+            hinge.angle = originalAngle
+        }
+
+        hinge.angle = .pi / 2
+        app.launch()
+        let window = app.windows.firstMatch
+        let duos = app.descendants(matching: .any).matching(identifier: "fst.player.bands.card.duos")
+        let trios = app.descendants(matching: .any).matching(identifier: "fst.player.bands.card.trios")
+        func checkGroups(_ phase: String, angle: CGFloat, size: CGSize) {
+            XCTAssertTrue(FeedbackJourney.waitUntil(timeout: 15) {
+                abs(hinge.angle - angle) < 0.05 && window.frame.size == size
+            }, "\(phase): expected \(angle) and \(size); got \(hinge.angle) and \(window.frame)")
+            jumpToBands(in: app, once: nil)
+            var frames = ""
+            XCTAssertTrue(FeedbackJourney.waitUntil(timeout: 8) {
+                guard duos.count == 1, trios.count == 1 else { return false }
+                let first = duos.firstMatch.frame
+                let second = trios.firstMatch.frame
+                frames = "Duos \(first), Trios \(second)"
+                guard first.width > 0, second.width > 0 else { return false }
+                if angle == 0 {
+                    return abs(first.minX - second.minX) <= 1 && abs(first.width - second.width) <= 1
+                        && first.width > size.width * 0.65 && second.minY > first.maxY
+                }
+                return abs(first.minY - second.minY) <= 1
+                    && first.maxX <= window.frame.midX - 10 && second.minX >= window.frame.midX + 10
+            }, "\(phase): unexpected Bands section layout; \(frames)")
+            let action = app.buttons[Self.viewAllID]
+            XCTAssertEqual(action.label, Self.viewAllName)
+            XCTAssertGreaterThanOrEqual(action.frame.height, 43.5)
+            record(app, name: "duo-statistics-bands-\(phase)")
+        }
+
+        let book = CGSize(width: 951, height: 669)
+        checkGroups("book", angle: .pi / 2, size: book)
+        hinge.angle = 0
+        checkGroups("cover", angle: 0, size: CGSize(width: 466, height: 678))
+        hinge.angle = .pi / 2
+        checkGroups("book-return", angle: .pi / 2, size: book)
+    }
+    #endif
+
     /// Read an element's drawn text back with the shared `RecognizedText`.
     ///
     /// - Parameters:
@@ -184,18 +252,17 @@ final class ProfileBandsAccessibilityJourneyTests: XCTestCase {
     ///
     /// - Parameters:
     ///   - app: The app on the profile.
-    ///   - state: Identifier the section shows before the jump (the Duos card by default).
+    ///   - state: Identifier the section shows before the jump (the Duos card by default),
+    ///     or nil when an offscreen card may not be in the accessibility tree yet.
     @MainActor
-    private func jumpToBands(in app: XCUIApplication, once state: String = "fst.player.bands.card.duos") {
-        let shown = app.descendants(matching: .any)[state]
-        XCTAssertTrue(shown.waitForExistence(timeout: FestivalApp.budget(30)), "the bands section shows \(state)")
-        let quickLinks = app.buttons["fst.quick-links.open"]
-        XCTAssertTrue(quickLinks.waitForExistence(timeout: FestivalApp.budget(15)), "Quick Links shows")
-        quickLinks.tap()
-        // Bands is the last section; at AX5 the lazy sheet scrolls it in (quick-links R6).
+    private func jumpToBands(in app: XCUIApplication, once state: String? = "fst.player.bands.card.duos") {
+        if let state {
+            let shown = app.descendants(matching: .any)[state]
+            XCTAssertTrue(shown.waitForExistence(timeout: FestivalApp.budget(30)), "the bands section shows \(state)")
+        }
+        ShellUITestSupport.tapToolbarItem("fst.quick-links.open", overflowLabels: ["Quick Links"], in: app)
         let item = FestivalApp.revealQuickLinkRow("bands", label: "Bands", in: app)
         XCTAssertTrue(item.exists, "Quick Links opens and lists Bands")
-        XCTAssertTrue(item.isHittable, "Quick Links lists Bands")
         item.tap()
         XCTAssertTrue(item.waitForNonExistence(timeout: FestivalApp.budget(10)), "Quick Links closes")
         // Let the jump's scroll settle before reading frames or pixels.

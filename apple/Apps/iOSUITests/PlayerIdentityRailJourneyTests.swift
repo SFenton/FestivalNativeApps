@@ -63,11 +63,31 @@ final class PlayerIdentityRailJourneyTests: XCTestCase {
     }
 
     /// Fixture Player 2 selected, viewing Fixture Player 1: Switch To This Profile is the
-    /// same blue prominent item.
+    /// same blue prominent item. The native confirmation follows the page placement.
     @MainActor
     func testSwitchIsProminentBlue() throws {
         let app = launch(selected: "fixture-player-2:Fixture Player 2", route: "player:fixture-player-1")
         try assertProminentBlue(in: app, label: "Switch To This Profile")
+        let verticalBar = isVerticalBar(app)
+        let action = app.buttons[verticalBar ? "fst.player.select.rail" : "fst.player.select"]
+        if verticalBar {
+            let back = app.buttons["BackButton"].firstMatch
+            XCTAssertTrue(back.isHittable)
+            XCTAssertLessThan(back.frame.midY, action.frame.midY, "The primary action follows native Back")
+        }
+        action.tap()
+        let title = app.staticTexts["Switch selected profile?"]
+        let confirm = app.buttons["Switch Profile"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        XCTAssertTrue(confirm.isHittable)
+        XCTAssertLessThan(title.frame.maxY, confirm.frame.minY, "The question sits above the destructive action")
+        if #available(iOS 27.0, *), UIDevice.current.userInterfaceIdiom == .phone {
+            if verticalBar {
+                XCTAssertLessThan(confirm.frame.midY, app.frame.midY, "Rail confirmation starts above the page midpoint")
+            } else {
+                XCTAssertGreaterThan(confirm.frame.midY, app.frame.midY, "Phone confirmation belongs at the bottom of the page")
+            }
+        }
     }
 
     /// The drawer's Deselect (the only Deselect since operator batch 7) stays red.
@@ -84,6 +104,31 @@ final class PlayerIdentityRailJourneyTests: XCTestCase {
         let blue = try XCTUnwrap(pixels.fraction(in: frame, matching: ButtonFillPixels.accentBlue))
         XCTAssertGreaterThanOrEqual(red, Self.minimumDeselectRed, "Deselect is not red (\(red) of \(frame))")
         XCTAssertLessThanOrEqual(blue, Self.maximumDeselectBlue, "Deselect turned blue (\(blue))")
+    }
+
+    /// The drawer confirmation belongs to the bottom of the phone, not the drawer button.
+    @MainActor
+    func testDrawerDeselectConfirmsAtBottomOfPhone() throws {
+        let app = launch(selected: "fixture-player-1:Fixture Player 1", route: nil)
+        openDrawer(app)
+        let drawerActionID = "fst.shell.drawer.deselect-profile"
+        let drawerAction = app.buttons[drawerActionID]
+        XCTAssertTrue(drawerAction.waitForExistence(timeout: 10))
+        drawerAction.tap()
+        let title = app.staticTexts["Deselect Fixture Player 1?"]
+        XCTAssertTrue(title.waitForExistence(timeout: 10))
+        let confirm = app.buttons.matching(NSPredicate(
+            format: "label == %@ AND identifier != %@", "Deselect Profile", drawerActionID
+        )).firstMatch
+        XCTAssertTrue(confirm.isHittable)
+        XCTAssertGreaterThanOrEqual(confirm.frame.height, 43.5)
+        XCTAssertLessThan(title.frame.maxY, confirm.frame.minY)
+        if #available(iOS 27.0, *), UIDevice.current.userInterfaceIdiom == .phone {
+            XCTAssertLessThan(app.frame.maxY - confirm.frame.maxY, 64, "Confirmation must anchor to the bottom edge")
+        }
+        confirm.tap()
+        XCTAssertTrue(drawerAction.waitForNonExistence(timeout: 10))
+        XCTAssertEqual(app.buttons["fst.shell.profile"].label, "Choose Profile")
     }
 
     // MARK: - Helpers

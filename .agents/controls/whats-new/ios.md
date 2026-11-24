@@ -2,6 +2,16 @@
 
 > **What:** the SwiftUI What's New sheet, its launch gate and Settings replay as built, decisions and open gaps. **Read when:** changing the changelog content, gate or sheet on iPhone. Spec: [spec.md](spec.md).
 
+The UIKit sheet uses the same Duo dismissal policy: a vertical rail keeps Close and
+removes the bottom Dismiss bar. The hidden footer releases its button's bottom
+constraint so the remaining notes occupy the body without compressing a 44 pt control.
+UIKit release notes wrap with the shared Dynamic Type-scaled `UKFont.swiftUILeading`,
+and the compact Dismiss capsule preserves the SwiftUI cover's padded height.
+The scroll view uses the modal's horizontal safe area so notes wrap before the Duo rail.
+Apple HIG [Typography](https://developer.apple.com/design/human-interface-guidelines/typography)
+preserves legibility as text scales; [Buttons](https://developer.apple.com/design/human-interface-guidelines/buttons)
+calls for a hit region of at least 44×44 pt.
+
 ## Architecture
 
 | Piece | File | Notes |
@@ -23,6 +33,7 @@
 | `force` | Present every launch |
 
 `FST_DEBUG_DISTRIBUTION=appstore|testflight|development` (Debug only, default `development`) picks the channel for screenshots and tests.
+`delayed-testflight` uses a synthetic slow result without contacting StoreKit. Replay from Settings before the answer to exercise the pending state; automatic presentation prefetches the channel. The native journey requires one named busy indicator and no notes until the answer, with Close still available. Use the shared large loading arc for this state ([HIG Loading](https://developer.apple.com/design/human-interface-guidelines/loading): clearly communicate when content is loading).
 
 `FST_DEBUG_WHATS_NEW_FILE=<path>` (Debug only; `Changelog.resolveEntries`, same contract as Windows): a non-empty path replaces the bundled `WhatsNew.json` with that document; the show-once hash follows the loaded document, and an unreadable or invalid file gives no entries (never presented). Release ignores it. Fixture: `tools/windows/fixtures/whats-new-grouped.json` (#434).
 

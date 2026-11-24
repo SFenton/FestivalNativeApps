@@ -7,9 +7,8 @@ import XCTest
 ///
 /// The iPadOS 26 menu bar is not in the XCUITest tree (a top-edge swipe, pointer hover
 /// or held ⌘ exposes no menu bar or menu item to the runner, 2026-10-14), so the Debug
-/// launch flag `FST_DEBUG_MENU_BAR=1` lays the same items over the window
-/// (`DebugMenuBarMirror` → `PageToolMenuBarMirror`: the focused values and shared views
-/// `FestivalCommands` uses). Fixture-backed (`tools/mock_service.py` on 127.0.0.1:8765,
+/// launch flag `FST_DEBUG_MENU_BAR=1` lays the same native items from `UKPageMenus`
+/// over the focused window. Fixture-backed (`tools/mock_service.py` on 127.0.0.1:8765,
 /// or the runner's `FST_FIXTURE_URL`), never production. Run with
 /// `python3 tools/ios_sim.py uitest --device ipad --only IPadMenuBarJourneyTests`.
 final class IPadMenuBarJourneyTests: XCTestCase {
@@ -215,6 +214,10 @@ final class IPadMenuBarJourneyTests: XCTestCase {
     /// Turn a checkmarked toggle on: tap its switch at the row's trailing end.
     @MainActor
     private func flip(_ toggle: XCUIElement) {
+        if toggle.elementType == .button {
+            toggle.tap()
+            return
+        }
         let knob = toggle.switches.firstMatch
         if knob.exists, knob.frame != toggle.frame {
             knob.tap()

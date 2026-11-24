@@ -360,11 +360,18 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
     /// - Parameter app: Launched fixture Songs.
     @MainActor
     private func openCleanSheet(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
-        openSheet(app, file: file, line: line)
         let filter = app.buttons["fst.songs.filter"]
-        if filter.exists, Self.spoken(filter) == "Filter Songs, No filters" { return }
+        let isClean = filter.exists && Self.spoken(filter) == "Filter Songs, No filters"
+        openSheet(app, file: file, line: line)
+        if isClean { return }
+
         revealAndTap(button("reset", in: app), in: app, file: file, line: line)
-        app.buttons[Self.prefix + "done"].tap()
+        let done = app.buttons[Self.prefix + "done"]
+        done.tap()
+        XCTAssertTrue(done.waitForNonExistence(timeout: FestivalApp.budget(10)), file: file, line: line)
+        if filter.exists {
+            XCTAssertEqual(Self.spoken(filter), "Filter Songs, No filters", file: file, line: line)
+        }
         openSheet(app, file: file, line: line)
     }
 
@@ -407,7 +414,7 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         }
     }
 
-    /// Assert an element is a target of at least 44x44 pt.
+    /// Assert a 44x44 pt target, allowing one pixel of snapshot rounding.
     @MainActor
     private func assertTarget(
         _ element: XCUIElement, _ name: String, file: StaticString = #filePath, line: UInt = #line
@@ -415,12 +422,12 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         assertTarget(element.frame, name, file: file, line: line)
     }
 
-    /// Assert a frame, read from a snapshot, is a target of at least 44x44 pt.
+    /// Assert a frame, read from a snapshot, is a 44x44 pt target within snapshot rounding.
     private func assertTarget(
         _ frame: CGRect, _ name: String, file: StaticString = #filePath, line: UInt = #line
     ) {
-        XCTAssertGreaterThanOrEqual(frame.height, 44, "\(name) target height \(frame)", file: file, line: line)
-        XCTAssertGreaterThanOrEqual(frame.width, 44, "\(name) target width \(frame)", file: file, line: line)
+        XCTAssertGreaterThanOrEqual(frame.height, 43.5, "\(name) target height \(frame)", file: file, line: line)
+        XCTAssertGreaterThanOrEqual(frame.width, 43.5, "\(name) target width \(frame)", file: file, line: line)
     }
 
     /// Tap a revealed node where `XCUIElement.tap()` would, the middle of its part inside
@@ -861,7 +868,6 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         XCTAssertEqual(Self.spoken(sort), "Sort, Title, ascending", "Sort reads its order in every bar")
         assertFilterHitRegion(app)
         openCleanSheet(app)
-        XCTAssertEqual(Self.spoken(filter), "Filter Songs, No filters")
         assertGeneralOnly(app)
         SongsUITestSupport.record(app, name: "songs-filter-no-profile-a11y-default")
         try audit(app, for: Self.auditWithoutDynamicType)
@@ -1018,5 +1024,29 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         guard !shown.isEmpty else { return }
         hidden.terminate()
         assertGrowthFromDefault(shown, showShop: false)
+    }
+
+    /// Close and the native drag both return to the same usable Filter tool.
+    @MainActor
+    func testFilterCloseAndSwipeRestoreSongsTools() {
+        continueAfterFailure = false
+        let app = launchSongs(contentSize: UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue)
+        defer { app.terminate() }
+        let close = app.buttons[Self.prefix + "done"]
+        openCleanSheet(app)
+        close.tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 5))
+
+        openSheet(app)
+        let title = app.navigationBars["Filter Songs"]
+        XCTAssertTrue(title.exists)
+        let start = title.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let end = app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+        start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .fast, thenHoldForDuration: 0)
+        XCTAssertTrue(close.waitForNonExistence(timeout: 5), "The native sheet still dismisses by swiping")
+
+        openSheet(app)
+        XCTAssertTrue(close.isHittable, "The restored Filter tool opens a usable sheet")
+        close.tap()
     }
 }

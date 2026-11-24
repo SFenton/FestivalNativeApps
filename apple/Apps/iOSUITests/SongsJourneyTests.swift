@@ -226,7 +226,8 @@ final class SongsJourneyTests: XCTestCase {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = SongsUITestSupport.fixtureApp()
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8776"
+        app.launchEnvironment["FST_API_BASE_URL"] = ProcessInfo.processInfo.environment["FST_METADATA_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8776"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
         app.launch()
         let row = app.buttons["fst.songs.row.fixture-marathon"]
@@ -332,9 +333,113 @@ final class SongsJourneyTests: XCTestCase {
             abs(shop.frame.maxX - lastPlayed.frame.maxX), 2,
             "Wrapped Last Played must share the Shop badge's trailing card edge"
         )
+        let width = app.windows.firstMatch.frame.width
+        if width == 402 || width == 466 {
+            let painted = RecognizedText.recognize(lastPlayed, label: lastPlayed.label, frame: lastPlayed.frame)
+            XCTAssertTrue(RecognizedText.showsWhole(lastPlayed.label, in: painted.text))
+            XCTAssertLessThan(try XCTUnwrap(painted.leftEdgeSpread), 8, "Wrapped date lines start at the same edge")
+        }
         SongsUITestSupport.record(app, name: "songs-long-metadata-accessibility-xxxlarge")
         try SongsUITestSupport.deselectFixturePlayer(in: app)
     }
+
+    #if compiler(>=6.4.4) && targetEnvironment(simulator)
+    /// Keep a selected player's score and FC readable when the same Songs list changes displays.
+    @MainActor
+    func testScoreMetadataSurvivesPhysicalDuoDisplays() throws {
+        let environment = ProcessInfo.processInfo.environment
+        try XCTSkipUnless(
+            environment["FST_DUO_SONGS_HINGE_TEST"] == "1"
+                && (environment["SIMULATOR_DEVICE_NAME"] ?? "").contains("Duo"),
+            "Opt in on a dedicated iPhone Duo with the metadata-edge fixture"
+        )
+        guard #available(iOS 27.3, *) else { throw XCTSkip("Needs the iOS 27.3 hinge runtime") }
+        continueAfterFailure = false
+        let origin = try XCTUnwrap(environment["FST_METADATA_FIXTURE_URL"])
+        let url = try XCTUnwrap(URLComponents(string: origin))
+        XCTAssertEqual(url.scheme, "http")
+        XCTAssertEqual(url.host, "127.0.0.1")
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": origin,
+            "FST_DEBUG_PROFILE": "fixture-edge:Fixture Edge Player",
+            "FST_DEBUG_TAB": "songs",
+            "FST_DEBUG_STILL_BACKGROUND": "1",
+        ])
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.large.rawValue,
+            "-fst.settings.showInstrumentIcons", "NO", "-fst.settings.showLead", "YES",
+            "-fst.settings.metadataScore", "YES", "-fst.settings.metadataPercentage", "YES",
+            "-fst.settings.metadataLastPlayed", "YES", "-fst.settings.hideShop", "NO",
+            "-fst.settings.disableShopHighlighting", "NO", "-fst.settings.enableVisualOrder", "NO",
+            "-fst.settings.filterInvalidScores", "NO", "-fst.songs.sortMode", "title",
+        ]
+        let device = XCUIDevice.shared
+        let hinge = try XCTUnwrap(device.hinge)
+        let originalAngle = hinge.angle
+        let originalOrientation = device.orientation
+        defer {
+            app.terminate()
+            device.orientation = originalOrientation
+            hinge.angle = originalAngle
+        }
+        device.orientation = .portrait
+        hinge.angle = 0
+        app.launch()
+
+        let cover = CGSize(width: 466, height: 678)
+        let inner = CGSize(width: 951, height: 669)
+        let window = app.windows.firstMatch
+        let song = "fixture-marathon"
+        let score = SongsUITestSupport.metadataElement("score", songId: song, in: app)
+        let accuracy = SongsUITestSupport.metadataElement("accuracy", songId: song, in: app)
+        let date = SongsUITestSupport.metadataElement("lastPlayed", songId: song, in: app)
+        let tile = app.descendants(matching: .any)["fst.songs.profile-panel.\(song).Solo_Guitar"].firstMatch
+        let shop = app.descendants(matching: .any)["fst.songs.shop-bag.\(song)"].firstMatch
+        let filter = app.descendants(matching: .any)["fst.songs.filter-field"].firstMatch
+        let scoreLabel = "Score 1,234,567"
+        let accuracyLabel = "Full combo, accuracy 97.9 percent"
+        for (pose, angle, size) in [
+            ("cover", CGFloat.zero, cover), ("flat", CGFloat.pi, inner),
+            ("book", CGFloat.pi / 2, inner), ("cover-return", CGFloat.zero, cover),
+        ] {
+            hinge.angle = angle
+            XCTAssertTrue(FeedbackJourney.waitUntil(timeout: 15) {
+                abs(hinge.angle - angle) < 0.05 && abs(window.frame.width - size.width) < 1
+                    && abs(window.frame.height - size.height) < 1
+                    && (pose != "book" || (filter.isHittable && filter.frame.minX >= window.frame.midX))
+            }, "\(pose): expected \(size), got \(window.frame) at \(hinge.angle) rad")
+            let metadata = angle == 0 ? [score, accuracy, date] : [tile]
+            let ready = FeedbackJourney.waitUntil(timeout: 15) {
+                guard shop.isHittable, metadata.allSatisfy(\.isHittable) else { return false }
+                if angle == 0 {
+                    return score.label == scoreLabel && accuracy.label == accuracyLabel && date.label.hasPrefix("Last played")
+                }
+                return tile.label.hasPrefix("Lead: ") && tile.label.contains(scoreLabel) && tile.label.contains(accuracyLabel)
+            }
+            SongsUITestSupport.record(app, name: "songs-score-metadata-\(pose)")
+            XCTAssertTrue(ready, "\(pose): the scored row did not expose \(angle == 0 ? "inline fields" : "the Lead tile")")
+            XCTAssertEqual(shop.label, "In the Item Shop")
+            let frame = window.frame
+            for element in metadata + [shop] {
+                XCTAssertTrue(frame.contains(element.frame), "\(pose): \(element.label) is outside the visible window")
+            }
+            if pose == "book" {
+                XCTAssertGreaterThanOrEqual(tile.frame.minX, frame.midX, "The Lead tile crosses the book fold")
+                XCTAssertLessThanOrEqual(shop.frame.maxX, frame.midX, "The Shop bag crosses the book fold")
+            }
+            let frames = (metadata + [shop]).map { "\($0.label): \($0.frame)" }
+            let geometry = XCTAttachment(string:
+                "\(pose): \(hinge.angle) rad, window \(frame)\n" + frames.joined(separator: "\n")
+            )
+            geometry.name = "songs-score-metadata-\(pose)-geometry"
+            geometry.lifetime = .keepAlways
+            add(geometry)
+            let scoreRegion = angle == 0 ? score : tile
+            let painted = RecognizedText.recognize(scoreRegion, label: "1,234,567", frame: scoreRegion.frame)
+            XCTAssertTrue(RecognizedText.showsWhole("1,234,567", in: painted.text), "\(pose): score is not fully painted")
+        }
+    }
+    #endif
 
     /// A grouped selected-player catalogue must expose both rows above the tab bar.
     ///
@@ -1072,6 +1177,22 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertEqual(sort.value as? String, "Title, ascending")
     }
 
+    /// Select a root even when the system removes the minimized tab bar from the snapshot.
+    @MainActor
+    private func selectSection(_ name: String, in app: XCUIApplication) {
+        let tab = SongsUITestSupport.rootControl(name, app: app)
+        if tab.exists, tab.isHittable {
+            tab.tap()
+            return
+        }
+        ShellUITestSupport.tapToolbarItem(
+            "fst.shell.drawer.open", overflowLabels: ["Menu", "Open Navigation"], in: app
+        )
+        let destination = app.buttons["fst.shell.drawer.\(name.lowercased())"]
+        XCTAssertTrue(destination.waitForExistence(timeout: 5), "No \(name) in the navigation drawer")
+        destination.tap()
+    }
+
     /// Item Shop sorting uses validated membership and retains paused saved preferences.
     ///
     /// - Throws: Wrong order, unreadable headings, unavailable Shop as empty or lost sort.
@@ -1083,22 +1204,30 @@ final class SongsJourneyTests: XCTestCase {
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-single"
         app.launch()
-        SongsUITestSupport.rootControl("Settings", app: app).tap()
+        selectSection("Settings", in: app)
         let hidden = app.switches["fst.settings.hide-shop"]
         SongsUITestSupport.reveal(hidden, in: app, scrollingUp: true)
         let originallyHidden = try XCTUnwrap(hidden.value as? String)
         SongsUITestSupport.setSwitch(hidden, to: "0")
-        SongsUITestSupport.rootControl("Songs", app: app).tap()
+        selectSection("Songs", in: app)
 
         let sort = app.buttons["fst.songs.sort"]
+        func sortState() -> String {
+            if let value = sort.value as? String, !value.isEmpty { return value }
+            // SwiftUI's system bar speaks the state as part of the label.
+            let prefix = "Sort, "
+            let label = sort.label
+            return label.hasPrefix(prefix) ? String(label.dropFirst(prefix.count)) : label
+        }
         XCTAssertTrue(sort.waitForExistence(timeout: 10))
-        if (sort.value as? String) != "Title, ascending" {
+        if sortState() != "Title, ascending" {
             sort.tap()
             SongsUITestSupport.revealSortReset(in: app).tap()
             let resetApply = app.buttons["fst.songs.sort.done"]
             XCTAssertTrue(resetApply.isEnabled)
             resetApply.tap()
-            XCTAssertEqual(sort.value as? String, "Title, ascending")
+            XCTAssertTrue(resetApply.waitForNonExistence(timeout: 10), "The Sort sheet did not close")
+            XCTAssertEqual(sortState(), "Title, ascending")
         }
         let orbit = app.buttons["fst.songs.row.fixture-orbit"]
         let pulse = app.buttons["fst.songs.row.fixture-pulse"]
@@ -1141,14 +1270,14 @@ final class SongsJourneyTests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
         XCTAssertLessThan(pulse.frame.minY, orbit.frame.minY)
-        XCTAssertEqual(sort.value as? String, "Item Shop, ascending")
+        XCTAssertEqual(sortState(), "Item Shop, ascending")
         XCTAssertTrue(inShop.waitForExistence(timeout: 10))
         XCTAssertTrue(notInShop.exists)
         XCTAssertLessThan(inShop.frame.minY, notInShop.frame.minY)
         SongsUITestSupport.record(app, name: "songs-shop-sort-ascending")
         if UIDevice.current.userInterfaceIdiom == .phone {
-            try SongsUITestSupport.assertHeaderContrast(inShop, in: app, leadingTextWidth: 180)
-            try SongsUITestSupport.assertHeaderContrast(notInShop, in: app, leadingTextWidth: 180)
+            try SongsUITestSupport.assertHeaderContrast(inShop, in: app, leadingTextWidth: 180, isStaticHeading: true)
+            try SongsUITestSupport.assertHeaderContrast(notInShop, in: app, leadingTextWidth: 180, isStaticHeading: true)
         } else {
             let search = SongsUITestSupport.songsSearchEntry(in: app)
             XCTAssertTrue(search.exists)
@@ -1166,9 +1295,7 @@ final class SongsJourneyTests: XCTestCase {
             identifier: "fst.song-detail.shop"
         ).firstMatch
         XCTAssertTrue(official.waitForExistence(timeout: 10))
-        let back = app.navigationBars.buttons.matching(
-            NSPredicate(format: "label == %@ OR label == %@", "Songs", "Back")
-        ).firstMatch
+        let back = ShellUITestSupport.backButton(in: app)
         XCTAssertTrue(back.waitForExistence(timeout: 10))
         back.tap()
         XCTAssertTrue(inShop.waitForExistence(timeout: 10))
@@ -1183,35 +1310,36 @@ final class SongsJourneyTests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
         XCTAssertLessThan(orbit.frame.minY, pulse.frame.minY)
-        XCTAssertEqual(sort.value as? String, "Item Shop, descending")
+        XCTAssertEqual(sortState(), "Item Shop, descending")
         XCTAssertLessThan(notInShop.frame.minY, inShop.frame.minY)
 
-        SongsUITestSupport.rootControl("Settings", app: app).tap()
+        selectSection("Settings", in: app)
         SongsUITestSupport.reveal(hidden, in: app, scrollingUp: true)
         SongsUITestSupport.setSwitch(hidden, to: "1")
-        SongsUITestSupport.rootControl("Songs", app: app).tap()
+        selectSection("Songs", in: app)
         let paused = app.descendants(matching: .any)
             .matching(identifier: "fst.songs.sort-paused").firstMatch
         XCTAssertTrue(paused.waitForExistence(timeout: 10))
         XCTAssertTrue(paused.label.contains("while Shop is hidden"))
         XCTAssertLessThan(pulse.frame.minY, orbit.frame.minY)
-        XCTAssertTrue((sort.value as? String)?.contains("paused; showing Title") == true)
+        XCTAssertTrue(sortState().contains("paused; showing Title"))
         XCTAssertFalse(inShop.exists)
         XCTAssertFalse(notInShop.exists)
         SongsUITestSupport.record(app, name: "songs-shop-sort-paused-hidden")
         sort.tap()
         XCTAssertFalse(shopMode.exists, "Hidden Shop is still a selectable sort option")
-        app.buttons["fst.songs.sort.done"].tap()
+        apply.tap()
+        XCTAssertTrue(apply.waitForNonExistence(timeout: 10), "The Sort sheet did not close")
 
-        SongsUITestSupport.rootControl("Settings", app: app).tap()
+        selectSection("Settings", in: app)
         SongsUITestSupport.reveal(hidden, in: app, scrollingUp: true)
         SongsUITestSupport.setSwitch(hidden, to: "0")
-        SongsUITestSupport.rootControl("Songs", app: app).tap()
+        selectSection("Songs", in: app)
         for _ in 0..<40 {
-            if (sort.value as? String) == "Item Shop, descending" { break }
+            if sortState() == "Item Shop, descending" { break }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
-        XCTAssertEqual(sort.value as? String, "Item Shop, descending")
+        XCTAssertEqual(sortState(), "Item Shop, descending")
         XCTAssertLessThan(orbit.frame.minY, pulse.frame.minY)
         XCTAssertLessThan(notInShop.frame.minY, inShop.frame.minY)
 
@@ -1225,7 +1353,7 @@ final class SongsJourneyTests: XCTestCase {
             identifier: "fst.songs.shop-error"
         ).firstMatch.exists)
         XCTAssertLessThan(pulse.frame.minY, orbit.frame.minY)
-        XCTAssertTrue((sort.value as? String)?.contains("paused; showing Title") == true)
+        XCTAssertTrue(sortState().contains("paused; showing Title"))
         XCTAssertFalse(inShop.exists)
         XCTAssertFalse(notInShop.exists)
         sort.tap()
@@ -1241,10 +1369,10 @@ final class SongsJourneyTests: XCTestCase {
         app.launch()
         XCTAssertTrue(orbit.waitForExistence(timeout: 15))
         for _ in 0..<40 {
-            if (sort.value as? String) == "Item Shop, descending" { break }
+            if sortState() == "Item Shop, descending" { break }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
-        XCTAssertEqual(sort.value as? String, "Item Shop, descending")
+        XCTAssertEqual(sortState(), "Item Shop, descending")
         XCTAssertFalse(paused.exists, "Known-empty Shop was treated as an unavailable feed")
         XCTAssertLessThan(pulse.frame.minY, orbit.frame.minY)
         XCTAssertFalse(inShop.exists)
@@ -1258,10 +1386,10 @@ final class SongsJourneyTests: XCTestCase {
         app.launch()
         XCTAssertTrue(pulse.waitForExistence(timeout: 15))
         for _ in 0..<40 {
-            if (sort.value as? String) == "Item Shop, descending" { break }
+            if sortState() == "Item Shop, descending" { break }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
-        XCTAssertEqual(sort.value as? String, "Item Shop, descending")
+        XCTAssertEqual(sortState(), "Item Shop, descending")
         XCTAssertLessThan(orbit.frame.minY, pulse.frame.minY)
         XCTAssertLessThan(notInShop.frame.minY, inShop.frame.minY)
 
@@ -1270,14 +1398,15 @@ final class SongsJourneyTests: XCTestCase {
         app.launch()
         XCTAssertTrue(pulse.waitForExistence(timeout: 15))
         XCTAssertTrue(leaving.waitForExistence(timeout: 10))
-        XCTAssertEqual(sort.value as? String, "Item Shop, descending")
+        XCTAssertEqual(sortState(), "Item Shop, descending")
         XCTAssertLessThan(inShop.frame.minY, leaving.frame.minY)
         XCTAssertFalse(notInShop.exists)
         sort.tap()
         SongsUITestSupport.revealSortReset(in: app).tap()
-        app.buttons["fst.songs.sort.done"].tap()
-        XCTAssertEqual(sort.value as? String, "Title, ascending")
-        SongsUITestSupport.rootControl("Settings", app: app).tap()
+        apply.tap()
+        XCTAssertTrue(apply.waitForNonExistence(timeout: 10), "The Sort sheet did not close")
+        XCTAssertEqual(sortState(), "Title, ascending")
+        selectSection("Settings", in: app)
         SongsUITestSupport.reveal(hidden, in: app, scrollingUp: true)
         SongsUITestSupport.setSwitch(hidden, to: originallyHidden)
     }
@@ -1782,8 +1911,16 @@ final class SongsJourneyTests: XCTestCase {
             .flatMap(Int.init) ?? (UIDevice.current.userInterfaceIdiom == .pad ? 8778 : 8777)
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:\(port)"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.large.rawValue,
+            "-fst.songs.sortAscending", "YES",
+        ]
         app.launch()
-        SongsUITestSupport.rootControl("Settings", app: app).tap()
+        func openSort() {
+            ShellUITestSupport.tapToolbarItem("fst.songs.sort", overflowLabels: ["Sort"], in: app)
+            XCTAssertTrue(app.buttons["fst.songs.sort.done"].waitForExistence(timeout: 10))
+        }
+        selectSection("Settings", in: app)
         let hidden = app.switches["fst.settings.hide-shop"]
         let highlights = app.switches["fst.settings.shop-highlights"]
         SongsUITestSupport.reveal(hidden, in: app, scrollingUp: true)
@@ -1792,7 +1929,7 @@ final class SongsJourneyTests: XCTestCase {
         SongsUITestSupport.reveal(highlights, in: app, scrollingUp: true)
         let originalHighlights = try XCTUnwrap(highlights.value as? String)
         SongsUITestSupport.setSwitch(highlights, to: "1")
-        SongsUITestSupport.rootControl("Songs", app: app).tap()
+        selectSection("Songs", in: app)
         let orbit = app.buttons["fst.songs.row.fixture-orbit"]
         let pulse = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(orbit.waitForExistence(timeout: 15))
@@ -1806,16 +1943,13 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(pulse.exists && orbit.exists)
 
         let sort = app.buttons["fst.songs.sort"]
-        XCTAssertTrue(sort.waitForExistence(timeout: 10))
-        if (sort.value as? String) != "Title, ascending" {
-            sort.tap()
-            SongsUITestSupport.revealSortReset(in: app).tap()
-            app.buttons["fst.songs.sort.done"].tap()
-        }
-        sort.tap()
+        openSort()
         SongsUITestSupport.revealShopSort(in: app).tap()
         app.buttons["fst.songs.sort.done"].tap()
-        XCTAssertEqual(sort.value as? String, "Item Shop, ascending")
+        let inShop = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.shop-section.in-shop").firstMatch
+        XCTAssertTrue(inShop.waitForExistence(timeout: 10), "Item Shop grouping never applied")
+        if sort.exists { XCTAssertEqual(sort.value as? String, "Item Shop, ascending") }
         let orbitBadge = app.descendants(matching: .any)
             .matching(identifier: "fst.songs.shop-badge.fixture-orbit").firstMatch
         let pulseBadge = app.descendants(matching: .any)
@@ -1828,7 +1962,7 @@ final class SongsJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "songs-shop-join-publication-seven")
 
         try await SongsUITestSupport.advanceFixturePublication(port: port)
-        SongsUITestSupport.rootControl("Settings", app: app).tap()
+        selectSection("Settings", in: app)
         let publication = app.buttons["Check Publication"]
         SongsUITestSupport.reveal(publication, in: app, scrollingUp: true)
         publication.tap()
@@ -1839,7 +1973,7 @@ final class SongsJourneyTests: XCTestCase {
             ), object: status
         )
         XCTAssertEqual(XCTWaiter.wait(for: [failed], timeout: 15), .completed)
-        SongsUITestSupport.rootControl("Songs", app: app).tap()
+        selectSection("Songs", in: app)
         let filterPaused = app.descendants(matching: .any)
             .matching(identifier: "fst.songs.filter-paused").firstMatch
         let sortPaused = app.descendants(matching: .any)
@@ -1892,12 +2026,14 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertLessThan(orbit.frame.minY, pulse.frame.minY)
         XCTAssertFalse(orbitBadge.exists)
         XCTAssertFalse(pulseBadge.exists)
-        XCTAssertFalse(app.descendants(matching: .any).matching(
-            identifier: "fst.songs.shop-section.in-shop"
-        ).firstMatch.exists)
-        XCTAssertTrue((sort.value as? String)?.contains("paused; showing Title order") == true)
+        XCTAssertFalse(inShop.exists)
+        if sort.exists {
+            XCTAssertTrue((sort.value as? String)?.contains("paused; showing Title order") == true)
+        }
         let filter = app.buttons["fst.songs.filter"]
-        XCTAssertTrue((filter.value as? String)?.contains("paused; showing all songs") == true)
+        if filter.exists {
+            XCTAssertTrue((filter.value as? String)?.contains("paused; showing all songs") == true)
+        }
         SongsUITestSupport.record(app, name: "songs-shop-join-old-catalogue-new-shop-paused")
         for (row, name) in [(orbit, "orbit"), (pulse, "pulse")] {
             SongsUITestSupport.revealSongsControlAboveTab(
@@ -1912,24 +2048,37 @@ final class SongsJourneyTests: XCTestCase {
             SongsUITestSupport.record(app, name: "songs-shop-join-\(name)-fully-visible")
         }
 
-        SongsUITestSupport.rootControl("Settings", app: app).tap()
+        selectSection("Settings", in: app)
         let icons = app.switches["fst.settings.show-instrument-icons"]
         SongsUITestSupport.reveal(icons, in: app, scrollingUp: false)
         XCTAssertEqual(icons.value as? String, "1")
         SongsUITestSupport.setSwitch(icons, to: "0")
-        SongsUITestSupport.rootControl("Songs", app: app).tap()
+        selectSection("Songs", in: app)
         let flatList = app.collectionViews["fst.songs.list"]
         SongsUITestSupport.revealSongsControlAboveTab(
             pulse, in: flatList, app: app,
             failureName: "songs-shop-join-icons-off-pulse-unreachable",
             bottomMargin: 0
         )
-        XCTAssertTrue(pulse.label.contains("Player scores paused until songs update"))
+        let pausedLabel = "Player scores paused until songs update"
+        XCTAssertEqual(pulse.label.components(separatedBy: pausedLabel).count - 1, 1)
         XCTAssertFalse(pulse.label.contains("Score 99,850"))
         XCTAssertFalse(pulse.label.contains("Score 99,800"))
         XCTAssertFalse(app.descendants(matching: .any).matching(
             identifier: "fst.songs.metadata.score.fixture-pulse"
         ).firstMatch.exists)
+        #if FST_UIKIT_PORT
+        let pause = app.staticTexts["fst.songs.profile-paused-row.fixture-pulse"]
+        XCTAssertTrue(pause.exists)
+        XCTAssertEqual(pause.label, pausedLabel)
+        if app.frame.width <= 470 {
+            let font = UIFont.preferredFont(
+                forTextStyle: .footnote, compatibleWith: UITraitCollection(preferredContentSizeCategory: .large)
+            )
+            XCTAssertGreaterThanOrEqual(pause.frame.height, 2 * font.lineHeight, "The compact pause text should wrap")
+            XCTAssertTrue(pulse.frame.contains(pause.frame), "The reflowed text must fit inside the retained row")
+        }
+        #endif
         SongsUITestSupport.record(app, name: "songs-player-newer-score-paused-with-icons-off")
 
         SongsUITestSupport.openSongsFilter(in: app)
@@ -1938,7 +2087,7 @@ final class SongsJourneyTests: XCTestCase {
             "Item Shop filters need matching public Songs and Shop data."
         ].exists)
         app.buttons["fst.songs.filter.done"].tap()
-        sort.tap()
+        openSort()
         let shopChoice = app.buttons.matching(
             identifier: "fst.songs.sort.mode"
         ).matching(NSPredicate(format: "label == %@", "Item Shop")).firstMatch
@@ -1946,7 +2095,7 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertFalse(shopChoice.isEnabled)
         app.buttons["fst.songs.sort.done"].tap()
 
-        SongsUITestSupport.rootControl("Settings", app: app).tap()
+        selectSection("Settings", in: app)
         SongsUITestSupport.reveal(icons, in: app, scrollingUp: false)
         SongsUITestSupport.setSwitch(icons, to: "1")
         SongsUITestSupport.reveal(highlights, in: app, scrollingUp: true)

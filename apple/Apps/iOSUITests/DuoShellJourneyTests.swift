@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 /// iPhone Duo shell journey (issue #337): folding and unfolding keeps the phone tabs,
@@ -23,7 +24,7 @@ final class DuoShellJourneyTests: XCTestCase {
     @MainActor
     func testFoldAndUnfoldKeepPhoneTabsSelectionAndStack() throws {
         continueAfterFailure = false
-        let origin = "http://127.0.0.1:18337"
+        let origin = ProcessInfo.processInfo.environment["FST_FIXTURE_URL"] ?? "http://127.0.0.1:18337"
         let probe = expectation(description: "fixture probe")
         var reachable = false
         URLSession.shared.dataTask(with: URL(string: "\(origin)/api/features")!) { _, response, _ in
@@ -31,7 +32,7 @@ final class DuoShellJourneyTests: XCTestCase {
             probe.fulfill()
         }.resume()
         wait(for: [probe], timeout: 5)
-        try XCTSkipUnless(reachable, "Start `mock_service.py --port 18337` from this revision")
+        try XCTSkipUnless(reachable, "Start the fixture service at \(origin) from this revision")
         let app = FestivalApp.makeApp([
             "FST_API_BASE_URL": origin,
             "FST_UI_TEST_CLEAR_PROFILE": "1",
@@ -87,6 +88,39 @@ final class DuoShellJourneyTests: XCTestCase {
         (back.waitForExistence(timeout: 5) && back.isHittable ? back : app.navigationBars.buttons.firstMatch).tap()
         XCTAssertTrue(app.navigationBars["Rivals"].waitForExistence(timeout: 10))
     }
+
+    #if FST_UIKIT_PORT
+    /// A physical Duo enables rotation through its reported hinge or vertical bar.
+    /// A simulated Duo window must not unlock rotation on a portrait-only iPhone.
+    @MainActor
+    func testUIKitOrientationPolicyRecordsPhysicalHingeInsteadOfSimulatedPose() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "Requires a phone simulator")
+        continueAfterFailure = false
+        let device = ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] ?? UIDevice.current.name
+        let expected = device.contains("Duo") ? "Physical hinge" : "No physical hinge"
+        let origin = ProcessInfo.processInfo.environment["FST_FIXTURE_URL"] ?? "http://127.0.0.1:8765"
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": origin,
+            "FST_DEBUG_ANONYMOUS": "1",
+            "FST_DEBUG_FIRST_RUN": "off",
+            "FST_DEBUG_DUO_WINDOW_REMOTE": "1",
+            "FST_DEBUG_DUO_WINDOW": "folded",
+        ])
+        app.launch()
+        defer { app.terminate() }
+
+        for pose in ["folded", "book", "unfolded-portrait"] {
+            DuoWindowSwitch.post(pose)
+            waitForWindow(pose, in: app)
+            let readout = app.staticTexts["fst.shell.debug.duo-window"]
+            let actual = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "value == %@", expected), object: readout
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [actual], timeout: 5), .completed,
+                           "\(pose): physical orientation policy did not match \(device)")
+        }
+    }
+    #endif
 
     // MARK: - Helpers
 

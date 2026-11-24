@@ -27,7 +27,7 @@ struct FirstRunSongInfoChartDemo: View {
         }
         .padding(14)
         .festivalCard(cornerRadius: 16)
-        .accessibilityHidden(true)
+        .firstRunDecorative()
     }
 
     private var legend: some View {
@@ -104,7 +104,7 @@ struct FirstRunSongInfoBarSelectDemo: View {
         .padding(14)
         .festivalCard(cornerRadius: 16)
         .environment(\.firstRunFadingRows, fading)
-        .accessibilityHidden(true)
+        .firstRunDecorative()
         .firstRunDemoTicker(every: FirstRunDemoTiming.barSelectInterval) { await swap() }
     }
 
@@ -155,7 +155,7 @@ struct FirstRunSongInfoViewAllDemo: View {
                 .firstRunStagger(FirstRunDemoPool.ownHistory.count)
         }
         .leaderboardSectionColumns(.scoreHistory(FirstRunDemoPool.ownHistory.map(\.newScore)))
-        .accessibilityHidden(true)
+        .firstRunDecorative()
     }
 }
 
@@ -188,7 +188,7 @@ struct FirstRunSongInfoTopScoresDemo: View {
                     .firstRunStagger(FirstRunDemoPool.topScores.count + 1)
             }
         }
-        .accessibilityHidden(true)
+        .firstRunDecorative()
     }
 }
 
@@ -210,13 +210,14 @@ struct FirstRunSongInfoPathsDemo: View {
             SongPathsSelectorRow(
                 instrument: .constant(.lead), difficulty: .constant(.expert),
                 viewMode: .constant(.image), instruments: Self.instruments,
-                songUsesKeyboardIcon: false
+                songUsesKeyboardIcon: false, isIllustration: true
             )
             .firstRunStagger(0)
         }
         .padding(14)
         .festivalCard(cornerRadius: 16)
-        .firstRunInert()
+        .allowsHitTesting(false)
+        .firstRunDecorative()
     }
 
     private var pathArea: some View {
@@ -247,7 +248,17 @@ struct FirstRunSongInfoShopPillDemo: View {
     let tone: Tone
 
     @AppStorage("fst.settings.disableShopHighlighting") private var highlightingDisabled = false
+    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
+    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.deviceLayout) private var deviceLayout
+    @Environment(\.firstRunDemoActive) private var active
+    @Environment(\.festivalWindowVisible) private var windowVisible
+
+    private var allowsDecoration: Bool {
+        active && windowVisible && !ArtworkNetworkStatus.shared.isConstrained
+            && !(reduceTransparency || lessTransparency || moreContrast)
+    }
 
     private var statusTone: ShopStatusTone {
         switch tone {
@@ -261,7 +272,7 @@ struct FirstRunSongInfoShopPillDemo: View {
         FirstRunCatalogueSongs(count: 1) { songs, session in
             HStack(spacing: 12) {
                 if let song = songs.first {
-                    FirstRunSongArt(song: song, session: session, size: 56)
+                    FirstRunSongArt(song: song, session: allowsDecoration ? session : nil, size: 56)
                     // Song Details' shared header column (song-header R1).
                     SongHeaderText(
                         title: song.title, artist: song.artist, titleFont: .headline, spacing: 2
@@ -275,7 +286,7 @@ struct FirstRunSongInfoShopPillDemo: View {
             .festivalCard(cornerRadius: 16)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .accessibilityHidden(true)
+        .firstRunDecorative()
     }
 
     @ViewBuilder
@@ -285,7 +296,7 @@ struct FirstRunSongInfoShopPillDemo: View {
         )
         switch resolved {
         case let .breathing(tone):
-            SongDetailShopGlyph(tone: tone)
+            SongDetailShopGlyph(tone: tone, allowsMotion: allowsDecoration)
         case .titled:
             Label("Item Shop", systemImage: "bag")
                 .font(.subheadline.weight(.semibold))

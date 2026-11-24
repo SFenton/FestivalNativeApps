@@ -113,7 +113,15 @@ enum FestivalArcMetrics {
     /// - Parameter contrast: The environment's color-scheme contrast.
     /// - Returns: The track's white opacity.
     static func trackOpacity(_ contrast: ColorSchemeContrast) -> Double {
-        contrast == .increased ? 0.25 : 0.10
+        trackOpacity(increasedContrast: contrast == .increased)
+    }
+
+    /// The track opacity from a plain flag (the UIKit port has no `ColorSchemeContrast`).
+    ///
+    /// - Parameter increasedContrast: System Increase Contrast is on.
+    /// - Returns: The track ring's white opacity.
+    static func trackOpacity(increasedContrast: Bool) -> Double {
+        increasedContrast ? 0.25 : 0.10
     }
 
     /// The arc's rotation at `time`, synced to the wall clock so every spinner on screen

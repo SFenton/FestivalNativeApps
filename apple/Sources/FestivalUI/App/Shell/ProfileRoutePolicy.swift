@@ -1,3 +1,4 @@
+import FestivalAppSupport
 import Foundation
 
 // MARK: - Profile-only routes

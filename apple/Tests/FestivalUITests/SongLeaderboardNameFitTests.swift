@@ -19,6 +19,26 @@ func songBoardFitsNamesOnlyInTheTrailingPane(subPage: Bool, size: DynamicTypeSiz
     #expect(SongLeaderboardNameFit.fitsNames(subPage: subPage, size: size) == expected)
 }
 
+/// Either renderer's widest measurement can stack the whole section; an exact fit
+/// or a pane that hasn't been laid out keeps the one-line columns.
+@Test(arguments: [
+    (401.0, 401.0, 350.0, false),
+    (401.0, 402.0, 350.0, true),
+    (401.0, 380.0, 402.0, true),
+    (0.0, 380.0, 402.0, false),
+])
+func measuredSongBoardColumnsChooseOneLayout(
+    width: Double, score: Double, bands: Double, stacked: Bool
+) {
+    let columns = LeaderboardRowColumns.fit(.songLeaderboard, width: width, ranks: [9, 29], scores: [90_000, 10_000])
+    let fitted = SongLeaderboardNameFit.fittedColumns(
+        columns, rowWidth: CGFloat(width), scoreWidth: CGFloat(score), bandWidth: CGFloat(bands)
+    )
+    #expect(fitted.stacksName == stacked)
+    #expect(fitted.rankLabel == columns.rankLabel)
+    #expect(fitted.scoreLabel == columns.scoreLabel)
+}
+
 /// A stacked name wraps at every text size; a one-line name scrolls until accessibility
 /// sizes.
 @Test func stackedNamesWrapAtEveryTextSize() {
@@ -314,7 +334,8 @@ func longBandMemberWrapsOnlyInTheTrailingPane(trailing: Bool) async throws {
     if trailing {
         #expect(heights.card3 > heights.card1 + 4, "heights: \(heights)")
     } else {
-        #expect(abs(heights.card3 - heights.card1) < 1, "heights: \(heights)")
+        let short = try await bandCardHeights(longMember: nil, trailing: false)
+        #expect(abs(heights.card3 - short.card3) < 1, "long: \(heights), short: \(short)")
     }
 }
 
@@ -323,8 +344,8 @@ func longBandMemberWrapsOnlyInTheTrailingPane(trailing: Bool) async throws {
 @Test func fittingBandMembersKeepTheirCardsInTheTrailingPane() async throws {
     let trailing = try await bandCardHeights(longMember: nil, trailing: true)
     let fullWidth = try await bandCardHeights(longMember: nil, trailing: false)
-    #expect(abs(trailing.card3 - trailing.card1) < 1, "trailing: \(trailing)")
     #expect(abs(trailing.card1 - fullWidth.card1) < 1, "trailing: \(trailing), full: \(fullWidth)")
+    #expect(abs(trailing.card3 - fullWidth.card3) < 1, "trailing: \(trailing), full: \(fullWidth)")
 }
 
 /// The section's required width is the wider probe; a section with neither keeps one

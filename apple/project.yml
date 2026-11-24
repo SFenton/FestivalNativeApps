@@ -42,6 +42,10 @@ targets:
         # one window regardless (.agents/design/apple/ipados.md, Multiwindow).
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).UKSceneDelegate
         ITSAppUsesNonExemptEncryption: false
     settings:
       base:
@@ -96,6 +100,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "6.0"
         TEST_TARGET_NAME: FestivalMobile
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) FST_UIKIT_PORT"
         CODE_SIGNING_ALLOWED: NO
   FestivalMobileIPadUITests:
     # iPad-only journeys against the universal FestivalMobile app (scheme FestivalMobileIPad),
@@ -146,6 +151,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "6.0"
         TEST_TARGET_NAME: FestivalMobile
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) FST_UIKIT_PORT"
         CODE_SIGNING_ALLOWED: NO
   FestivalDesktopUITests:
     type: bundle.ui-testing

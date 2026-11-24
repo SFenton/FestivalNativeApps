@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import SwiftUI
+import FestivalAppSupport
 @testable import FestivalCore
 @testable import FestivalUI
 
@@ -67,32 +68,34 @@ private struct PublicationFixture: HTTPTransport {
     #expect(defaults.string(forKey: "fst:tabRoutes") == "kept-tabs")
 }
 
+#if DEBUG
 /// Debug fixtures can only use loopback; invalid or production scenarios fail loudly.
-@Test func rootConfigurationRejectsInvalidFixtureOrigins() throws {
-    _ = try FestivalRootView.makeClient(environment: [
+@Test func launchConfigurationRejectsInvalidFixtureOrigins() throws {
+    _ = try FestivalClientFactory.makeClient(environment: [
         "FST_API_BASE_URL": "http://127.0.0.1:8765",
         "FST_FIXTURE_SCENARIO": "empty",
     ])
     #expect(throws: FestivalAPIError.invalidResource) {
-        try FestivalRootView.makeClient(environment: [
+        try FestivalClientFactory.makeClient(environment: [
             "FST_FIXTURE_SCENARIO": "unknown",
         ])
     }
     #expect(throws: FestivalAPIError.invalidResource) {
-        try FestivalRootView.makeClient(environment: [
+        try FestivalClientFactory.makeClient(environment: [
             "FST_API_BASE_URL": "https://festivalscoretracker.com",
             "FST_FIXTURE_SCENARIO": "error",
         ])
     }
 }
+#endif
 
 /// Ordinary launches read public service data, while tests opt into local fixtures.
-@Test func rootDefaultsToPublicServiceWithoutAKey() async throws {
-    let live = try FestivalRootView.makeClient(environment: [:])
+@Test func launchDefaultsToPublicServiceWithoutAKey() async throws {
+    let live = try FestivalClientFactory.makeClient(environment: [:])
     let liveOrigin = await live.baseURL.absoluteString
     #expect(liveOrigin == "https://festivalscoretracker.com")
     #if DEBUG
-    let fixture = try FestivalRootView.makeClient(environment: [
+    let fixture = try FestivalClientFactory.makeClient(environment: [
         "FST_API_BASE_URL": "http://127.0.0.1:8765",
     ])
     let fixtureHost = await fixture.baseURL.host
@@ -103,11 +106,12 @@ private struct PublicationFixture: HTTPTransport {
 #if os(macOS)
 /// Render the entire macOS navigation shell at each reachable root selection.
 @MainActor
-@Test(arguments: FestivalSection.allCases)
-func rootSidebarDestinationsRender(_ destination: FestivalSection) throws {
-    let content = FestivalRootView(initialSection: destination) {
+@Test(arguments: MacSidebarPolicy.destinations(hasPlayer: false, hideShop: false))
+func rootSidebarDestinationsRender(_ destination: MacDestination) throws {
+    let session = FestivalSession(factory: {
         try FestivalAPI(transport: PublicationFixture(ready: true, status: 200))
-    }
+    })
+    let content = MacRootView(model: MacAppModel(session: session, storage: nil, initial: destination))
     let renderer = ImageRenderer(content: content.frame(width: 800, height: 600))
     renderer.scale = 1
     let image = try #require(renderer.cgImage)

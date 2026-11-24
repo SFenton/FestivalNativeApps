@@ -1,4 +1,5 @@
 import SwiftUI
+import FestivalAppSupport
 import FestivalCore
 import FestivalDesign
 
@@ -145,7 +146,7 @@ struct RivalDetailScreen: View {
             .accessibilityIdentifier("fst.rival-detail.view-profile")
         }
         // Mac and iPad menu bar: Profile › View Rival's Profile (issue #633).
-        .macProfilePageCommands(MacProfilePageCommands(viewRivalProfile: {
+        .macProfilePageCommands(ProfilePageMenuCommands(viewRivalProfile: {
             pushRoute?(.player(accountId: rivalId, displayName: displayName))
         }))
         .task(id: RivalDetailTaskKey(rivalId: rivalId, scope: scope)) { await load() }

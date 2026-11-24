@@ -1,4 +1,5 @@
 import Foundation
+import FestivalAppSupport
 import FestivalCore
 #if os(macOS)
 import AppKit

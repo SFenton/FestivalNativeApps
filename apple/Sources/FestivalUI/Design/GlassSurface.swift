@@ -30,6 +30,27 @@ public enum FestivalGlassRole: Sendable {
     case overlay
 }
 
+extension FestivalGlassRole {
+    /// Opacity of the `cardBackground` tint on this role's Liquid Glass; nil for untinted
+    /// regular glass. Shared by the SwiftUI modifier and the UIKit port's `UKGlassView`.
+    nonisolated var glassTintOpacity: Double? {
+        switch self {
+        case .card: 0.35
+        case .control: nil
+        case .overlay: 0.7
+        }
+    }
+
+    /// The pre-26 frosted tint: `cardBackground` or `surfaceFrosted`, at an opacity.
+    nonisolated var frostedTint: (usesCardBackground: Bool, opacity: Double) {
+        switch self {
+        case .card: (false, 1)
+        case .control: (false, 0.6)
+        case .overlay: (true, 0.85)
+        }
+    }
+}
+
 // MARK: - Surface policy
 
 /// Which surface a ``FestivalGlassModifier`` draws for the current accessibility
@@ -61,7 +82,26 @@ enum FestivalGlassSurface: Equatable, Sendable {
         reduceTransparency: Bool, systemContrast: ColorSchemeContrast,
         lessTransparency: Bool, moreContrast: Bool, glassAvailable: Bool
     ) -> Self {
-        if reduceTransparency || systemContrast == .increased || lessTransparency || moreContrast {
+        resolve(
+            reduceTransparency: reduceTransparency, increasedContrast: systemContrast == .increased,
+            lessTransparency: lessTransparency, moreContrast: moreContrast, glassAvailable: glassAvailable
+        )
+    }
+
+    /// Resolve the surface from plain flags (the UIKit port has no `ColorSchemeContrast`).
+    ///
+    /// - Parameters:
+    ///   - reduceTransparency: System Reduce Transparency.
+    ///   - increasedContrast: System Increase Contrast.
+    ///   - lessTransparency: The app's Reduce Transparency toggle.
+    ///   - moreContrast: The app's Increase Contrast toggle.
+    ///   - glassAvailable: Whether the OS draws Liquid Glass.
+    /// - Returns: The same surface as the `ColorSchemeContrast` overload.
+    nonisolated static func resolve(
+        reduceTransparency: Bool, increasedContrast: Bool,
+        lessTransparency: Bool, moreContrast: Bool, glassAvailable: Bool
+    ) -> Self {
+        if reduceTransparency || increasedContrast || lessTransparency || moreContrast {
             return .opaque
         }
         return glassAvailable ? .glass : .frosted
@@ -134,20 +174,15 @@ struct FestivalGlassModifier<S: Shape>: ViewModifier {
 
     @available(iOS 26.0, macOS 26.0, *)
     private var glass: Glass {
-        let base: Glass = switch role {
-        case .card: .regular.tint(BrandTokens.cardBackground.opacity(0.35))
-        case .control: .regular
-        case .overlay: .regular.tint(BrandTokens.cardBackground.opacity(0.7))
-        }
+        let base: Glass = role.glassTintOpacity.map {
+            .regular.tint(BrandTokens.cardBackground.opacity($0))
+        } ?? .regular
         return interactive ? base.interactive() : base
     }
 
     private var fallbackTint: Color {
-        switch role {
-        case .card: BrandTokens.surfaceFrosted
-        case .control: BrandTokens.surfaceFrosted.opacity(0.6)
-        case .overlay: BrandTokens.cardBackground.opacity(0.85)
-        }
+        let tint = role.frostedTint
+        return (tint.usesCardBackground ? BrandTokens.cardBackground : BrandTokens.surfaceFrosted).opacity(tint.opacity)
     }
 }
 

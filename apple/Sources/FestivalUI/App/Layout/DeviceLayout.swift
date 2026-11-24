@@ -235,18 +235,28 @@ struct DeviceLayout: Sendable, Equatable {
 
     /// Where a page divides into its two screens, in window coordinates: ``splitHinge``
     /// in book pose; on the flat iPhone Duo inner display in landscape, a zero-width line
-    /// at the midpoint of ``freeSpan(layoutDirection:)`` (owner #361); else nil.
+    /// at the midpoint of the free content area (owner #361); else nil.
     ///
     /// Two-column rows and on-demand splits divide at their own free-space midpoint
     /// when flat without reading this; controls that sit on one screen (a board's pager,
     /// #345) read it so they stay on the same side of the columns' gutter.
     ///
-    /// - Parameter layoutDirection: The layout direction (see ``freeSpan(layoutDirection:)``).
+    /// - Parameters:
+    ///   - layoutDirection: The layout direction (see ``freeSpan(layoutDirection:)``).
+    ///   - flatContentFrame: The measured full-width content frame in window coordinates,
+    ///     already inside the safe area. Nil uses the window's ``freeSpan(layoutDirection:)``.
     /// - Returns: The dividing line, or nil.
-    func screenDivide(layoutDirection: LayoutDirection = .leftToRight) -> CGRect? {
+    func screenDivide(
+        layoutDirection: LayoutDirection = .leftToRight, flatContentFrame: CGRect? = nil
+    ) -> CGRect? {
         if let splitHinge { return splitHinge }
         guard pose == .unfolded, orientation == .landscape, sectionChrome.isVerticalBar,
-              size.height > 0, let span = freeSpan(layoutDirection: layoutDirection) else { return nil }
+              size.height > 0 else { return nil }
+        if let frame = flatContentFrame {
+            guard !frame.isEmpty else { return nil }
+            return CGRect(x: frame.midX, y: frame.minY, width: 0, height: frame.height)
+        }
+        guard let span = freeSpan(layoutDirection: layoutDirection) else { return nil }
         return CGRect(x: (span.lowerBound + span.upperBound) / 2, y: 0, width: 0, height: size.height)
     }
 

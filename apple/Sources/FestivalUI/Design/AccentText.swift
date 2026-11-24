@@ -9,7 +9,10 @@ import FestivalDesign
 /// contrast table). This lighter blue of the same hue reads about 7:1 on those cards.
 enum AccentText {
     /// Lighter accent blue for values and ratings drawn as text on dark surfaces.
-    static let blue = Color(.sRGB, red: 0.38, green: 0.64, blue: 1.0, opacity: 1)
+    static let blue = Color(.sRGB, red: blueRGB.red, green: blueRGB.green, blue: blueRGB.blue, opacity: 1)
+
+    /// ``blue`` as components, shared with the UIKit port's `UKAccentText`.
+    static let blueRGB = (red: 0.38, green: 0.64, blue: 1.0)
 }
 
 extension AccentText {
@@ -17,7 +20,12 @@ extension AccentText {
     /// `accentBlue` fill measured 3.86:1 behind white 17 pt text ("Start New Mix", iPad
     /// audit 2026-10-05), below WCAG AA 4.5:1 (HIG Accessibility contrast table). This
     /// same-hue blue gives about 5.2:1.
-    static let prominentFill = Color(.sRGB, red: 31.0 / 255, green: 108.0 / 255, blue: 203.0 / 255, opacity: 1)
+    static let prominentFill = Color(
+        .sRGB, red: prominentFillRGB.red, green: prominentFillRGB.green, blue: prominentFillRGB.blue, opacity: 1
+    )
+
+    /// ``prominentFill`` as components, shared with the UIKit port.
+    static let prominentFillRGB = (red: 31.0 / 255, green: 108.0 / 255, blue: 203.0 / 255)
 }
 
 extension View {

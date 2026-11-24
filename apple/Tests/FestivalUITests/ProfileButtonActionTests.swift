@@ -1,4 +1,5 @@
 import Testing
+import FestivalAppSupport
 import FestivalCore
 @testable import FestivalUI
 

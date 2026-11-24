@@ -18,12 +18,20 @@ _Last updated: 2026-09-27 · Orchestrator: Claude Opus 5.5 (Claude Code) · took
 
 ### Lanes and file ownership
 
-Parallel work is safe because **every lane owns a disjoint set of folders**. A lane may *read* anything but only *edit* what it owns. Shared seams (`AppRoute`, `AppRouteDestination`, `Design/`, `Package.swift`, `project.yml`) are orchestrator-owned — ask in your final report if you need a change there.
+Parallel work is safe because **every lane owns a disjoint set of folders**. A lane may *read* anything but only *edit* what it owns. Shared routes, design primitives and package/project manifests are orchestrator-owned — ask in your final report if you need a change there.
+
+`FestivalMobile` owns UIKit for iPhone, iPad and Duo. The separate mobile SwiftUI
+shell and duplicate UIKit app target are retired; `FestivalDesktop` keeps native
+SwiftUI. The route and menu models are shared. An in-place SwiftUI upgrade
+reopens the UIKit window with the selected profile and Hide Item Shop intact.
+Catalyst is compile-probed only, not part of the shipping graph.
 
 ```
+apple/Sources/FestivalAppSupport/  shared route, tab, topic and client policies   → orchestrator
 apple/Sources/FestivalUI/
-  App/            AppRoute, AppRouteDestination, FestivalTabStack   → orchestrator
-                  FestivalRootView, SongNavigationRoot, Shell/*     → Lane A (Shell)
+  UIKit/          mobile shell, route map, controllers and controls → Apple UIKit lane
+  Mac/            native SwiftUI shell, route map and menus          → macOS lane
+  App/            shared app and shell policy                         → Lane A (Shell)
                   FestivalSession.swift                             → Lane P (Profile); others add FestivalSession+<Feature>.swift
   Design/         GlassSurface, SectionHeader, InstrumentIcon       → orchestrator (Lane A may add new files)
   Background/     everything                                        → Lane B (Background)
@@ -45,12 +53,995 @@ tools/**                      → orchestrator
 1. Lanes commit small, cohesive commits on their worktree branch (`lane/<name>`).
    Never squash with `git reset --soft origin/master` — worktrees share remote-tracking refs, so another lane's fetch turns it into a reversal of their work; check `git diff origin/master --stat` before pushing.
 2. `tools/lane_integrate.sh` fetches, rebases onto `origin/master`, runs `swift build --build-tests` + the iOS build, pushes `HEAD:master`, and retries if another lane landed first. `--test` also runs `swift test`.
-3. Simulator access **only** through `tools/ios_sim.py shot …` (global `flock`; one simulator at a time). Deep-link with `--tab`/`--route` (see `DebugLaunchRoute` in `FestivalRootView.swift`).
+3. Simulator access **only** through `tools/ios_sim.py shot …` (global `flock`; one simulator at a time). Deep-link with `--tab`/`--route` (see `FestivalAppSupport/DebugLaunchRoute.swift`).
 4. Lanes report back: what landed (SHAs), screenshots taken, open issues, seam changes needed.
 
 ---
 
 ## 2. Priorities (from operator, 2026-09-27; updated 2026-09-28)
+
+- **UIKit Licenses (local lane):** The empty-dependency note remeasures when its pane narrows. In the actual Duo book pose, it now draws all four lines instead of clipping the last two. The Settings typography spacing still differs from SwiftUI.
+
+- **UIKit Songs Filter (local lane):** The Score/FC disclosure opens separate Player Scores, All enabled charts and Individual charts groups. iPhone 18 Pro and folded Duo fixture journeys verify that a Lead-only check leaves the global check off, survives reopening, clears on Reset, and cannot be enabled while scores sync. Year and single-chart Stars put the named 44 pt bulk actions before the disclosure and remove them when it closes. Hiding the instrument buckets leaves no blank row before Reset. Expo confirms matching grouped fill and header order, not equal typography, spacing or animation. On the live service, SFentonX's Has FCs switch could be enabled and restored on both iPhone builds.
+
+- **UIKit Songs player Retry (local lane, `a3ae8d4f5`):** The selected-player
+  notice keeps a separate, full-safe-width text action with a 44 pt minimum
+  target. At Large and AX5 on iPhone 18 Pro and folded Duo, the complete
+  title paints and a tap in the padded area issues a new player request
+  to the loopback service. The shared disclosure reserves a decorative
+  icon column and uses native AX line spacing. The separate plated Shop
+  Retry and the retained song order stay intact in the Shop failure journey.
+  Twelve exact AX5 Explore pairs cover the initial, scrolled and song-row
+  observations for 202 and 403. Initial iPhone differences above 16 RGB
+  points fell from 32.90% to 12.96% and from 27.88% to 12.82% respectively;
+  the final folded values are 12.96% and 12.68%. Scroll positions differ,
+  so the captures establish the outcomes, not pixel identity.
+
+- **UIKit First Run Songs persistence (local lane):** Normal-mode launches
+  on both renderers and device families verify the stored lesson counts
+  `0 → 5 → 6 → 6`. Removing just Navigation from the saved history presents
+  only that lesson and records it again; the next cold launch goes straight
+  to Songs. The single-lesson states expose Close and Done, without paging
+  controls. Eighteen matched Explore pairs join to these exact saved-state
+  checks. SwiftUI exposes the combined lesson as static text and UIKit
+  labels its scroll view; this does not certify spoken VoiceOver.
+
+- **UIKit compact Songs status (local lane, `309dbdd76`):** Player and band
+  loading, syncing, unavailable and paused messages use a separate symbol
+  and text column instead of an inline attachment. At AX5, the status fits
+  below the art and Shop icons without reducing the text size. iPhone 18 Pro
+  and folded Duo read back the complete syncing text at Large and AX5;
+  the row remains a 44 pt or larger button and names the status once, before
+  the Shop indicator. The Bass summary still replaces the existing song's
+  score chips and restores them on returning to All Instruments.
+  The default-size syncing text now begins at x=124 pt in both renderers.
+  On folded Duo, Orbit wraps the same two lines and Pulse stays on one.
+  The final 202/403 whole-frame differences on that build are 9.90%/9.86%
+  on iPhone and 9.60%/8.86% on folded Duo, including earlier Retry changes.
+  Centering the compact symbol on the wrapped block brings the folded
+  202/403 glyphs within 0.91/0.41 pt of SwiftUI relative to their text;
+  before centering they sat 7.91/8.41 pt too high. The AX layouts keep the
+  symbol on the first line and still show the full status.
+
+- **UIKit live Songs rows (local lane):** A filter that changes both membership and
+  chart presentation now updates the surviving cards and their spoken summaries.
+  The loopback Bass journey removes one song, changes the existing song from chart
+  chips to a Bass summary, then restores both songs and the charts. Ten keyless
+  Expo pairs compared anonymous, SFentonX, Has FCs, Lead with Has FCs, and confirmed
+  deselection on iPhone 18 Pro and folded Duo. The fully unobscured songs matched
+  in ID, order and spoken data; row pitch matched at 68, 142.33 and 182 pt for the
+  anonymous, multi-chart and Lead layouts respectively. The sampled multi-chart
+  chip bands matched at 1×. Publication endpoint observations were stable, not
+  response-level proof. Background art differed and the stills do not certify
+  whole-screen or animation parity.
+
+- **Live invalid-score preference (local lane):** iPhone 18 Pro and folded
+  Duo SwiftUI/UIKit all expose an enabled Over Threshold switch with the
+  preference on; it remains unchecked. The three visible SFentonX rows
+  match on both families with the preference on and off. Anonymous labels
+  match on seven rows on iPhone and the four common folded rows; UIKit has
+  seven AX-visible rows in the folded capture. All four arms observed
+  publication 1847 at both boundaries, with pinning disabled. No invalid
+  marker was sampled, so this proves the affordance, not score substitution.
+
+- **UIKit Shop empty and error states (local lane):** Default-size iPhone text
+  draws the filtered-empty subtitle on one line. On folded Duo the safe area
+  moves the empty content's horizontal centre from x=233 to x=191 pt, matching
+  SwiftUI, and keeps the two-line title and one-line subtitle clear of the rail.
+  UIKit's first title line is still 8 pt lower on iPhone and 7 pt lower on folded
+  Duo. The folded whole-frame differences above the 16-point RGB threshold
+  went from 6.69% to 5.10% for genuine empty, 7.99% to 5.33% for error, and
+  6.63% to 6.24% for filtered empty. These are fixed-backdrop fixture pairs,
+  not pixel parity or a page-wide accessibility audit.
+
+- **UIKit Notifications and accordion (local lane):** Notifications preserves native New/Older pinning, removes the extra system scroll-edge backing, and fades the text-aligned separator with its row. An aggregate notification marks itself read without leaving the sheet. The multi-chart message scales as one named button; the matched iPhone fixture row is 547 pt in UIKit and 549.67 pt in SwiftUI, with a different Tap Vocals wrap. The generated and never-generated empty states use the body safe area: on folded Duo both builds center at x=195 pt and the vertical centers differ by at most 2 pt in the generated case. The folded symbol size still differs. The controlled retry fixture (`5fc395c93`) reaches loading, error, retry loading and a recovered row on all four arms. The folded modal-header reading order remains open: the native rail moves Close out of the header and both raw snapshots list it before the title. That snapshot result does not prove spoken order. At AX5 a row can be taller than the available outer display. Normal Year recordings show resize before fade-in and fade-out before collapse, without a content flash. The SwiftUI reference still moves surrounding sections under in-app Reduce Motion on iPhone and folded Duo; UIKit keeps the snap and fade. A rapid repeat at the collapsed Year button's center does not prove interruption: the bulk actions move the button.
+
+- **UIKit selected-account rail (local lane):** The folded portrait rail keeps the badged Notifications button and the named Profile button directly reachable. UIKit reserves the leading slot even ahead of higher-priority trailing items, so the selected-account drawer goes into a native overflow group. More → Menu still opens the drawer. An anonymous session keeps its direct drawer.
+
+- **UIKit Profile sheet and header (local lane):** A Profiles result opens on the tab behind the sheet, without a second push animation. Notifications uses a dismissal completion for the horizontal account pill and reveals the destination during dismissal for the standalone rail bell. A viewed player keeps the native Select/Switch button before the account group on iPhone and directly after Back on the folded Duo rail. Profile Switch uses a page-relative native confirmation: Expo measures matching popup frames on both iPhone 18 Pro and folded Duo. On iPhone, the whole-screen share of pixels with any RGB channel differing by more than 16 dropped from 31.05% to 8.09%. Popup chrome and the chart behind it still differ. The native Profiles field exposes its active scope in its spoken label, not just its placeholder. Hosting the floating row inside the selected tab puts the page tools before the tab bar in iPhone snapshots for Songs, Song Detail and the viewed player. Spoken order remains unverified.
+
+- **UIKit Compete guard and title (local lane):** All four fixture arms redirect an anonymous Compete launch to Songs and reach populated Compete with a selected player. In the selected comparison, pixels differing by more than 16 in any RGB channel are 2.24% on iPhone 18 Pro and 2.61% on folded Duo. The iPhone Profiles search pair has a named Searching indicator; the later screenshot on the SwiftUI arm is already empty, so only the indicator observation is comparable.
+
+- **UIKit history charts (local lane):** Rank and Score History expose matching dates and values on the newest, previous and restored windows on iPhone 18 Pro and folded Duo. The shared viewport matches the reference tick gutters within 1 pt at default text and uses an 18 pt date band instead of reserving 22–24 pt; Rank History's date band grows at AX5. The viewport replaces the UIKit fades with the reference's 350 ms ease-out slide. Earlier Rank History recordings show 372/372 ms of visible plot changes for Back/Forward in iPhone UIKit versus 357/375 ms in SwiftUI, and 367/367 ms versus 335/332 ms on folded Duo. These are ~30 Hz samples, not exact durations. Score History paging preserves the chart frame and updates its accessible date range with and without Reduce Motion. Geometry tests cover retargeting and crowded dates; a rapid reversal on device remains unverified.
+
+- **UIKit drawer deselection (local lane):** UIKit journeys verify that confirmation returns to anonymous Songs and the saved Songs tools reset and reopen without a tab change at default text and AX5 on both devices. Expo verified cancellation and confirmation in earlier pairs, and the repaired iPhone build; the latest folded Expo replay did not activate the confirmation reliably. Four taps 20 pt from the folded Filter button's centre open the sheet, outside its 38 pt glass frame. The floating tools stay constrained to their tab host when UIKit rebuilds the tab set. The Songs drawer row measures 48 pt at default text and grows at AX5 on both. The full AX5 drawer audit still reports one clipping issue without an element; it also reproduces on the pre-row-fix iPhone build and is not waived.
+
+- **Live iPhone comparison (local lane):** Both builds showed the same leading Item Shop offers with and without SFentonX, and all three availability switches were on. The publication endpoint returned 1780 before and after each arm with pinning disabled. Both drew the Notifications title; UIKit's New header, first message wrap and row separator differed.
+
+- **FentonPlatform consumer pilot (local lane):** UIKit uses shared observation, native Privacy Policy sheet placement and the shared native navigation controller. The cover-split pilot uses FentonUIKit pane containment while keeping the route and fold policy in Festival. The immutable pin is in `apple/Package.swift`; the split pilot's companion revision is local until accepted upstream. Settings and Licenses use the same usable midpoint on the flat Duo, separate at the hinge in book pose, and use an ordinary push in inner portrait. UIKit moved the open License page across the fold and Close returned to Settings. Expo also verified UIKit Close from Licenses in book pose; the SwiftUI replay rejected its Close target as off-screen. A separate Expo book-pose replay on both apps reached a full-width viewed Profile and used Back to restore the Lead rankings split. This is not a pose-wide accessibility audit. On folded Duo, Expo opened the Paths View picker and switched to loaded Text activations on both builds; an earlier XCTest tap had brought up the keyboard. The layout and Close fixes do not change picker behavior.
+
+- **UIKit parity evidence (local lane):** Populated Player History uses separate score cards, shared Sort controls and the existing accessibility order. Closing Sort restores the floating action even when sorting changed while covered. Resizable sheets open expanded; UIKit Songs, Shop and History sheets use flat system grouped sections rather than nested page cards, respect the horizontal safe area and give choices and Reset full touch targets on iPhone and folded Duo. Filter disclosures use grouped-row spacing and line up expanded choices with the heading. A disabled Settings switch dims the label and prevents edits; split Close keeps its accessible name and follows app tint. The mixed-revision Explore ledger contains 596 image pairs, 436 with completed fingerprints. Both device families sample all 22 rendered routes and 58 of 251 Apple-applicable named control states; 64 states have a sample on at least one family. This is not a final-build or motion certification. Folded Duo Suggestions Filter opens and closes in both Expo recordings (SwiftUI opens it through More).
+
+- **UIKit Search (local lane):** Paired Explore replays reached hint, loading, empty, All, scoped, failed and navigated on both iPhone 18 Pro and folded Duo. At the greater-than-16 RGB-channel threshold, hint differs on 0.92% / 1.12% of pixels and loading on 0.10% / 0.11%, respectively. The settled All captures (5.77% / 5.37%) predate the new row layout. In the Duo book pose, both keyboards are visible, with the field above them; the matched 951 × 669 hint frames differ on 0.06% of pixels. A separate UIKit inner-display journey checks the populated rows clear the hinge in row-major order. The iPhone fixture distinguishes no bands from a generic failure and confirms a scrape freeze retries the same query without a Retry button. Live Search for `Metallica` in All scope with the keyboard open shows the same four fully visible results on iPhone and two on folded Duo, anonymous and as SFentonX. The row pitch matches at 68 pt and the remaining top offset is 0.67 pt after removing the reference List's 2 pt row inset. All four arms ended at observed publication 1787 with pinning off; this is not proof that all payloads were from one publication. In the paired iPhone recordings, one down-scroll displaces the same first four results and reveals the next four in order. Stagger interruption and exact entrance timing remain unverified.
+
+- **UIKit First Run and Rivals (local lane):** 17 of 42 guide slides use read-only native previews: Song List, Songs Sort, Navigation and Filter, Instrument Icons, Song Metadata, the three Songs Shop statuses, the four Item Shop lessons, Score History list and Sort, and both Suggestions Filter slides. The other 25 slides still use static substitutes. Both renderers keep catalogue artwork and illustrative Shop status without exposing the selected profile's score warnings in the examples; real Songs still shows the warning on a publication mismatch. Twenty fingerprinted Explore pairs include anonymous and selected Song List and Shop illustrations on iPhone 18 Pro and folded Duo. Compared with SwiftUI built with the same score correction, whole-frame differences above the RGB threshold are 6.08–10.18% on iPhone and 16.81–21.12% on folded Duo. The final four-arm Item Shop replay records all four lessons through Settings, with matching narration and no exposed sample rows. Its eight screenshot pairs differ on 7.99–9.44% / 13.06–15.86% of pixels, respectively. The recorded activity windows include pager movement and icon pulses; they do not isolate animation durations. Rivals uses native single-line label height and the shared subdued chevron tint; earlier iPhone Rivals/Rival Detail pairs differ on 1.87% / 1.44% of pixels at the same threshold.
+
+- **UIKit Suggestions and Notifications comparisons (local lane):** With SFentonX and all nine chart switches enabled, both live iPhone builds show three identifiable Bass rows and one Drums row in the sampled viewport. Both exclude those charts when disabled, and both restore their original switches. Switch pitch is 58 pt; live card and row widths are respectively 370 and 338 pt. Observed publication 1787 was stable at the start and end of each arm, with pinning off. Compare eligibility and geometry, not whole-screen pixels when the mix differs. The matched iPhone multi-chart Notifications capture differs on 9.86% of pixels at the same greater-than-16 RGB-channel threshold. Folded rail and AX5 evidence are tracked separately.
+
+- **Folded Duo live Compete and Rivals (local lane):** The UIKit Lead card showed song counts where SwiftUI from `master` hid them, truncating names. UIKit now fits each 350 pt card beside the rail; the corrected live capture matches all seven fully visible ranks, names, scores, and spoken counts and their frames within 0.01 pt. Six Lead Rivals rows matched in identity, order, counts and pitch. The UIKit capture included a Common Rivals scrape freeze above Lead, so the 108 pt vertical difference is not a same-state layout comparison. The anonymous drawers matched and omitted Compete and Rivals. Observed publication 1791 stayed unchanged with pinning off; that does not establish response provenance.
+
+- **UIKit live Leaderboards (local lane):** The earlier blank anonymous UIKit captures were not layout comparisons. A settled production recheck on iPhone 18 Pro finds the same 11 visible rows with identical names, ranks, scores, order and accessibility frames in both apps, anonymous and as SFentonX. The selected case includes Your Rank. Different album art behind the list is not a layout failure and invalidates a whole-frame equality score.
+
+- **UIKit live Profile and Statistics (local lane):** The anonymous iPhone picker puts
+  the search field and All / Players / Bands in the same frames; the title frame and
+  the selector's spoken name differ. With SFentonX injected in memory, the five summary
+  values and the Lead rank-history data match. In the original UIKit capture, Full
+  Combos wrapped and added 24 pt to the first row; the chart began 22 pt lower.
+  The rebuilt UIKit app shows the full count and percentage on one line. A live
+  recheck puts all five tile frames within 0.01 pt of the SwiftUI capture; the
+  Lead chart starts 2 pt higher. On both device families, fixture coverage shows
+  the full value at default and largest accessibility text. Songs Played
+  applied the same nine score checks and revealed the same four fully visible songs.
+  UIKit's chip circles in those rows were 12 pt farther right; the card pitch was
+  0.67 pt taller. After correcting the empty trailing layout and single-line
+  text rounding, the sampled gold Lead chip edges match exactly on both axes
+  in both compact fixture rows on iPhone and folded Duo. The paired live captures
+  used different artwork and observed publication 1791 with pinning off. They
+  do not verify the production picker selection or a single response publication.
+
+- **UIKit folded live Statistics (local lane):** More → Menu → Statistics with
+  SFentonX shows the same five values and tile frames within 0.01 pt on both
+  builds. Songs Played reaches the same three fully visible song rows and spoken
+  statuses. In a live UIKit recheck, both chip bands in all three rows match the
+  SwiftUI horizontal edges at 1× capture scale; the chip bands still differ by
+  up to 2 pt vertically. The original UIKit index was 18 pt too tall and its
+  centre was 23 pt low. The corrected frame is 22 × 398 pt at (358, 122) in both
+  renderers. Different artwork precludes a whole-frame visual comparison.
+  Loopback captures confirm the corrected capsule reaches both ends at default
+  and AX5 on both devices; folded AX5 rail alignment and the final scroll landing
+  still differ slightly.
+
+- **UIKit Profiles sheet (local lane):** the native field and All / Players /
+  Bands buttons match their live SwiftUI frames and order. Using the shared
+  `UKSheet` removed the oversized UIKit title: the title's 3× foreground
+  pixel mask matches SwiftUI on iPhone and folded Duo, at rest and with the
+  search keyboard open. This is title evidence, not full-sheet pixel equality.
+  Both iPhone 18 Pro and folded Duo pairs selected SFentonX through the live
+  picker, restored the profile after relaunch and deselected it. Within each
+  live pair, the field, three scope buttons and Close have identical accessible
+  frames. Loopback journeys also verify
+  that Statistics opens the restored account and Back on folded Duo returns to
+  Songs, where the drawer can deselect it.
+
+- **UIKit ranking guides (local lane):** Global Rankings, Compete Leaderboards and
+  Your Rank use the same illustrative rows as SwiftUI, bringing the UIKit guide to
+  20 of 42 native previews. Expo paired all three slides on both families. At the
+  greater-than-16 RGB-channel threshold the differences are 6.20–6.64% on iPhone
+  and 11.23–13.63% on folded Duo. Backdrops differ; on folded Duo the preview
+  itself also begins about 6 pt lower in UIKit. The visible Global Rankings CTA
+  stroke on iPhone repeats about every two seconds on both renderers. Folded Duo
+  crops the CTA out of these stills, so they do not verify its pulse.
+
+- **UIKit Statistics guides (local lane):** Global Statistics, Per-Instrument Stats,
+  and Percentile Rankings reuse the native tiles, instrument header and percentile
+  rows. The sample actions stay out of the accessibility tree. Expo's six exact-state
+  pairs differ on 6.95–8.12% of pixels on iPhone and 10.20–13.34% on folded Duo above the same RGB
+  threshold. Starting the UIKit fade with the pager removes the visible jump in
+  the incoming percentile table. The 30 Hz instrument/table activity windows
+  drop from 700/733 ms to 400/400 ms on iPhone (SwiftUI 434/466 ms), and from
+  1,100/1,067 ms to 800/766 ms on folded Duo (SwiftUI 900/834 ms). These are visible
+  changes in a preview crop, not isolated animation durations. Swiping to
+  Percentile Rankings and going Back preserve the selected page; UIKit exposes
+  just the settled narration before the pager. SwiftUI's settled default-size
+  snapshot also lists its caption's title and description separately; spoken
+  duplication was not measured. Select Player Profile and Drill Into Your Data now
+  draw the example player and actual stat tiles, bringing UIKit to 25 of 42 native
+  previews. Both renderers hide the illustrative Select button from accessibility;
+  UIKit verifies narration and pager order at AX5 on both devices. In four paired
+  Expo stills, Select drops from 16.96% to 8.67% differing pixels on iPhone and
+  from 17.44% to 11.61% on folded Duo; Drill drops from 16.21% to 8.75% and from
+  13.18% to 12.45%. Video samples show a 2 s Drill outline period on both devices
+  and a 2 s Select period on folded Duo in both renderers; the iPhone Select crop
+  did not isolate the pulse reliably. The sheet backdrops still differ.
+
+- **UIKit Statistics Top Songs guide (local lane):** All six Statistics lessons now
+  have native previews, bringing UIKit to 26 of 42 across the app. Highest and
+  Lowest Rank Breakdown shows catalogue art, title, artist and year, with sample
+  percentiles fixed to their slots. The mock-unavailable catalogue redacts the
+  songs without hiding the example ranks. UIKit and SwiftUI keep the samples out
+  of the accessibility tree; UIKit also keeps AX5 narration ahead of the pager.
+  Expo shows two rows rotating and the sample labels staying in place. At 30 Hz,
+  the observed gold-label fade/recovery windows are 600–667 ms in SwiftUI and
+  666–667 ms in UIKit, not the nominal animation lengths. Reduce Motion kept cards
+  fixed between captures. On matching Reduce Motion stills, 8.21% of iPhone pixels
+  and 15.87–15.95% on folded Duo differ above the greater-than-16 RGB threshold.
+  Gold labels are 1 pt lower in UIKit on iPhone and 14 pt higher on folded Duo;
+  backdrop and folded narration layout are not visually identical.
+
+- **UIKit Song Info score guides (local lane):** View Player Scores and Top Scores
+  Per Instrument reuse the native score rows, the in-card View All action and the
+  shared pulse, bringing UIKit to 28 of 42 native previews. The illustrations use
+  sample data, not the selected player's scores. SwiftUI no longer exposes the
+  decorative sample ranks, dates or CTA in the guide's accessibility tree.
+  In matched Expo captures the iPhone illustration crops improved from 48.32%
+  to 6.62% and from 40.74% to 16.67% differing pixels (any RGB channel delta
+  above 16). Folded Duo still places the View All Scores button 16 pt lower
+  and both renderers clip the Top Scores CTA out of the regular folded viewport.
+  Native recordings show a 2 s border period in the visible cases and pager-plus-
+  entrance change windows differing by at most 65 ms over the six paired transitions.
+  The mixed-revision ledger now includes 630 paired stills: 460 with completed
+  replay fingerprints and ten additional fingerprinted live Songs pairs with
+  verified snapshots. Named-state coverage remains 64 of 251 Apple-applicable
+  states (58 on both families). This does not certify full visual or motion parity.
+
+- **UIKit Song Info chart, Paths and Shop guides (local lane):** All eight Song Info
+  lessons now use native illustrations. The chart selection cycles through sample
+  scores, the Paths example draws labels without creating menus, and the Shop
+  examples use the catalogue preview without opening the store or fetching offers.
+  An already-open UIKit Paths viewer updates its title and selectors between folded,
+  inner portrait and book layouts even if the chart mode is unchanged. The iPhone
+  Settings guide scrim preserves the blue of the Show buttons without making them
+  hittable. Eleven additional exact-state Expo pairs bring the mixed-revision ledger
+  to 641 (471 with completed replay fingerprints). The refined iPhone capture aligns
+  the gold bar baseline at y=454 pt in both renderers and reduces the chart crop from
+  9.58% to 4.39% differing pixels above the same RGB threshold. The refined Paths
+  crop differs on 1.22% of iPhone pixels and 15.11%
+  on folded Duo. The folded chart baseline is still 4 pt higher in UIKit.
+  Recorded iPhone Shop discs cycle in about 3 s; folded Shop uses a titled capsule
+  instead. Both folded captures now wrap "Item Shop" onto two lines, with UIKit's
+  narration title 6 pt lower. UIKit keeps the guide Back chevron blue.
+  Differently selected chart bars are excluded from still comparisons. Under Reduce
+  Motion the selection crop was unchanged over at least 6.4 s in all four replays
+  (67,200 iPhone pixels and 47,762 folded Duo pixels per renderer), and Back
+  returned to the chart overview.
+
+- **UIKit Suggestions guides (local lane):** The category and scrolling lessons
+  bring native preview coverage to 36 of 42 lessons. They reuse native cards and
+  bounded catalogue songs, not the selected player's scores or suggestions.
+  The category keeps its heading inside a short viewport,
+  and SwiftUI no longer exposes the decorative heading as a separate stop. Two
+  fingerprinted Expo still pairs show the same category and songs; at the existing
+  RGB threshold, the illustration crops differ by 9.02% on iPhone and 18.89% on
+  folded Duo. The heading aligns on iPhone and remains 4 pt higher in the earlier
+  folded UIKit recording. The recorded scroll speeds are about 29–30 pt/s; stills
+  taken at different phases were excluded. Longer folded recordings show five
+  headings returning after about 35 seconds in both renderers, with glide rates
+  of about 30 pt/s. Back returns to Per-Instrument Filters and Next returns to More
+  Suggestions in both; the original SwiftUI opening checkpoint temporarily
+  reported the narration as not hittable. These samples do not establish exact
+  fade timing or matching initial positions after re-entry.
+  On iPhone, SwiftUI and UIKit recorded 28.17 and 28.70 pt/s, respectively.
+  The same four observed headings returned in about 31–31.5 seconds. UIKit's
+  Back and re-entry checkpoints passed; a shorter replay verified both steps on
+  both renderers after the long SwiftUI recording timed out following Back. The
+  Reduce Motion illustration crops on both families did not change over
+  approximately eight seconds. The folded SwiftUI narration was present in the
+  raw tree but was not reported hittable; the pixel comparison does not verify
+  its VoiceOver focus.
+
+- **Live folded Suggestions filters (local lane):** With the selected profile, both
+  builds show three Bass, one Drums and one Lead result in the visible accessibility
+  sample when both switches are on. With both off, the same sample contains one Lead
+  result and no Bass or Drums. The captured switch values confirm each state and
+  restoration of both installations' original preferences. Suggestions are compared
+  by eligibility and visible structure, not the names or order of randomly picked
+  songs. The public publication observation was 1799 with pinning off; this does
+  not verify per-response provenance.
+
+- **UIKit competition guides (local lane):** All 42 First Run lesson IDs now
+  dispatch to native previews. The remaining six use shared Rank By choices and
+  sample Compete, Rivals and Head-to-Head rows; illustrations never read the
+  selected player's ranks or rivals. UIKit journeys on both device families cover
+  the automatic experimental setting, ungated Settings replay, sample content and
+  AX5 narration with an unavailable catalogue. On a folded Duo, both renderers
+  keep the Head-to-Head category heading visible at AX5 without adding a narration
+  stop. In Explore recordings, stable Rank By selections change roughly every
+  five seconds on both families. Before centering the UIKit preview, its iPhone
+  radio centers were 6 pt lower across the three observed matching choices,
+  including in a settled Reduce Motion capture. With the centered card, both
+  renderers draw "Rank By" at y=302 pt and the first choice at y=328 pt. The
+  narration title differs by 2.09 pt instead of 14 pt. At short heights and
+  accessibility sizes, the preview prioritizes showing the first choice over
+  centering a cropped card. On folded Duo the first choice remains 16 pt lower
+  in UIKit.
+  In the matching iPhone Compete Hub leaderboard phase, the four visible sample
+  name positions differ by at most 1 pt. The folded captures opened at different
+  sample phases and are not a visual pair.
+  The original SwiftUI Your Rivals illustration clips the first sample name; UIKit
+  starts with the group heading and first row visible. The earlier 12–16 pt
+  iPhone Head-to-Head offset came from comparing a fading frame with a settled
+  one. With Reduce Motion and the same Closest Battles content, both category
+  headings and the first song agree within 0.2 pt; the next two titles remain
+  about 2 pt lower in UIKit. Folded Duo still presents different clipping:
+  UIKit keeps the category heading visible, while the SwiftUI reference shows
+  more of the third title without drawing the heading. These comparisons do not
+  establish pixel or full-motion parity.
+
+- **Live Lead Score History (local lane):** The same song has no personal history
+  when anonymous in either renderer. With the selected profile, the newest window,
+  one entry earlier and the restored window have matching date ranges, axes, best
+  score, five score rows and pager availability on both device families. The chart
+  frame matches within each family, the four pager targets are 44 by 44 pt, and the gap
+  below the pager is 15 pt in every state. Both renderers observed publication 1799
+  with pinning off; this is not per-response provenance.
+
+- **Live Item Shop (local lane):** In the `fdae26230`-equivalent builds, SwiftUI
+  and UIKit showed the same offers in order with no profile and with SFentonX
+  selected; accessible offer frames matched on each device. Ten iPhone and
+  eight folded Duo offers fit before filtering and after restoration; five fit
+  with Available off. Both builds restored all three switches and the original
+  order. Only the selected header opened Notifications. The fully visible
+  iPhone aggregate row starts at y=192 pt, is 402 pt wide and measures 549.67 pt
+  in SwiftUI vs 546 pt in UIKit. Neither folded app had a fully contained
+  aggregate row. Matched Shop row crops over the flat backdrop differed by
+  2.09–4.31% on iPhone and 2.22–4.24% on folded Duo before filtering (any RGB
+  channel differing by more than 16). All arms observed publication 1801 before
+  and after with pinning off; this is not response provenance. The replay
+  re-injected the verified identity and did not retest persistence.
+  An earlier folded fixture replay put the same New and Leaving rows over a fixed
+  backdrop. Removing the invisible New marker from the UIKit accessory layout
+  corrected the New bag's trailing inset from 35 to 26 pt. Both 44 pt bag targets
+  now have the reference inset. With the corrected symbol sizes and chevron tint,
+  accessory-crop differences fell from 7.49% to 2.96% for New and from 6.55% to
+  2.72% for Leaving (any RGB channel differing by more than 16). The Leaving
+  subtitle now truncates at the same word; text pixels still differ.
+  A later loopback replay held the initial Shop read until the named 48 pt busy
+  indicator was observed, returned a controlled error with Retry, then held
+  the retry until its indicator appeared before releasing the exact two offers.
+  Both renderers completed that sequence on both device families with motion
+  disabled. UIKit's spinner was 13.3 pt below SwiftUI's on iPhone and 42 pt
+  right / 24 pt above it on folded Duo. The shared UIKit gate now aligns to
+  the result safe area without moving the scroll content. Held-load journeys
+  put its single 48 pt busy indicator within 4 pt of the reference vertically
+  and 2 pt horizontally on both families. At AX5, the folded empty message
+  can scroll to reveal the full subtitle; the rail no longer covers it.
+  In motion-enabled Expo recordings, an independent 1.25 s loopback hold let
+  both renderers recover the same two offers after Retry. UIKit originally
+  revealed the two offers together. With the shared entrance scope, the sampled
+  interval between offer text onsets was 102 ms on iPhone and 113 ms on folded
+  Duo (SwiftUI: 104 ms and 133 ms). The first offer still crossed the visibility
+  threshold 16 ms earlier on iPhone and 63 ms earlier on Duo. These are sampled
+  video crossings, not exact animation durations.
+  A later unfolding replay found List cells retained under a Grid toolbar label.
+  UIKit now reloads retained offer IDs when the presentation changes. The same
+  replay reaches Grid, List and restored Grid without stale Detail actions.
+  The native wide-display journey confirms a single full-card link in Grid and
+  separate Detail and Shop link targets in List. The first reference and
+  candidate screenshots used different framebuffer orientations and are not a
+  matched visual pair.
+  Matched 951×669 landscape Expo captures show that UIKit's Shop List now
+  clears the book hinge: the trailing row start moved 56.33 pt and matches
+  SwiftUI, with all measured List edges within 0.34 pt. The second Grid
+  card ends 1.33 pt from the reference instead of 29.33 pt; its top is still
+  3 pt higher. Flat layout geometry is unchanged. The native journey bends
+  from flat to book and back in both modes, keeping the named links hittable.
+  These are settled fixture frames, not matched animation timing.
+  A later 669×951 inner-portrait replay paired Grid, List and restored Grid
+  against exact SwiftUI `master` (`291d884e5`). Explore stored UIKit's frames
+  sideways; the upright accessibility viewport and raw 3× framebuffer verified
+  the quarter-turn correction (0.06% of pixels differed above 16 after sampling).
+  Grid, List and restored Grid differ by 6.05%, 3.11% and 6.09% respectively.
+  Explore reports the List Shop actions as Buttons in UIKit and Links in SwiftUI;
+  labels and 44 pt frames match. A non-skipped native journey on the upright
+  inner display finds those UIKit actions as Links in Grid, List and restored
+  Grid. UIKit now feeds actual hinge and vertical bar signals into the shared
+  orientation policy. Debug poses do not unlock rotation on a standard iPhone.
+
+- **UIKit Apple parity evidence (local lane):** The mixed-revision ledger has
+  940 device-matched pairs, 768 from completed Explore cases with build fingerprints. All 22
+  rendered routes have samples on both families. Of 251 applicable named states,
+  128 have a sample and 116 have one on both families. The Solo board shows low
+  (24%), mid (50%), high (98%), full combo with and without accuracy, and no
+  badge in the same six rows. The score right edge is identical within each
+  device pair, including the empty slot. Both FC outlines have the same
+  painted bounds and pixel counts; UIKit's italic lettering has more gold
+  ink. UIKit's row wrapper was not hittable in Explore; the raw snapshots
+  and painted pixels independently verify those samples. In matched Score History
+  captures, Lead has the selected accessibility trait and its chart is named
+  for Lead; Bass and Drums are available on both. A separate iPhone replay
+  switches Lead → Bass → Lead with and without Reduce Motion. It updates the
+  selected instrument and chart name, hides and restores the pager, and keeps the
+  best-score row at y=603.33 pt in both apps. Without Reduce Motion the shared
+  bar-ink samples nearly vanish between instruments; with it they stay above
+  95% of their settled value. These samples are not exact animation durations.
+  The corrected UIKit axis draws 250k/500k/750k for Lead and 200k/400k/600k
+  for Bass, matching the fixture's Swift Charts ticks. Native switch journeys
+  read these painted labels in both motion modes on iPhone 18 Pro and
+  folded Duo, with named scales, no separate tick reading stops, and unchanged
+  score-row position. The top 100% label centers on the plot edge. The
+  corrected still pairs match at 342×220 pt on iPhone and 322×220 pt on folded
+  Duo; the folded best score stays at y=569.33 pt. On iPhone, pixels
+  inside that frame differ above 16 in any RGB channel on 1.62% of Bass and
+  1.96% of Lead pixels (about 11.4–11.6% for the full frame); the two scopes
+  are not interchangeable. In those recordings, the sampled 90% → 10%
+  fall takes 116–117 ms in SwiftUI and 84–100 ms in UIKit. With Reduce
+  Motion the sampled ink stays at or above 95.1% in all four iPhone
+  transitions. Folded Duo's sampled fall is 116–117 ms in SwiftUI and
+  100–117 ms in UIKit; with Reduce Motion it stays at or above 96.1%.
+  Loopback Songs cases match
+  the spoken score, accuracy and FC-only conditions; the whole-frame RGB
+  differences above 16 range from 4.08% to 4.90% on iPhone and 4.49% to 5.09%
+  on folded Duo. At AX5 the scrolled captures show readable stars and wrapped
+  Last Played. The two date lines now start within 0.1 pt of one another on both
+  UIKit devices, down from more than 63 pt. The pill still aligns with the Shop
+  badge. This crop does not establish above-the-fold score visibility. The
+  captures are samples, not identical pixels or proof of every state and timing.
+
+- **UIKit Paths held switches (local lane):** Both device families reproduce
+  the 48 pt UIKit pane ring against SwiftUI's 36 pt ring in Text and Image.
+  UIKit now uses the shared medium ring without changing placement or phase
+  timing. The corrected painted bounds match at 36 × 36 pt on both devices
+  in both states. Explore checked the exact saved accessibility tree against a live
+  held request: one named spinner, current selectors, no stale chart or error.
+  The native audit and target checks pass for both holds on both devices.
+  The sampled 90% → 10% arc fade is 166/167 ms for Text and 169/170 ms for
+  Image on iPhone (SwiftUI/UIKit), and 169/172 ms and 169/168 ms on folded Duo.
+  Separate live recordings during fixture-confirmed holds fit 798–800 ms
+  rotations on both renderers for both forms and devices. Live 90% → 10%
+  fades differ by at most 5 ms within a device/form pair. Still-backdrop
+  replays can drop seconds of video frames during a hold; the live SwiftUI
+  measurements use the fixture clock without querying accessibility.
+  Neither those clips nor the held accessibility snapshots establish the
+  full transition.
+
+- **UIKit Paths AX5 selectors and offline state (local lane):** The named
+  instrument artwork stays at its reference size rather than growing with its
+  label. The View symbol uses the current body size and the foreground tint.
+  At AX5 the iPhone's held Text and Image captures now match the SwiftUI
+  painted glyph heights. Whole-frame differences above 16 in any RGB channel
+  fell from 3.63% to 1.65% for held Text, 3.37% to 0.46% for held Image and
+  3.94% to 0.79% for the settled chart. On the Duo cover, the View capsule
+  now matches SwiftUI at 83⅓ pt for Text and 73 pt for Image, with 6 pt
+  above and below both glyphs. The earlier 63 pt UIKit capsule let Text
+  paint outside its bounds despite a passing audit. The corrected AX5
+  held frames differ above 16 in any RGB channel on 0.15% of pixels for
+  both Text and Image. The loopback fixture distinguishes a reset
+  connection on Medium from a 404 and keeps Expert reachable. On iPhone
+  and folded Duo, both renderers show "You're offline" and Retry in each
+  failed form, with no stale chart; switching back to Expert restores its
+  image. The corresponding folded offline frame differences are 0.72%
+  for Text and 1.21% for Image.
+
+- **UIKit Paths physical Duo layout (local lane):** Native `XCUIHinge`
+  drives the same viewer from 180° flat to 90° book, 0° cover and back
+  to flat, checking the angle, live window and lit panel independently.
+  UIKit previously kept a stale View menu in book pose after presenting
+  the viewer full screen. The window now publishes the layout even
+  when the root is detached. Both renderers remove View and clear the
+  hinge in book pose, fall back to Image on the cover and restore the
+  selected Side by Side on return without opening a new viewer.
+  On the flat inner panel, UIKit now matches SwiftUI's three 273 × 44 pt
+  named selectors at the same positions, before and after refolding.
+  The physical frame differences above 16 in any RGB channel are
+  1.21% flat, 1.55% book, 0.22% cover and 1.23% flat return.
+
+- **UIKit Songs paused Shop sort (local lane):** The retained list uses plain
+  rows for the pause, failed read and Retry, ahead of the title-ordered songs.
+  The Duo cover plate extends under the rail without moving its content into
+  the rail. On iPhone 18 Pro and the Duo cover the paused pairs differ above
+  16 in any RGB channel on 4.62% and 4.98% of pixels, down from 22.59% and
+  31.82%; the disabled-selected Sort sheets differ on 0.55% and 1.04%. Both
+  native journeys verify the named notices, their order, retained row order
+  and a reachable 44 pt Retry at default size and AX5. The fixture replays
+  also verify the saved mode across unavailable, validated-empty and
+  recovered Shop feeds; the recovered groups differ on 1.76% and 0.83% of
+  pixels in the earlier recovery build. A live 180° → 0° → 180° UIKit
+  journey revealed notice text under the cover rail despite a correct cold
+  launch. The notice and divider now follow the live safe area. The native
+  framebuffer confirms readable notices and a reachable Retry on the
+  951 × 669 pt inner display and the 466 × 678 pt cover without relaunching.
+  A later cold-launch frame exposed a separate height error: the failure
+  plate was measured for two lines before it inherited the rail inset, even
+  though the final width needs three. The notice cell now fits its content at
+  its live safe width and invalidates its size when the insets change. Native
+  Duo runs require the three-line plate both cold and after a physical fold;
+  the settled cold Explore frame shows all three lines.
+
+- **UIKit Songs Sort visibility and largest text (local lane):** Both apps
+  preserve the saved Item Shop sort when the Settings switch hides the choice
+  across relaunch, and restore its selected trait and grouping when shown
+  again. The earlier visibility replay's hidden sheets differ above 16 in any
+  RGB channel on 0.61% of iPhone pixels and 0.68% of Duo pixels. The selected
+  player with all charts does not get player modes; selecting Lead enables
+  Score, Percentile and Stars, including through the native More menu on the
+  cover. The paired Duo recordings index frame-change windows for More,
+  Sort, Filter and Close; those windows are not isolated animation durations.
+  Both device families now keep the inline modes at 52 pt pitch at
+  default text and about 93 pt at AX5, with a named, selected or disabled
+  button as appropriate. A two-line Reset keeps its text clear of the card
+  corners and settles with the native 20 pt gap above the bottom safe area.
+  At AX5 the shared Direction arrows now match the SwiftUI painted width
+  of 40 pt and height within 1 pt. Ascending uses the same hyphenation and
+  description line breaks on each device. Both native Songs journeys verify
+  the named direction selection at default and AX5. The AX5 top frames
+  differ by 0.75% on iPhone and 0.51% on the cover; the bottom frames differ
+  by 5.00% and 4.51%, down from 5.46% and 5.55%. The folded UIKit title stays
+  pinned, unlike the scrolled SwiftUI capture, and the first Reset glyphs
+  still show a small rounded paint cut. These are settled frames, not
+  animation measurements.
+
+- **What's New lifecycle (local lane):** Seven fixture checkpoints on iPhone 18 Pro
+  and the Duo cover show First Run holding the launch slot, the release notes opening
+  after it closes, dismissal persisting through a real relaunch, and Settings Show
+  opening the same notes again. Compact has Close and Dismiss; the Duo cover has
+  the single rail Close. The original compact launch and replay sheet pairs differ
+  by more than 16 in an RGB channel on 1.00% and 1.02% of pixels, respectively;
+  the corresponding Duo cover figures are 0.37% and 0.27%. The compact Settings
+  replay recordings show the same slide direction. Sampled screen changes span
+  335/305 ms on Show and 165/133 ms on Close on iPhone, and 368/332 ms and
+  128/167 ms on the Duo cover (SwiftUI/UIKit); these are not animation durations
+  or easing measurements. Native Settings replay also exercises a synthetic
+  slow install-channel answer: one named activity indicator and no notes
+  while pending, then tester notes with Close still available. The painted
+  ring is 48 × 48 pt and has identical bounds within both device pairs. The
+  four motion-enabled native recordings fit an 800 ms revolution.
+  The corrected UIKit sheet keeps the compact 46 pt Dismiss control and the
+  reference note's line break on iPhone 18 Pro and the Duo cover; the compact
+  AX5 journey also keeps its accessible note and dismissal order. In the
+  corrected Explore pairs, the launch and replay sheets differ above the same
+  threshold on 0.41% and 0.40% of iPhone pixels and 0.32% and 0.70% of Duo cover pixels.
+  Closing the replay restores the same Settings Show row position within each
+  arm; the renderers started at different scroll offsets on both devices.
+
+- **UIKit Songs after launch sheets (local lane):** On iPhone 18 Pro, dismissing
+  the cover returned an unknown hinge status without a rail or division. UIKit
+  used to interpret that as a fold and draw the Duo field at the bottom until
+  relaunch. The shell now ignores unknown hinge status, leaving one hittable
+  native Filter Songs field above the list after First Run and What's New.
+  On both iPhone 18 Pro arms the field now measures 370 by 44 pt at (16, 116).
+  The matched post-dismiss frame's pixel difference fell from 27.11% to
+  1.79% above the same channel threshold; the whole frame is not pixel-identical.
+  The physical Duo retains its folded rail and filter; the standalone Duos
+  pager still follows the active divide through flat, book, and back to flat.
+
+- **UIKit physical Duo split reflow (local lane):** Returning from book to flat
+  could report the final pane to accessibility while the inner framebuffer still
+  clipped the Duos entry count, names and spotlight roster. The shared split host
+  now lays out both existing FentonPlatform panes and their safe areas in one
+  nonanimated update, without changing intentional navigation transitions. At
+  the first sampled flat geometry, all four text readings match the SwiftUI
+  reference; the selected row, page 2, footer clearance and six Close-edge taps
+  still pass. This does not resolve the separate unattributed compact text audit.
+
+- **UIKit Songs Sort persistence (local lane):** Explore observes Descending
+  selected, Fixture Pulse before Fixture Orbit after Done, and the same order
+  after relaunch on both renderers and device families. UIKit exposes
+  `Title, descending` as the value; folded SwiftUI speaks the same state in
+  the label (`Sort, Title, descending`), because the system toolbar can drop
+  a separate value. The shared native journey now verifies the applied mode,
+  tint and direction through a real relaunch and Reset on all four arms.
+  The recorded open/close change windows (SwiftUI / UIKit) were 401 / 402 ms
+  and 185 / 233 ms on iPhone, 390 / 403 ms and 185 / 208 ms on folded Duo.
+  These are sampled frame-change intervals, not easing or exact durations.
+  At AX5, the shared grouped text action now leaves corner clipping to the
+  group. Fingerprinted iPhone and folded Duo captures show the full leading
+  stroke of the second Reset line without moving or resizing the button.
+  Native journeys verify the paint, Reset action, Shop Filter footer and
+  sortable Score History on both devices.
+
+- **UIKit grouped forms beside the Duo rail (local lane):** The folded sheet's
+  safe area already supplies the rail-side gutter. The shared group form no
+  longer adds 16 pt there; compact iPhone retains its original margins. The
+  folded Sort direction control ends 40 pt before Close as in SwiftUI, and the
+  selected-score Filter and Sort Reset journeys pass on both UIKit devices.
+  Correcting the gutter alone reduced the folded selected-sheet difference
+  from 3.55% to 2.94% of pixels with any RGB channel off by more than 16.
+  Including separators within the row height and matching the group spacing
+  and arrow tint reduced that further to 0.67%; iPhone improved from 2.64%
+  to 0.60%. The matched direction frames differ by 1/3 pt vertically. Remaining
+  differences include the selected checkmark, arrow rasterization, and Reset's
+  placement (about 1 pt). The same corrected build's matched Shop Sort sheet
+  differs on 0.69% / 0.88% (iPhone / folded Duo); Shop Filter on 1.42% / 1.50%.
+  The expanded Songs Double Bass Filter now indents revealed labels by 20 pt
+  without moving their switches, draws the dividers, and uses the smaller
+  disclosure chevron. Matching the General heading tint, wrapped hint spacing,
+  and the padding inside the tappable disclosure header brings the difference
+  from 3.75% / 3.80% to 1.39% / 1.33%. The first revealed label is within
+  0.5 pt vertically in both pairs; Year, Duration, and Item Shop start at the
+  same heights. The default-size Double Bass, Year, and Stars journeys pass
+  on both UIKit devices. At the largest text size the iPhone audit passes;
+  the Duo reports the same unattributed hit-area finding as the pre-change
+  UIKit build and is not certified. The native Score History Sort journey
+  uses the Duo toolbar's overflow when necessary, then verifies
+  the selected date direction, sorted rows, and retained form state on reopening
+  on both device families in both renderers.
+
+- **UIKit grouped form details (local lane):** A revealed bulk header uses the
+  28 pt titled gap; closing it restores the 35 pt untitled gap. Interior
+  dividers follow the choice labels. On the matched Duration Filter, pixels
+  with any channel off by more than 16 fell from 6.35% to 1.78% on iPhone
+  and 4.99% to 1.51% on folded Duo. The native Duration, Year, Stars, and
+  shared accordion journeys pass on both UIKit devices. From the original
+  four native recordings, the Duration switch's visible 10–90% blue ramp
+  was 72/83 ms (SwiftUI/UIKit) on iPhone and 85/83 ms on Duo. Item Shop's
+  was 85/84 ms and 66/83 ms. These sample the painted switch, not the
+  complete disclosure animation. The independent folded SwiftUI AX5
+  hit-region journey passes with neutral fixture settings. UIKit passes
+  the independent folded Dynamic Type audit, but the collapsed-top
+  hit-region result still has no identifier, label, or frame. The scoped
+  pre-audit tree shows a 318 × 264⅓ pt Year button and only 12⅔ pt of
+  the Duration button intersecting the viewport. The audit does not
+  identify Duration or any other control; the finding remains open.
+  The Shop Filter footer and wrapping disabled Shop Sort explanation now
+  match the reference group placement and preserve a named disabled choice.
+  The matching footer frames differ on 0.64% / 0.79% of pixels (iPhone /
+  folded Duo); the disabled Sort frames on 0.60% / 0.96%, using the same
+  RGB threshold. The native footer and disabled-row checks pass on both.
+
+- **Songs Item Shop Filter lifecycle (local lane):** On iPhone 18 Pro and
+  folded Duo, both renderers keep Available enabled, turn Not Available off,
+  and show only Fixture Pulse after applying and relaunching. A failed feed
+  pauses the saved filter and exposes Retry without hiding the catalogue.
+  A validated empty feed instead shows No Results. Recovery reapplies the
+  saved choice. Seven fingerprinted pairs per family differ above the RGB
+  threshold on 0.55–4.66% of iPhone pixels and 0.56–5.19% of Duo pixels.
+  In the iPhone recording, the Double Bass row moves before the Item Shop
+  choice label fades in. At actual frame timestamps, 10–90% of that
+  movement spans 156–184 ms in SwiftUI and 86–119 ms in UIKit. The label's
+  10–90% ranges overlap (78–85 ms and 66–100 ms); it starts later relative
+  to the 90% movement mark in UIKit. These are sampled paint thresholds,
+  not exact durations or easing.
+
+- **Songs Title and Artist indices (local lane):** On iPhone 18 Pro and the
+  Duo cover, both renderers start Title at `#` and an index drag exposes
+  Zenith Garden. Artist starts at `A` and the drag exposes Yonder Garden
+  by Z Fixture Ensemble. Both apps report `Y` as the active section after
+  either drag. The Title and Artist rail frames agree within 0.34 pt.
+  The Title frames differ on 1.92–2.44% of iPhone pixels and 1.70–2.30%
+  of Duo pixels above the RGB threshold; Artist differs on 1.94–2.35%
+  and 1.69–2.26%, respectively. The corrected Year/Duration replay
+  verifies that neither sort shows the index. Year offers 2000s, 2010s
+  and 2020s in the iPhone sheet and Duo menu, and choosing 2010s lands
+  the pinned heading at y=178 pt on iPhone and y=90 pt on Duo in both
+  apps. UIKit exposes the full heading band to accessibility; SwiftUI
+  exposes the text frame. Duration reports the selected sort. The four
+  settled pairs differ above the RGB threshold by 0.04–2.41% on iPhone
+  and 1.54–2.10% on Duo. These captures do not establish exact motion.
+
+- **UIKit Settings Service Info (local lane):** The short idle description uses
+  the same leading column as its title, with Idle still at the trailing edge when
+  both fit. The dated Last Successful Publication is painted under its title and
+  exposed as one static-text element. Native fixture journeys on iPhone 18 Pro and
+  the Duo cover verify the one-line description, idle alignment, complete date and
+  reading order. This does not settle the surrounding Settings row heights.
+
+- **Floating Item Shop glyph (local lane):** UIKit now hosts the live Shop
+  glyph instead of tinting its exported image. The iPhone 18 Pro recordings
+  sample a 3,000 ms breath and the same gold-channel range in both renderers.
+  With Reduce Motion both stay at the peak. The native AX5 journey exposes
+  one named Shop link with a 44 pt target. Neighboring standard symbols
+  and navigation glass are separate open visual differences.
+
+- **Shop Retry under Reduce Motion (local lane):** Both offers first appear
+  in the same recorded frame in all four loopback replays. Neither offer
+  shows an intermediate 10–90% text-ink ramp. The frame gaps at reveal were
+  123/17 ms on iPhone and 107/12 ms on folded Duo (SwiftUI/UIKit), so the
+  recordings cannot exclude shorter fades. The settled recovery frames
+  differ on 4.54%/4.61% of pixels above the same RGB threshold. This does
+  not measure an in-flight scroll rush.
+
+- **Shop Retry with motion (local lane):** In the no-input controls, two
+  identified offers first reach 10% of settled text ink 120 ms apart in
+  SwiftUI and 116 ms apart in UIKit on iPhone 18 Pro; on folded Duo the
+  sampled gaps were 84 ms and 119 ms. Folded SwiftUI's first crossing
+  follows a 35 ms frame gap, so the folded timing ranges overlap. The
+  SwiftUI harness needed live accessibility to verify the spinner against
+  the held request; Explore reused its earlier error snapshot. Tracking
+  individual title shapes through the videos shows that the drag moved
+  rows during entrance on both devices. In UIKit on both families and
+  SwiftUI on folded Duo, the moving fourth and fifth titles first exceeded
+  10% in the same sampled frame; they stagger in the no-input controls.
+  On SwiftUI iPhone those moving titles first exceeded 10% 26 ms apart.
+  Gesture timing relative to the stagger differed, so the runs do not
+  establish a different rush policy.
+
+- **First Run seen-state (local lane):** On iPhone 18 Pro and folded Duo, the
+  native loopback journey closed the Settings replay after Song List and Sort
+  Songs. Both apps resumed at Navigation after relaunch, with Song List no
+  longer hittable. On folded Duo the same rail-aware runner tested the exact
+  SwiftUI `master` app (`404702bc6`) and UIKit, and both only showed the optional
+  Experimental Ranking Metrics slide when the corresponding setting was on.
+
+- **Year quick-toggle evidence (local lane):** The expanded and collapsed
+  Year headers overlap on both families, so both taps in each replay use one
+  point. All arms end expanded. The switch's blue pixel signal drops below
+  20% of its settled value for 483 ms (SwiftUI) and 516 ms (UIKit) on iPhone
+  18 Pro, and 456 ms (SwiftUI) and 550 ms (UIKit) on folded Duo. These
+  intervals include automation input spacing; the videos show close/reopen,
+  not in-flight reversal. A native double tap in the overlap also ends
+  expanded on both iPhone builds, without a comparable signal drop. The
+  final state alone does not prove both taps reached the control.
+
+- **UIKit Feedback (local lane):** Matched Explore samples on both families
+  verify the untouched feature prefix, disabled Submit, no bug-only fields,
+  and closing the untouched form. On iPhone 18 Pro, both apps keep one
+  `[Feature]` prefix with ordinary typing, show “Add a description.” with
+  Submit disabled, and retain the draft when the discard popover is dismissed.
+  Explore blocked entry through Report an Issue; native journeys use loopback
+  for that path. The shared sending plan now drives both renderers. On
+  iPhone, the first substantial filing-title
+  change follows the form's first substantial fade by 332 ms in SwiftUI and
+  334 ms in UIKit. These are recording thresholds, not exact durations.
+  Both UIKit families retain failed drafts and read the no-media indicator,
+  title and explanation in order. The folded SwiftUI bar's full frame includes
+  the rail, so its old assertion against the bar midpoint fails even though
+  its status stays in the usable part of the sheet. UIKit now uses that safe
+  area too. Its settled filing title is within 0.2 pt of the iPhone reference
+  vertically and within 1.5 pt on folded Duo; the folded title centers at
+  x=195.9 pt in both renderers. The safe-area grouped feature form reduced
+  pixels above the same RGB threshold from 21.27% to 5.71% on iPhone and
+  from 19.97% to 4.33% on folded Duo. The two iPhone captures after closing
+  the form are 67 pt apart in Settings scroll position. For the aligned
+  settings-content crop, 2.13% of pixels differ above the threshold. The
+  folded captures exposed a real extra Filter Invalid Scores line. The revised
+  UIKit switch row removes that wrap at default size without shrinking the
+  switch's target; its AX5 description still scales and scrolls.
+  The compact Photos picker presents over the form on both families. On the
+  same iPad, a photo dragged from Photos onto Description highlights the sheet
+  and attaches in both apps, including exact SwiftUI `master` (`291d884e5`).
+  On Duo inner landscape, both local builds verify inline pick, removal,
+  untick and Hide, then Uploading Media → Filing Request → Request Sent.
+  Both keep one spinner at the same centre through the stage change.
+  The bright title crop crosses 80% of its outgoing and incoming settled
+  pixel counts 133 ms apart in SwiftUI and 137 ms apart in UIKit. These
+  thresholds compare visible frames, not exact animation durations.
+  On the actual 669×951 Duo inner portrait, both native journeys verify two
+  attachments, removal and untick, and Hide retaining the remaining photo.
+  Both also verify Uploading Media → Filing Request → Request Sent against the
+  loopback service. The portrait bright-title crop crossed the same thresholds
+  185 ms apart in SwiftUI and 135 ms apart in UIKit in one run each; the
+  preceding frame gaps were 14/14 ms and 19/2 ms, respectively. This is a
+  measured difference, not a repeatable timing fix or a full fade duration.
+  Use regular fixture media files; simulator Photos retained older alias
+  entries that could not be imported. On the actual 951×669 Duo inner
+  landscape, both apps show the selected photo, its named 44×44 pt remove
+  button, and Hide Photo Library together. The same attachment remains in
+  each form on the 466×678 cover with the inline library absent. Native
+  `XCUIHinge` journeys then verified 180° → 0° → 90° and 180° → 0° → 180°
+  on lit cover and inner framebuffers without relaunching. UIKit retained
+  the same 44 pt Remove button in the fresh inner tree before scrolling.
+  Exact SwiftUI `master` (`404702bc6`) lost the attachment on both returns:
+  the strip was absent before and after scrolling, and its untouched
+  form no longer required a discard confirmation. No desktop-control
+  permission was used. The fully open SwiftUI diagnostic kept the same
+  model and one attachment from inner to cover, then showed a different
+  model with zero attachments on the inner return, before any scroll.
+  After moving draft ownership to Settings, both physical SwiftUI retests
+  retain one attachment in the same model throughout. The named 44 pt
+  Remove button is present in both fresh inner trees before scrolling,
+  and Cancel still prompts before discarding the media-only draft. On the
+  repaired build the inner-display picker still attaches and unticks
+  photos, Hide retains the remaining attachment, and the loopback upload
+  still proceeds from Uploading Media to Filing Request. The iPhone
+  still presents the compact system Photos picker over the form.
+  Both folded AX5 Feedback headers stay reachable after scrolling.
+
+- **Folded Paths at AX5 (local lane):** The first Text activation card is
+  taller than its scroll viewport in both renderers. The native journey
+  reveals the timestamp inside the table and reads all of `00:02:750` at
+  45.2 pt in both apps (Large baselines: 15.6 pt SwiftUI, 17.3 pt UIKit).
+  Close and all three 44 pt selectors remain reachable; the reading order
+  and scoped accessibility audit pass. No renderer change was needed.
+
+- **UIKit live Songs metadata (local lane):** On each family, six common
+  unobscured anonymous rows exposed neither score nor accuracy. With SFentonX
+  and instrument icons off, two common rows per family exposed the same Score
+  and Accuracy. With Score off, three common rows per family still exposed
+  matching Accuracy and no score. All four apps restored their three Settings
+  values and rendered populated Songs. The folded apps began with different
+  icon preferences; their restored captures are not like-for-like comparisons.
+  All four observed publication 1801 before and after with pinning off. The UIKit
+  notification badge appeared in a matched frame without a SwiftUI badge;
+  notification state was not controlled in this replay.
+
+- **UIKit live Compete and Rivals (local lane):** On iPhone 18 Pro, SFentonX sees eight
+  fully visible Compete ranking rows with matching data, order and frames, including Your
+  Rank. The six visible Lead Rivals rows match names, ahead/behind counts and row sizes.
+  The Common Rivals freeze card pushes those rows 10.33 pt lower in SwiftUI than in the
+  captured UIKit build; its Retry Now target fits inside the row in SwiftUI. The anonymous
+  drawers expose the same actions and omit Compete and Rivals. Publication 1789 was
+  observed before and after the pair with pinning off; these were not pinned reads.
+
+- **UIKit live folded Lead rankings (local lane):** Ten visible rows have
+  the same order both without a selected account and with SFentonX. The
+  account button identifies the anonymous arm, and the native More menu names
+  SFentonX in each selected arm. Publication 1803 was observed before and
+  after with pinning off. The footer was outside the measured viewport.
+
+- **UIKit live Duets rankings (local lane, 2026-11-21):** Against SwiftUI
+  `master` (`404702bc6`), 15 hittable iPhone rows and 11 folded Duo rows
+  match in identity, order, spoken label and settled frame with and without
+  an account selected. Before settling, the selected iPhone SwiftUI rows
+  were still moving; the repeat waited for consecutive matching frames.
+  Publication 1808 was observed before and after, with pinning off.
+
+- **UIKit live song Duets (local lane):** The Reaper board on iPhone 18 Pro
+  has six hittable rows with matching order, button roles and spoken labels
+  for anonymous and SFentonX. Neither arm in either app shows a personal
+  footer. After the shared gap fix, the first row aligns, and the next five
+  start 1 pt lower and end at the same position in UIKit for both identities.
+  Publication 1814 was observed at both iPhone endpoints with pinning off.
+  Folded Duo shows five matching rows in the same order and the same 1 pt
+  pattern on the last four; both apps expose the selected identity under
+  More and neither adds a personal footer. The first folded batch crossed
+  publications; the settled repeat observed 1816 at start and finish with
+  pinning off and confirmed the same five rows for both identities.
+
+- **Duos row stars (local lane):** In the iPhone 18 Pro and folded Duo loopback
+  comparisons, wire counts 6, 5, 1 and 0 draw five gold, five white, one
+  white and no stars. The row labels expose the matching counts and omit
+  stars for zero. The zero-star row was scrolled clear of the footer fade
+  on folded Duo to verify the artwork is absent. The iPhone 18 Pro player
+  profile All Gold fixture shows five gold stars in identical positions in
+  the Lead Avg Stars tile, with the same spoken value. The completed folded
+  Duo replay also paints five gold stars and exposes `5 gold stars` in each
+  171×71⅓ pt tile; the scroll landing differs between renderers. The folded
+  song-board Band Size action now matches the reference's blue icon, switches to white under Increase Contrast,
+  and announces Trios when picked. The global Band Rankings rail uses the
+  same policy but was not separately measured.
+
+- **Duo Song Detail → Duos split (local lane):** Native hinge journeys
+  measured an actual 951×669 pt inner landscape window. UIKit and both
+  SwiftUI builds opened the trailing board with one title, the same first
+  row and a named system Close. Closing restored full-width Song Detail
+  and cleared the selection. The first row starts at x=450 pt and is
+  401 pt wide in UIKit and corrected SwiftUI, versus x=408 pt and 443 pt
+  wide in the frozen reference, which excluded the rail twice. Its y
+  differs by ⅓ pt between UIKit and corrected SwiftUI. The UIKit personal
+  footer now uses the same section fit as SwiftUI: both place the full
+  combined member names on their own line in a 401×72⅓ pt footer,
+  with one named jump action that reaches the highlighted rank-29 row.
+  Both framebuffers show the same name, rank, score and accuracy. Keeping
+  pagination and spotlight focus local to the board preserves the selected
+  Song Detail action, page 2 and the rank-29 target through 180° → 90° →
+  180° on UIKit and corrected SwiftUI. At 90° the divider moves to
+  x≈496 pt. Both native rails close at all six button-relative edge taps
+  within the 44 pt target and restore full-width Song Detail.
+  On SwiftUI the departing page could consume Jump before page 2 loaded,
+  leaving 73 pt of rank 29 under the footer even though it was hittable.
+  Matching the reveal to the loaded request restores the same page-2
+  landing as UIKit. Both now keep 6 pt of clearance above the footer in
+  flat, book and flat return. Measuring and drawing the name with the
+  preferred body font keeps the whole roster on one line in the 339⅓ pt
+  book pane. Both footers stay 72⅓ pt tall and show the same rank, score
+  and accuracy. At an early UIKit flat-return checkpoint, the footer
+  and Band Size glyph still clip after accessibility reports settled
+  geometry. The later frame restores the whole footer and the glyph's
+  original painted bounds. These snapshots do not establish transition timing.
+  The compact band-board AX5 journey passes separately on UIKit and
+  frozen SwiftUI. It reveals the lazy Duos choice in the sheet, measures
+  clearance from pinned chrome (including the UIKit Band pager's 6 pt
+  inset), and reads both names, rank, score and accuracy from the
+  rendered tall card before running the accessibility audit. At default
+  size, UIKit still reports an unattributed `Text clipped` result, also
+  reproduced on the pre-change binary. Shortening the footer roster
+  without changing the ranked rows or selected rank does not clear it.
+  The frozen SwiftUI build passes the separate default-size clipping audit.
+  In the corrected default-motion iPhone comparison, both standalone boards
+  land the first page-2 card at y=216 pt and rank 29 clears the footer by 6 pt.
+  The settled Open pair differs above 16 in any RGB channel on 1.71% of
+  the frame, down from 18.63% against frozen SwiftUI. The sampled movement
+  windows (645 ms SwiftUI, 697 ms UIKit) also include scrolling; they are
+  not fade durations.
+  The iPhone recordings exposed a separate UIKit reload flash: the
+  unchanged song header dipped to 3% of its original artwork chroma when
+  page 2 entered. Keeping the header out of the row entrance restores
+  99.97% on iPhone and 99.48% on Duo versus about 100% in SwiftUI, with the
+  rows still animating. Settled paired frames differ above 16 on 1.52% of
+  pixels after Open on iPhone and 2.14% on Duo.
+  On iPhone a separate Solo reload could bring the scrolled-away header back
+  and remove the pinned title. The shared UIKit song board now restores its
+  offset after swapping the ranked rows for the temporary result area.
+  Both renderers keep the bar title, land on the first row of page 2 and
+  expose the unchanged header name alongside a named Retry if a page fails.
+  The final UIKit candidate also passed both physical Duo split and pager
+  journeys. In controlled Explore replays, page 3 started before page 4's
+  held failure returned: 13.79 s (SwiftUI) and 10.04 s (UIKit) on iPhone;
+  13.81 s and 9.86 s on the Duo cover. On both families the matching rank-51
+  accuracy and pager value "3 of 4" persisted after the failure, with no
+  spinner or stale Retry. The settled pairs differ above 16 in any RGB
+  channel on 0.83% of iPhone pixels and 2.81% of Duo cover pixels.
+  At AX5, UIKit's first Duos card displayed the spoken full-combo
+  description in the badge instead of the percentage alone. The shared
+  UIKit band badge now draws one line, as SwiftUI does, without changing
+  the spoken card. The measured card shrank from 672 pt (iPhone) and
+  735 pt (Duo cover) to 546 pt on both; the SwiftUI reference is 545⅓ pt.
+  Bounded native drags and screenshot OCR verify the percentage on both
+  devices. The tall card still needs scrolling, and this check does not
+  clear the separate default-size audit.
+
+- **Duo full-width boards (local lane):** In the Expo fixture capture after
+  Jump, UIKit's first Duos column took 823 pt and the second ran under the
+  rail; Explore timed out after observing the page-2 transition. With
+  self-sizing columns, both ranks in each pair are fully visible. The
+  physical UIKit and SwiftUI journeys agree on rank order, 411 pt flat
+  columns, a book gutter at x≈456–496 pt, and a stable 835×48 pt footer
+  showing season, score, five stars and accuracy. UIKit's pager now moves
+  from x=650 to x=681 pt (badge center) flat → book and returns without
+  changing page; it stays centered in a single split pane. Band Rankings'
+  AX5 floating pager is exposed after loading and clears the physical
+  divide in both poses. Frozen SwiftUI's flat pager sits 21 pt farther left:
+  the root probe reports an already rail-free 867 pt width plus the 84 pt
+  rail inset. Corrected SwiftUI measures the actual board and matches
+  UIKit's x≈650 pt flat and x≈681 pt book centers for both the framed
+  Duos pager and the AX5 floating pager. The completed Expo replay against frozen
+  SwiftUI `404702bc6` shows the same y=206 pt landing after Jump and four
+  complete rows in both apps. The full-width footer shows `S10`, `80,500`,
+  five white stars and `96.5%` in Jump and Open. Respectively 3.43% and
+  2.85% of frame pixels differ by more than 16 in an RGB channel. The
+  earlier 51 pt native frame difference did not reproduce after the
+  matched wait. The recordings use Reduce Motion; they do not establish
+  default transition timing.
+
+- **UIKit floating page tools (local lane):** The native Paths and Quick
+  Links circles on iPhone 18 Pro and the Duo inner portrait display remain
+  44 pt and operable at AX5. Their symbols grow from Large through XXXL
+  and then hold at AX5; the frozen SwiftUI iPhone 18 Pro shows the same size
+  progression. This does not alter the Duo rail or certify
+  identical navigation glass or Large Content Viewer gestures.
+
+- **UIKit song board header and pinned title (local lane):** The band board now
+  uses SwiftUI's 12 pt space below the header. On iPhone and folded Duo the
+  first matched Duos fixture row starts at the same position, and the next
+  four hittable rows are 1 pt lower in UIKit with the same spoken names.
+  UIKit journeys on both devices verify the title at standard size and AX5.
+  Folded long-title journeys also verify that Song Detail, Solo, Duos and
+  Player History show the native bar title only while the heading is scrolled
+  away. This does not certify the side-by-side variant on the inner display.
+
+- **UIKit inline service freeze (local lane):** The shared row now fits the message,
+  countdown and Retry in that accessibility order. On iPhone 18 Pro and folded Duo,
+  the default Retry Now frame matches SwiftUI at 65.67×44 pt; the row height differs by
+  0.17 pt. At AX5 the full 206×52.67 pt target sits beneath the countdown on both and
+  is 5.33 pt higher in UIKit. Completed Expo fixture pairs differ on 2.20% / 1.78%
+  of pixels at Large and 11.96% / 9.49% at AX5 above the same RGB threshold. Native
+  journeys verify action containment and order on both devices. This is not a second
+  production replay or an exact AX5 match.
+
+- **UIKit Quick Links (local lane):** The iPhone sheet uses 52 pt default rows and fits Bands in the tall chooser. At AX5 the wrapped Global Statistics row measures 155.33 pt and the single-line Lead row 93.33 pt, matching the reference; the nested Lead Rank History choice remains reachable. Rendered text confirms continuation lines return to the leading edge. Folded Duo instead uses a native menu: the system draws 42 pt default rows on both apps. UIKit removes the extra group title that clipped the AX5 choices and exposes the instrument in the full accessibility name. The paired Explore captures now put the AX5 Lead Rank History row at y=456 pt with 186 pt height in both apps. Whole-frame differences above the same RGB threshold are 2.77% at Large and 1.50% at AX5. The folded journeys verify artwork, nested jump and selected state. The full visible action names still differ from SwiftUI's short indented labels.
+
+- **UIKit Privacy Policy (local lane):** At `28f0e6f43`, default-size native journeys and
+  completed Expo pairs on iPhone 18 Pro and folded Duo cover the top, the Contact heading
+  followed by its separately named, hittable Link, and Settings after Close. Contact captures
+  differ on 13.00% and 12.13% of pixels above the RGB threshold, respectively. Scroll positions
+  differ, so those figures are not typography scores. On both families, the AX5 journey
+  verifies that the rendered body grows and selecting a word offers Copy without opening a keyboard.
+
+- **UIKit Intensity and folded Search (local lane):** Three matched Song Detail captures per
+  family verify levels 1–7: 62×20 pt meters, the same spoken values in row order, and the correct
+  color at every bar center. Sharing SwiftUI's horizontal gutter removes the 1 pt offset in
+  the trailing meters. Whole-frame differences above the RGB threshold are 1.26–1.27% on iPhone
+  and 0.93% on folded Duo; the folded Paths icon tint still differs. A separate matched
+  fixture with raw Bass `99` shows no Bass meter or leaderboard in either app, and the
+  other three meter labels, order and frames match per family. Whole-frame differences
+  are 1.47% on iPhone and 1.03% on folded Duo. This is the omitted-chart case, not the
+  explicit unavailable meter. A separate UIKit-only control gallery on both
+  families supplies an invalid value and shows one named "Difficulty unavailable"
+  element; it is not a SwiftUI/UIKit comparison. The folded Search replays dismiss the keyboard
+  while dragging the results, reveal the same next eight songs in order, and reopen the
+  keyboard with one matching result after replacing the query. The first fully visible row
+  lands 9.67 pt lower in the UIKit scroll sample; pitch stays 68 pt. On both families,
+  a separate loopback replay shows Searching during a confirmed held query, the exact
+  replacement result before release, and that result unchanged after release. The
+  spinner is structural evidence only; its phase and timing were not matched.
+  The mixed-revision ledger contains 676 pairs (506 with completed fingerprints,
+  15 structure-only), with 64 of 251 applicable named states sampled on at least
+  one family and 58 sampled on both.
+
+- **UIKit folded Song Detail rail (local lane):** On the same Shop song, both apps show
+  Item Shop and Paths directly when anonymous, and Item Shop plus More with a selected
+  account. Their direct 38×38 pt system frames and the selected More → Paths row's 250×42 pt
+  frame match. The named Paths action opens the sheet on both UIKit devices. UIKit now
+  renders blue symbols instead of white on the rail, but the dominant Paths blue differs
+  (sRGB 32/177/255 vs 80/165/255). The matched fixture captures differ on 0.96% of
+  pixels anonymously, 0.50% selected and 1.63% with More open above the same RGB threshold.
+
+- **Live Song Detail and Paths (local lane):** Twelve fingerprinted pairs cover the
+  same song, anonymous and after selecting the profile through the live picker, on
+  iPhone 18 Pro and folded Duo. All nine visible Intensity meters match labels, order
+  and frames. The anonymous Lead preview matches six fully visible rows on iPhone
+  and three on folded Duo; the selected view instead shows the Score History chart.
+  Lead Expert Image and Text match selector frames and the three fully visible Text
+  activations. The visible Image crop has no pixel above the greater-than-16 RGB
+  threshold in any pair; whole-frame differences are 0.09–0.10% in Image and
+  2.25–2.38% in Text. Selected arms observed publication 1793 at both ends with
+  pinning off; this does not establish response provenance. In these selected
+  captures, the chart and pager frames match, but UIKit's best scores start 10 pt
+  lower on both families. The UIKit chart now removes the unused detail gap.
+  Matched Expo fixture captures put the first score 15 pt below the pager in
+  both renderers (previously 25 pt in UIKit) on the newest, preceding and
+  restored windows on both families. Selecting a bar still inserts a named
+  detail row 10 pt below the pager; paging clears it and restores the 15 pt gap.
 
 - **Android + Windows (2026-09-28):** same rules as Apple — platform-native design researched per platform, Fluent second, multiple form factors (Android: phone, book foldable, passport foldable, tri-fold, tablet; Windows: desktop/tablet across window-size configurations), and the same dev → unit → UX tests → accessibility → screen reader flow. The Windows host is far more powerful: run **many parallel lanes on both Android and Windows**, while this Mac continues Apple lanes and oversees. Both machines commit/push when work is ready: Windows lanes push directly to GitHub via `tools/git_integrate.py` (gh file-stored token, set up 2026-09-28); the Mac pulls/rebases as usual.
 
@@ -62,6 +1053,8 @@ tools/**                      → orchestrator
 5. Testing phases: unit, UX and accessibility tests with every change (operator, 2026-10-08) → whole-app accessibility audits when the *app* is complete → VoiceOver testing after that.
 
 Platform order: **iPhone (iOS 26.5) → iPhone Duo → iPadOS → macOS → iPhone on iOS 17 (no Liquid Glass)**. Android/Windows run in parallel on the Windows host (resumed 2026-09-28) via `tools/win_relay.py`.
+
+- **UIKit port (operator, 2026-10-31):** port iOS/iPadOS to Swift logic + UIKit, UX identical on iPhone, iPad and iPhone Duo, tests updated, performance measured A/B against the SwiftUI app as Fenton-HASS-Native did. macOS is sidelined meanwhile. Work runs on `claude/uikit-port` (lanes branch from it, the orchestrator merges); the port app `FestivalMobileUIKit` installs beside `FestivalMobile`. Rules, seams and lanes: [uikit-port.md](.agents/platforms/apple/uikit-port.md). Wave 1 (Design, Background, Shell, Perf) started 2026-10-31; wave 2 (Songs, Leaderboards, Profile, Rivals, Settings) follows.
 
 ---
 

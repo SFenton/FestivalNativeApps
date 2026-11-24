@@ -20,7 +20,7 @@ Wide shells (Apple: iPad, the iPhone Duo inner display and Mac) split a selected
 |---|---|
 | Score | Bold, tabular, right-aligned positive number; 0 = **No score** |
 | Accuracy / FC | [score-accuracy](../score-accuracy/spec.md) rules; FC-only when Percentage is hidden or accuracy missing |
-| Percentile | Rank/total buckets; Top 1% gold emphasis, Top 5% gold outline, others neutral; no rank/total → no pill |
+| Percentile | Rank/total buckets; [Top 1% skewed gold outline](../../patterns/metadata-pills.md), Top 5% upright gold outline, others neutral; no rank/total → no pill |
 | Stars | 1–5 white stars; service 6 = five **gold** stars, announced distinctly |
 | Season | `S9`, inverted when equal to the current catalogue season |
 | Song Intensity | Catalogue chart raw + 1 on the seven-bar [meter](../difficulty-meter/spec.md); once per card |
@@ -30,5 +30,5 @@ Wide shells (Apple: iPad, the iPhone Duo inner display and Mac) split a selected
 - The first **renderable** field becomes the primary top-trailing value (Score hidden → Accuracy/FC). The rest wrap right-aligned by measured width; grow rather than clip at large text or narrow panes. The row stays one navigation action; art and Shop badge are separate.
 - A positive score on a non-Lead chart shows and speaks that chart's name (e.g. "Drums chart").
 - Web layout: 390px phone wraps six fields 3+3 under a top-right score; 820px fits one row; 298/322px hysteresis for compact top placement; hiding Score at 820 switches the page to inline mode. Long titles marquee/clip on the phone.
-- Not v1 goals: CSS skew, 64px clipped wide row, editable metadata order, the web's hidden-Lead fallback (natives use the first **visible** chart to respect Settings).
+- Not v1 goals: 64px clipped wide row, editable metadata order, the web's hidden-Lead fallback (natives use the first **visible** chart to respect Settings).
 - Tokens: badge text ≥4.5:1 (dark on Easy/Hard, white on Medium/Expert), fills/edges ≥3:1 via `tools.contrast_gate`; rendered pixels still need device checks.

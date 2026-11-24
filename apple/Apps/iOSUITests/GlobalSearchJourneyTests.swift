@@ -46,7 +46,7 @@ final class GlobalSearchJourneyTests: XCTestCase {
     /// - Returns: The Search tab's system search field.
     @MainActor
     private func openSearch(in app: XCUIApplication) -> XCUIElement {
-        let tab = app.tabBars.buttons.matching(NSPredicate(format: "label == %@", "Search")).firstMatch
+        let tab = app.buttons.matching(NSPredicate(format: "label == %@", "Search")).firstMatch
         XCTAssertTrue(tab.waitForExistence(timeout: 15), "Search tab missing")
         tab.tap()
         XCTAssertTrue(
@@ -60,17 +60,24 @@ final class GlobalSearchJourneyTests: XCTestCase {
         return field
     }
 
-    /// Close the system Search tab and assert Songs is active again.
+    /// Leave Search from the system Close or the Duo section rail and verify Songs returns.
     ///
     /// - Parameter app: The running app with the Search tab open.
     @MainActor
     private func closeSearch(in app: XCUIApplication) {
         let close = app.buttons.matching(NSPredicate(format: "label == %@", "Close")).firstMatch
-        XCTAssertTrue(close.waitForExistence(timeout: 10), "Search Close missing")
-        close.tap()
-        let sort = app.buttons["fst.songs.sort"]
-        XCTAssertTrue(sort.waitForExistence(timeout: 10))
-        XCTAssertTrue(sort.isHittable, "Closing Search did not return to Songs")
+        if close.exists && close.isHittable {
+            close.tap()
+        } else {
+            let window = app.windows.firstMatch.frame
+            let railSongs = ShellUITestSupport.tabButtons("Songs", in: app).filter {
+                $0.isHittable && $0.frame.midX > window.maxX - 60 && $0.frame.maxY < window.maxY - 80
+            }
+            XCTAssertEqual(railSongs.count, 1, "Search Close or the Duo Songs rail button must be reachable")
+            railSongs.first?.tap()
+        }
+        let list = app.descendants(matching: .any)["fst.songs.list"]
+        XCTAssertTrue(list.waitForExistence(timeout: 10), "Closing Search did not return to Songs")
     }
 
     /// Assert the Search page's navigation bar shows its large "Search" title on screen,
@@ -96,9 +103,9 @@ final class GlobalSearchJourneyTests: XCTestCase {
         )
         let scope = app.segmentedControls["fst.global-search.scope"]
         XCTAssertTrue(scope.waitForExistence(timeout: 5), "Scope bar missing")
-        XCTAssertLessThanOrEqual(
-            scope.frame.minY - title.frame.maxY, 24,
-            "Scope bar is not directly under the Search title: title \(title.frame), scope \(scope.frame)"
+        XCTAssertEqual(
+            scope.frame.minY - bar.frame.maxY, 8, accuracy: 3,
+            "Scope bar is not directly under the navigation bar: bar \(bar.frame), scope \(scope.frame)"
         )
     }
 
@@ -139,6 +146,7 @@ final class GlobalSearchJourneyTests: XCTestCase {
             let title = app.descendants(matching: .any)
                 .matching(identifier: "fst.global-search.section.\(section)").firstMatch
             XCTAssertTrue(title.waitForExistence(timeout: 5), "\(section) title missing in All")
+            XCTAssertEqual(title.elementType, .staticText, "\(section) title should not be exposed as a cell")
             XCTAssertEqual(title.label, section.capitalized)
             XCTAssertGreaterThanOrEqual(title.frame.minY, previousBottom - 1, "\(section) title out of order")
             XCTAssertLessThanOrEqual(title.frame.maxY, row.frame.minY + 1, "\(section) title not above its rows")
@@ -158,6 +166,11 @@ final class GlobalSearchJourneyTests: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "Search did not focus the keyboard")
         // The active field must not hide the page's "Search" title (issue #100).
         assertSearchTitleVisible(in: app)
+        let scope = app.segmentedControls["fst.global-search.scope"]
+        let hint = app.staticTexts["fst.global-search.hint"]
+        XCTAssertTrue(hint.waitForExistence(timeout: 5))
+        XCTAssertTrue(hint.label.contains("at least two characters"))
+        assertStatusUsesResultsRegion(hint.frame, scope: scope.frame, field: field.frame)
         field.typeText("Fixture")
         XCTAssertTrue(
             app.buttons.matching(identifier: "fst.global-search.result.song").firstMatch
@@ -165,6 +178,15 @@ final class GlobalSearchJourneyTests: XCTestCase {
         )
         assertSearchTitleVisible(in: app)
         closeSearch(in: app)
+    }
+
+    /// Bottom system search uses the column below the scope and the keyboard's
+    /// search accessory as the viewport; it doesn't reserve a second field.
+    private func assertStatusUsesResultsRegion(_ status: CGRect, scope: CGRect, field: CGRect) {
+        guard field.minY > scope.maxY else { return }
+        XCTAssertEqual(status.midX, scope.midX, accuracy: 3, "Status should clear the side rail")
+        XCTAssertEqual(status.midY, (scope.maxY + field.maxY) / 2, accuracy: 14,
+                       "Status should be centered below the scope without a second field inset")
     }
 
     /// At the largest text size (AX5) the Search tab keeps its large title whole inside
@@ -178,7 +200,6 @@ final class GlobalSearchJourneyTests: XCTestCase {
             "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
         ]
         app.launch()
-        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: FestivalApp.budget(20)))
         _ = openSearch(in: app)
         assertSearchTitleVisible(in: app)
         let title = app.navigationBars["Search"].staticTexts["Search"]
@@ -225,6 +246,13 @@ final class GlobalSearchJourneyTests: XCTestCase {
         XCTAssertTrue(band.waitForExistence(timeout: 15), "Band results never arrived")
         XCTAssertGreaterThan(band.frame.minY, player.frame.minY, "Bands are not after players")
         assertSectionTitles(in: app, above: [song, player, band])
+        if app.windows.firstMatch.frame.width.rounded() == 402 {
+            let swiftUIUsesListRowFrame = song.frame.width >= scope.frame.width + 24
+            let rowInsets: CGFloat = swiftUIUsesListRowFrame ? 4 : 0
+            XCTAssertEqual(song.frame.height - rowInsets, 64, accuracy: 1)
+            XCTAssertEqual(player.frame.height - rowInsets, 54, accuracy: 1)
+            XCTAssertGreaterThanOrEqual(band.frame.height, 90, "Band row lost its member/instrument stack")
+        }
         // A single scope drops the titles again (issue #299).
         app.segmentedControls["fst.global-search.scope"].buttons["Players"].tap()
         XCTAssertTrue(player.waitForExistence(timeout: 10))
@@ -306,8 +334,47 @@ final class GlobalSearchJourneyTests: XCTestCase {
         field.typeText(XCUIKeyboardKey.delete.rawValue.repeated(5) + "busy")
         let failure = app.descendants(matching: .any).matching(identifier: "fst.global-search.bands-error").firstMatch
         XCTAssertTrue(failure.waitForExistence(timeout: 15), "Band search failure not shown")
+        XCTAssertEqual(failure.elementType, .staticText, "Read the service failure once, not as a result cell")
+        XCTAssertTrue(failure.label.contains("Bands unavailable"))
         XCTAssertFalse(app.buttons["Retry"].exists, "Bands failure offered Retry")
         XCTAssertFalse(empty.exists, "A failed band search read as empty")
+    }
+
+    /// A scrape freeze is announced as status, offers no manual button, and recovers
+    /// after the countdown without editing or resubmitting the query.
+    @MainActor
+    func testBandsScrapeFreezeRetriesTheSameQuery() async throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launch()
+        _ = openSearch(in: app)
+        app.segmentedControls["fst.global-search.scope"].buttons["Bands"].tap()
+        let field = app.searchFields.firstMatch
+        let failure = app.staticTexts["fst.global-search.bands-error"]
+        let band = app.buttons.matching(identifier: "fst.global-search.result.band").firstMatch
+        try await Self.setBandSearchFreeze("freeze")
+        field.tap()
+        field.typeText("band recovery")
+        let countingDown = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@",
+                                   "Scores are updating", "Trying again automatically"),
+            object: failure
+        )
+        await fulfillment(of: [countingDown], timeout: 8)
+        XCTAssertFalse(band.exists)
+        XCTAssertFalse(app.buttons["fst.service-status.retry"].exists)
+        try await Self.setBandSearchFreeze("recover")
+        XCTAssertTrue(band.waitForExistence(timeout: 20), "The countdown did not rerun band search")
+        XCTAssertTrue(band.label.contains("Syncing Player"))
+        XCTAssertFalse(failure.exists)
+        XCTAssertEqual(field.value as? String, "band recovery")
+    }
+
+    /// Release or activate the freeze for the loopback recovery query.
+    private static func setBandSearchFreeze(_ phase: String) async throws {
+        let url = try XCTUnwrap(URL(string: "\(Self.origin)/__fixture__/band-search-freeze?phase=\(phase)"))
+        let (_, response) = try await URLSession.shared.data(from: url)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
     }
 
     /// Issue #299: under two characters each scope's hint names what it searches.
@@ -328,6 +395,114 @@ final class GlobalSearchJourneyTests: XCTestCase {
             let expected = "Enter at least two characters to search for \(ending)"
             let shown = expectation(for: NSPredicate(format: "label == %@", expected), evaluatedWith: hint)
             wait(for: [shown], timeout: 5)
+        }
+    }
+
+    /// The scope bar and search field move together across a Duo fold without
+    /// creating duplicate controls or leaving a stale horizontal constraint.
+    @MainActor
+    func testDuoSearchScopeFollowsBottomFieldAcrossPoses() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_TAB"] = "search"
+        app.launchEnvironment["FST_DEBUG_DUO_WINDOW_REMOTE"] = "1"
+        app.launchEnvironment["FST_DEBUG_DUO_WINDOW"] = "unfolded-landscape"
+        app.launch()
+
+        let field = app.descendants(matching: .any).matching(identifier: "fst.global-search.field")
+        let scope = app.segmentedControls["fst.global-search.scope"]
+        let readout = app.staticTexts["fst.shell.debug.duo-window"]
+        let window = app.windows.firstMatch.frame
+        try XCTSkipUnless(window.width > 720, "Run on the unfolded Duo in landscape to exercise the trailing-page rule")
+        XCTAssertTrue(scope.waitForExistence(timeout: FestivalApp.budget(15)))
+        XCTAssertTrue(field.firstMatch.waitForExistence(timeout: FestivalApp.budget(10)))
+
+        for pose in ["book", "unfolded-landscape", "book"] {
+            DuoWindowSwitch.post(pose)
+            let reached = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "label BEGINSWITH %@", "\(pose) "), object: readout
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [reached], timeout: FestivalApp.budget(10)), .completed)
+            let fold = readout.label.components(separatedBy: " fold=").dropFirst().first.flatMap { Double($0) }
+            XCTAssertEqual(fold != nil, pose == "book", readout.label)
+            let positioned = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                let bar = scope.frame
+                let input = field.firstMatch.frame
+                let inColumn = (0...60).contains(input.minX - bar.minX) && (0...16).contains(bar.maxX - input.maxX)
+                let clearsFold = fold.map { bar.minX >= CGFloat($0) + 26 }
+                    ?? (bar.minX < window.midX - 40 && bar.maxX > window.midX + 40)
+                return inColumn && clearsFold
+            }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [positioned], timeout: FestivalApp.budget(10)), .completed,
+                           "\(pose): scope \(scope.frame), field \(field.firstMatch.frame), \(readout.label)")
+            XCTAssertEqual(field.count, 1)
+            XCTAssertTrue([.searchField, .textField].contains(field.firstMatch.elementType))
+            XCTAssertEqual(field.firstMatch.label, "Search songs, players and bands")
+            XCTAssertTrue(scope.buttons["All"].isSelected)
+        }
+    }
+
+    /// A Search launch on the inner display focuses the custom field after it becomes visible.
+    @MainActor
+    func testDuoBottomSearchLaunchFocusesFieldAndLiftsItAboveKeyboard() throws {
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_TAB"] = "search"
+        app.launch()
+        let window = app.windows.firstMatch.frame
+        try XCTSkipUnless(window.width > 720, "Needs the wide iPhone Duo inner display")
+        let field = app.descendants(matching: .any)["fst.global-search.field"]
+        XCTAssertTrue(field.waitForExistence(timeout: FestivalApp.budget(10)))
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.waitForExistence(timeout: FestivalApp.budget(10)))
+        XCTAssertLessThanOrEqual(field.frame.maxY, keyboard.frame.minY)
+        let hint = app.staticTexts["fst.global-search.hint"]
+        XCTAssertTrue(hint.exists)
+        XCTAssertLessThan(hint.frame.height, 30, "The natural-width hint fits on one line in the wide body")
+    }
+
+    /// Wide results share one row in reading order both flat and on either side of the
+    /// book hinge. The keyboard and the rows coexist without losing either control.
+    @MainActor
+    func testDuoSearchResultPairClearsBookHinge() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_TAB"] = "search"
+        app.launchEnvironment["FST_DEBUG_DUO_WINDOW_REMOTE"] = "1"
+        app.launchEnvironment["FST_DEBUG_DUO_WINDOW"] = "unfolded-landscape"
+        app.launch()
+        let window = app.windows.firstMatch.frame
+        try XCTSkipUnless(window.width > 720, "Needs the wide iPhone Duo inner display")
+        let field = app.descendants(matching: .any)["fst.global-search.field"]
+        XCTAssertTrue(field.waitForExistence(timeout: FestivalApp.budget(10)))
+        field.typeText("Fixture")
+        let songs = app.buttons.matching(identifier: "fst.global-search.result.song")
+        let pulse = songs.matching(NSPredicate(format: "label BEGINSWITH %@", "Fixture Pulse")).firstMatch
+        let orbit = songs.matching(NSPredicate(format: "label BEGINSWITH %@", "Fixture Orbit")).firstMatch
+        XCTAssertTrue(pulse.waitForExistence(timeout: FestivalApp.budget(10)))
+        XCTAssertTrue(orbit.waitForExistence(timeout: FestivalApp.budget(10)))
+        let readout = app.staticTexts["fst.shell.debug.duo-window"]
+        for pose in ["book", "unfolded-landscape"] {
+            DuoWindowSwitch.post(pose)
+            let reached = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "label BEGINSWITH %@", "\(pose) "), object: readout
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [reached], timeout: FestivalApp.budget(10)), .completed)
+            let fold = readout.label.components(separatedBy: " fold=").dropFirst().first.flatMap { Double($0) }
+            XCTAssertEqual(fold != nil, pose == "book", readout.label)
+            let laidOut = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                let a = pulse.frame
+                let b = orbit.frame
+                let split = fold.map { abs(Double((a.maxX + b.minX) / 2) - $0) < 2 }
+                    ?? (abs(a.width - b.width) < 2)
+                return a.width > 250 && b.width > 250 && abs(a.minY - b.minY) < 2 && a.maxX < b.minX && split
+            }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [laidOut], timeout: FestivalApp.budget(10)), .completed,
+                           "\(pose): Pulse \(pulse.frame), Orbit \(orbit.frame), \(readout.label)")
+            XCTAssertEqual(songs.allElementsBoundByIndex.map(\.label), [pulse.label, orbit.label])
+            XCTAssertTrue(pulse.isHittable && orbit.isHittable)
+            XCTAssertGreaterThanOrEqual(pulse.frame.height, 44)
+            XCTAssertGreaterThanOrEqual(orbit.frame.height, 44)
+            XCTAssertLessThan(pulse.frame.maxY, field.frame.minY)
         }
     }
 
@@ -377,14 +552,10 @@ final class GlobalSearchJourneyTests: XCTestCase {
         // One snapshot reads type, name and frame together, inside the fixture's window. The
         // scope bar and the field above the keyboard stay put after it, so measure them next.
         let shown = try spinner.snapshot()
-        let window = app.windows.firstMatch.frame
-        let regionMid = (scope.frame.maxY + scopedField.frame.minY) / 2
         XCTAssertEqual(app.activityIndicators.matching(identifier: "fst.global-search.loading").count, 1)
         XCTAssertEqual(shown.elementType, .activityIndicator, "The name belongs to the native busy indicator")
         XCTAssertEqual(shown.label, "Searching")
-        XCTAssertEqual(shown.frame.midX, window.midX, accuracy: 2, "Spinner is not centred horizontally")
-        // Centred in the area between the scope bar and the search field above the keyboard.
-        XCTAssertEqual(shown.frame.midY, regionMid, accuracy: 40, "Spinner is not centred vertically")
+        assertStatusUsesResultsRegion(shown.frame, scope: scope.frame, field: scopedField.frame)
         assertNoSectionTitles(in: app)
         // The empty envelope then replaces it with the centred empty state, no Retry.
         let empty = app.descendants(matching: .any).matching(identifier: "fst.global-search.hint").firstMatch

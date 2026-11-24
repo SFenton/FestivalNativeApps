@@ -8,6 +8,66 @@ import XCTest
 /// ``SongsUITestSupport`` so this file, ``SongDetailJourneyTests`` and ``ShopJourneyTests`` can
 /// each carry only their own journeys.
 final class SongDetailJourneyTests: XCTestCase {
+    /// The floating Paths and Quick Links symbols grow up to XXXL, then stop at AX5
+    /// without losing their name, 44 pt target or action.
+    @MainActor
+    func testFloatingSongToolsCapTheirSymbolsAtXXXL() throws {
+        continueAfterFailure = false
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "Requires the iPhone floating page tools")
+        let categories = ["UICTContentSizeCategoryL", "UICTContentSizeCategoryXXXL",
+                          "UICTContentSizeCategoryAccessibilityXXXL"]
+        let tools = [("fst.song-detail.paths", "Paths"), ("fst.quick-links.open", "Quick Links")]
+        var fractions: [String: [Double]] = [:]
+        for category in categories {
+            let app = SongsUITestSupport.fixtureApp()
+            app.launchEnvironment["FST_API_BASE_URL"] = SongsUITestSupport.fixtureURL
+            app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", category]
+            app.launch()
+            defer { app.terminate() }
+            let window = app.windows.firstMatch.frame
+            try XCTSkipIf(window.width == 466 || window.height == 466 || window.width > window.height,
+                          "The Duo cover and inner landscape use native bar items")
+            PathsUITestSupport.openSongDetail(in: app)
+            for (id, label) in tools {
+                let matches = app.buttons.matching(identifier: id)
+                let tool = matches.firstMatch
+                XCTAssertTrue(tool.waitForExistence(timeout: FestivalApp.budget(10)), id)
+                XCTAssertEqual(matches.count, 1)
+                XCTAssertEqual(tool.label, label)
+                XCTAssertTrue(tool.isHittable)
+                XCTAssertEqual(tool.frame.width, 44, accuracy: 0.34)
+                XCTAssertEqual(tool.frame.height, 44, accuracy: 0.34)
+                let screenshot = tool.screenshot()
+                let attachment = XCTAttachment(screenshot: screenshot)
+                attachment.name = "\(label)-\(category)"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                let image = try XCTUnwrap(screenshot.image.cgImage)
+                let pixels = try XCTUnwrap(ButtonFillPixels(image: image, pointWidth: tool.frame.width))
+                let center = CGRect(origin: .zero, size: tool.frame.size).insetBy(dx: 6, dy: 6)
+                let fraction = try XCTUnwrap(pixels.fraction(in: center) { r, g, b in
+                    min(r, g, b) >= 215 && max(r, g, b) - min(r, g, b) <= 24
+                })
+                fractions[id, default: []].append(fraction)
+            }
+            if category == categories.last {
+                app.buttons["fst.quick-links.open"].tap()
+                XCTAssertTrue(app.buttons.matching(NSPredicate(
+                    format: "identifier BEGINSWITH %@", "fst.quick-links.item."
+                )).firstMatch.waitForExistence(timeout: FestivalApp.budget(5)))
+                app.buttons["fst.page-tools.menu.close"].tap()
+                PathsUITestSupport.openPathsFromSongDetail(in: app)
+            }
+        }
+        for (id, _) in tools {
+            let sizes = try XCTUnwrap(fractions[id])
+            XCTAssertGreaterThan(sizes[1], sizes[0] * 1.15, "\(id) did not grow at XXXL: \(sizes)")
+            XCTAssertEqual(sizes[2], sizes[1], accuracy: sizes[1] * 0.12,
+                           "\(id) did not cap painted glyphs at XXXL: \(sizes)")
+        }
+    }
+
     /// Public CHOpt paths switch image/text and difficulty without stale content.
     ///
     /// - Throws: Missing selectors, unsafe zoom, stale path, hidden error or unreachable close.
@@ -423,7 +483,10 @@ final class SongDetailJourneyTests: XCTestCase {
         XCTAssertNil(previewQuery.leeway)
         XCTAssertFalse(previewRow("fixture-player-11", in: app).exists)
         SongsUITestSupport.record(app, name: "song-detail-real-top-scores")
-        try SongsUITestSupport.assertHeaderContrast(app.staticTexts["Fixture Player 1"], in: app)
+        try SongsUITestSupport.assertHeaderContrast(
+            previewText("fixture-player-1", "Fixture Player 1", in: app), in: app,
+            hitTarget: previewRow("fixture-player-1", in: app)
+        )
 
         // Issue #33: a top-ten row is one button that opens that player's profile.
         let secondRow = previewRow("fixture-player-2", in: app)
@@ -441,6 +504,7 @@ final class SongDetailJourneyTests: XCTestCase {
         app.buttons["BackButton"].tap()
         XCTAssertTrue(viewFull.waitForExistence(timeout: 10))
 
+        SongsUITestSupport.reveal(viewFull, in: app, scrollingUp: true)
         viewFull.tap()
         XCTAssertTrue(app.buttons["fst.song-leaderboard.page-next"].waitForExistence(timeout: 10))
         let fullQuery = try await SongsUITestSupport.latestFixtureScoreQuery(fullOnly: true)
@@ -595,6 +659,7 @@ final class SongDetailJourneyTests: XCTestCase {
         XCTAssertEqual(
             tenthRow.label, "#10, Fixture Player 10, 99,000, Full combo, accuracy 98%"
         )
+        SongsUITestSupport.record(app, name: "song-detail-tenth-row-offscreen")
         // This listener closes after its first score read, so only the push itself
         // is asserted here; the profile content is covered on the 8765 service.
         tenthRow.tap()
@@ -607,6 +672,7 @@ final class SongDetailJourneyTests: XCTestCase {
             tenthRow.waitForExistence(timeout: 10) && tenthRow.isHittable,
             "Back did not return to the revealed preview row"
         )
+        SongsUITestSupport.record(app, name: "song-detail-tenth-row-restored")
     }
 
     /// A chart with no scores says so in its header and offers no View full action
@@ -891,6 +957,7 @@ final class SongDetailJourneyTests: XCTestCase {
             "FST_DEBUG_PROFILE": "fixture-history-multi:Multi History",
             "FST_API_BASE_URL": "http://127.0.0.1:18831",
         ])
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
         app.launch()
         let song = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(song.waitForExistence(timeout: 15))
@@ -906,33 +973,53 @@ final class SongDetailJourneyTests: XCTestCase {
         XCTAssertFalse(any("fst.song-detail.history.row.5").exists, "The song page grew past five scores")
         viewAll.tap()
 
-        XCTAssertTrue(any("fst.history").waitForExistence(timeout: 10), "View All Scores did not open the page")
-        XCTAssertTrue(any("fst.history.row.0").waitForExistence(timeout: 10), "The history page has no rows")
-        XCTAssertTrue(any("fst.history.row.0").label.contains("best score"), "Score descending puts the best first")
+        let history = any("fst.history")
+        XCTAssertTrue(history.waitForExistence(timeout: 10), "View All Scores did not open the page")
+        let first = history.staticTexts["fst.history.row.0"]
+        let second = history.staticTexts["fst.history.row.1"]
+        XCTAssertTrue(first.waitForExistence(timeout: 10), "The history page has no readable score rows")
+        XCTAssertTrue(first.label.filter { !$0.isWhitespace }.contains("850,000"))
+        XCTAssertTrue(first.label.contains("best score"), "Score descending puts the best first")
+        XCTAssertTrue(second.exists)
+        XCTAssertGreaterThanOrEqual(first.frame.height, 44)
+        XCTAssertEqual(second.frame.minY - first.frame.minY, 54, accuracy: 1, "Score cards are visually separate")
         XCTAssertFalse(any("fst.song-detail.intensity").exists, "View All Scores expanded the song page")
         let lastRow = any("fst.history.row.7")
         for _ in 0..<4 where !lastRow.exists { app.swipeUp() }
         XCTAssertTrue(lastRow.exists, "The history page lists all eight Lead scores")
         SongsUITestSupport.record(app, name: "player-history-page")
 
-        let sort = app.buttons["fst.history.sort.open"]
-        XCTAssertTrue(sort.waitForExistence(timeout: 5), "Sort is missing")
-        sort.tap()
+        let sortID = "fst.history.sort.open"
+        let sort = app.buttons[sortID]
+        ShellUITestSupport.tapToolbarItem(sortID, overflowLabels: ["Sort", "Sort, Score, descending"], in: app)
         XCTAssertTrue(app.staticTexts["Sort Player Scores"].waitForExistence(timeout: 5))
+        XCTAssertFalse(sort.isHittable, "The covered page tool cannot receive input")
         for mode in ["Date", "Score", "Accuracy", "Season"] {
             XCTAssertTrue(app.buttons[mode].exists || app.staticTexts[mode].exists, "\(mode) mode is missing")
         }
         (app.buttons["Date"].exists ? app.buttons["Date"] : app.staticTexts["Date"]).tap()
-        app.buttons["fst.history.sort.direction.ascending"].tap()
+        let ascending = app.buttons["fst.history.sort.direction.ascending"]
+        ascending.tap()
+        XCTAssertEqual(ascending.label, "Ascending")
+        XCTAssertTrue(ascending.isSelected)
+        XCTAssertFalse(app.buttons["fst.history.sort.direction.descending"].isSelected)
         SongsUITestSupport.record(app, name: "player-history-sort")
         app.buttons["fst.history.sort.close"].tap()
-        XCTAssertTrue(sort.waitForExistence(timeout: 5))
-        XCTAssertEqual(sort.value as? String, "Date, ascending")
+        if sort.isHittable {
+            if sort.label == "Sort" {
+                XCTAssertEqual(sort.value as? String, "Date, ascending")
+            } else {
+                XCTAssertEqual(sort.label, "Sort, Date, ascending")
+            }
+        }
         // The fixture's oldest Lead score is its lowest; the best moves to the end.
-        let first = any("fst.history.row.0")
         XCTAssertTrue(first.waitForExistence(timeout: 5))
-        XCTAssertTrue(first.label.contains("610,000"), "Oldest first: \(first.label)")
+        XCTAssertTrue(first.label.filter { !$0.isWhitespace }.contains("610,000"), "Oldest first: \(first.label)")
         XCTAssertFalse(first.label.contains("best score"), "The highlight stayed on the first row")
+        ShellUITestSupport.tapToolbarItem(sortID, overflowLabels: ["Sort", "Sort, Date, ascending"], in: app)
+        XCTAssertTrue(ascending.waitForExistence(timeout: 5))
+        XCTAssertTrue(ascending.isSelected, "The shared form reopened with the applied direction")
+        XCTAssertTrue(app.buttons["Date"].isSelected, "The shared form reopened with the applied mode")
     }
 
     /// Switching the Score History instrument (issue #31) swaps the graph inside a card of
@@ -966,13 +1053,15 @@ final class SongDetailJourneyTests: XCTestCase {
         let app = FestivalApp.makeApp([
             "FST_UI_TEST_RESET_SONG_CARDS": "1",
             "FST_DEBUG_PROFILE": "fixture-history-multi:Multi History",
+            "FST_DEBUG_TAB": "songs",
+            "FST_DEBUG_SONG": "fixture-pulse",
             "FST_API_BASE_URL": "http://127.0.0.1:18831",
         ])
-        app.launchArguments += ["-fst.accessibility.reduceMotion", reduceMotion ? "YES" : "NO"]
+        app.launchArguments += [
+            "-fst.accessibility.reduceMotion", reduceMotion ? "YES" : "NO",
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.large.rawValue,
+        ]
         app.launch()
-        let song = app.buttons["fst.songs.row.fixture-pulse"]
-        XCTAssertTrue(song.waitForExistence(timeout: 15))
-        song.tap()
         func any(_ identifier: String) -> XCUIElement {
             app.descendants(matching: .any).matching(identifier: identifier).firstMatch
         }
@@ -985,6 +1074,23 @@ final class SongDetailJourneyTests: XCTestCase {
         XCTAssertTrue(chart.label.hasPrefix("Lead"), chart.label)
         XCTAssertTrue(app.buttons["Back one page"].exists, "Lead's eight scores should page")
         let listTop = row.frame.minY
+        let scoreAxis = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Score scale,")).firstMatch
+        let accuracyAxis = app.staticTexts["Accuracy scale, 0% to 100%"]
+
+        func assertAxis(ticks: [String], scale: String) {
+            let spokenScale = "Score scale, 0 to \(scale)"
+            XCTAssertEqual(scoreAxis.label, spokenScale)
+            XCTAssertTrue(accuracyAxis.exists)
+            for tick in ticks {
+                XCTAssertFalse(app.staticTexts[tick].exists, "The visual tick \(tick) is not a separate reading stop")
+            }
+            let frame = scoreAxis.frame
+            let evidence = RecognizedText.recognize(scoreAxis, label: ticks[0], frame: frame).text ?? ""
+            let words = evidence.lowercased().split(whereSeparator: \.isWhitespace)
+            for tick in ticks {
+                XCTAssertTrue(words.contains(Substring(tick)), "Expected drawn \(tick) in \(evidence)")
+            }
+        }
 
         func choose(_ instrument: String, label: String) {
             app.buttons["fst.song-detail.history.instrument.\(instrument)"].tap()
@@ -994,9 +1100,55 @@ final class SongDetailJourneyTests: XCTestCase {
         }
         choose("Solo_Bass", label: "Bass")
         XCTAssertFalse(app.buttons["Back one page"].exists, "The reserved pager space is exposed for Bass")
+        assertAxis(ticks: ["200k", "400k", "600k"], scale: "673k")
         SongsUITestSupport.record(app, name: reduceMotion ? "song-detail-history-switch-reduced" : "song-detail-history-switch")
         choose("Solo_Guitar", label: "Lead")
         XCTAssertTrue(app.buttons["Back one page"].exists, "Lead lost its pager")
+        assertAxis(ticks: ["250k", "500k", "750k"], scale: "935k")
+
+        let back = app.buttons["Back one entry"]
+        let forward = app.buttons["Forward one entry"]
+        let dates = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Dates,")).firstMatch
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.81))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.57))
+        for _ in 0..<4 where !back.isHittable { start.press(forDuration: 0, thenDragTo: end) }
+        XCTAssertTrue(back.isHittable)
+        XCTAssertTrue(dates.exists)
+        XCTAssertGreaterThanOrEqual(back.frame.height, 43.5)
+        let newest = dates.label
+        let chartFrame = chart.frame
+        XCTAssertTrue(scoreAxis.exists && accuracyAxis.exists)
+        XCTAssertEqual(scoreAxis.frame.width, 31, accuracy: 1, "Match the Swift Charts score gutter")
+        XCTAssertEqual(accuracyAxis.frame.width, 34, accuracy: 1, "Match the Swift Charts accuracy gutter")
+        XCTAssertEqual(scoreAxis.frame.minY, chartFrame.minY, accuracy: 1, "No extra space above the plot")
+        XCTAssertEqual(dates.frame.height, 18, accuracy: 1, "One line of dates, not a reserved 24 pt band")
+        XCTAssertFalse(forward.isEnabled)
+        let detail = any("fst.song-detail.history.detail")
+        XCTAssertFalse(detail.exists)
+        XCTAssertEqual(row.frame.minY - back.frame.maxY, 15, accuracy: 1,
+                       "Only card padding and the separator follow the pager when nothing is selected")
+        chart.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)).press(forDuration: 0.4)
+        XCTAssertTrue(detail.waitForExistence(timeout: 5))
+        XCTAssertEqual(detail.elementType, .staticText)
+        XCTAssertGreaterThanOrEqual(detail.frame.height, 44)
+        XCTAssertTrue(detail.label.contains("season 40"), detail.label)
+        XCTAssertEqual(detail.frame.minY - back.frame.maxY, 10, accuracy: 1,
+                       "A selected score inserts its detail after the pager")
+        XCTAssertEqual(row.frame.minY - detail.frame.maxY, 15, accuracy: 1,
+                       "The detail reads before the best scores and introduces no extra space")
+        back.tap()
+        XCTAssertNotEqual(dates.label, newest, "The spoken date window did not move")
+        let collapsed = NSPredicate { _, _ in
+            !detail.exists && abs(row.frame.minY - back.frame.maxY - 15) <= 1
+        }
+        let restored = XCTNSPredicateExpectation(predicate: collapsed, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: FestivalApp.budget(5)), .completed,
+                       "Paging clears the selected score's detail and restores the unselected gap")
+        XCTAssertEqual(chart.frame, chartFrame, "Paging moved the chart card")
+        XCTAssertTrue(forward.isEnabled)
+        forward.tap()
+        XCTAssertEqual(dates.label, newest)
+        XCTAssertFalse(forward.isEnabled)
     }
 
     /// Page a song leaderboard and verify the song header stays while only the rows
@@ -1008,7 +1160,7 @@ final class SongDetailJourneyTests: XCTestCase {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = SongsUITestSupport.fixtureApp()
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_API_BASE_URL"] = SongsUITestSupport.fixtureURL
         app.launch()
 
         let row = app.buttons["fst.songs.row.fixture-pulse"]
@@ -1029,10 +1181,13 @@ final class SongDetailJourneyTests: XCTestCase {
             .matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.song-leaderboard.row."))
             .firstMatch
         XCTAssertTrue(firstRow.waitForExistence(timeout: 10), "Page 1 rows did not load")
+        let pageInfo = app.descendants(matching: .any)["fst.song-leaderboard.page-info"]
 
         next.tap()
         XCTAssertTrue(header.exists, "The song header left with the rows on the next page")
-        XCTAssertTrue(app.staticTexts["2 / 2"].waitForExistence(timeout: 10))
+        XCTAssertTrue(FeedbackJourney.waitUntil(timeout: 10) {
+            pageInfo.exists && pageInfo.value as? String == "2 of 2"
+        }, "The pager did not announce page 2 of 2")
         XCTAssertTrue(
             app.descendants(matching: .any)
                 .matching(identifier: "fst.song-leaderboard.row.fixture-player-26")
@@ -1043,7 +1198,9 @@ final class SongDetailJourneyTests: XCTestCase {
 
         previous.tap()
         XCTAssertTrue(header.exists, "The song header left with the rows on the previous page")
-        XCTAssertTrue(app.staticTexts["1 / 2"].waitForExistence(timeout: 10))
+        XCTAssertTrue(FeedbackJourney.waitUntil(timeout: 10) {
+            pageInfo.exists && pageInfo.value as? String == "1 of 2"
+        }, "The pager did not announce page 1 of 2")
         XCTAssertTrue(firstRow.waitForExistence(timeout: 10), "Page 1 rows did not return")
         XCTAssertTrue(header.exists, "The song header is missing after paging back")
     }
@@ -1094,7 +1251,9 @@ final class SongDetailJourneyTests: XCTestCase {
             element("fst.song-leaderboard.row.fixture-player-1", in: app).waitForExistence(timeout: 10),
             "Page 1 rows did not load"
         )
-        XCTAssertTrue(app.staticTexts["1 / 4"].waitForExistence(timeout: 5), "Expected four fixture pages")
+        let pager = element("fst.song-leaderboard.page-info", in: app)
+        XCTAssertTrue(pager.waitForExistence(timeout: 5), "The page indicator is missing")
+        XCTAssertEqual(pager.value as? String, "1 of 4", "Expected four fixture pages")
         SongsUITestSupport.collapseSidebarOnPad(app)
         return app
     }
@@ -1122,6 +1281,9 @@ final class SongDetailJourneyTests: XCTestCase {
         continueAfterFailure = false
         try requirePagingFixture()
         let app = openPagingLeaderboard()
+        let header = element("fst.song-leaderboard.header", in: app)
+        let heading = header.label
+        XCTAssertFalse(heading.isEmpty, "The retained header must have a spoken title")
         XCTAssertTrue(headerShows(in: app), "The song header is missing on page 1")
 
         app.buttons["fst.song-leaderboard.page-last"].tap()
@@ -1130,9 +1292,11 @@ final class SongDetailJourneyTests: XCTestCase {
             "The reload spinner did not show"
         )
         XCTAssertTrue(headerShows(in: app), "The song header left while page 4 loaded")
+        XCTAssertEqual(header.label, heading, "The header's title changed during reload")
         let retry = app.buttons["fst.service-status.retry"]
         XCTAssertTrue(retry.waitForExistence(timeout: 15), "Page 4's error did not show")
         XCTAssertTrue(headerShows(in: app), "The error replaced the song header")
+        XCTAssertEqual(header.label, heading, "The error must not replace the header's title")
         XCTAssertTrue(retry.isHittable, "Retry is not reachable under the header")
         XCTAssertFalse(
             element("fst.song-leaderboard.row.fixture-player-1", in: app).exists,
@@ -1176,7 +1340,7 @@ final class SongDetailJourneyTests: XCTestCase {
         }
         let firstRow = element("fst.song-leaderboard.row.fixture-player-26", in: app)
         XCTAssertTrue(firstRow.waitForExistence(timeout: 10), "Page 2 rows did not load")
-        XCTAssertTrue(app.staticTexts["2 / 4"].exists)
+        XCTAssertEqual(element("fst.song-leaderboard.page-info", in: app).value as? String, "2 of 4")
         XCTAssertTrue(pinned.exists, "The bar title left when page 2 arrived")
         XCTAssertFalse(headerShows(in: app), "The in-list header came back when page 2 arrived")
         XCTAssertTrue(firstRow.isHittable, "Page 2 does not start at its first row")
@@ -1243,45 +1407,85 @@ final class SongDetailJourneyTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
     }
 
-    /// Keep solo rows and pagination reachable at the largest native text size.
+    /// Keep solo scores and the names flagged by the ordinary audit legible at AX5.
     ///
-    /// - Throws: Missing score text or a page action outside the visible viewport.
+    /// - Throws: Missing or illegible score text, or a page action outside the visible viewport.
     @MainActor
     func testSoloScoresAtLargestTextSize() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = SongsUITestSupport.fixtureApp()
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": SongsUITestSupport.fixtureURL,
+            "FST_DEBUG_ANONYMOUS": "1",
+            "FST_DEBUG_FIRST_RUN": "off",
+            "FST_DEBUG_WHATS_NEW": "off",
+        ])
         app.launchArguments += [
             "-UIPreferredContentSizeCategoryName",
             UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+            "-fst.settings.showLead", "YES",
+            "-fst.songs.sortMode", "title",
+            "-fst.songs.sortAscending", "YES",
         ]
         app.launch()
+        defer { app.terminate() }
+        let list = app.descendants(matching: .any).matching(identifier: "fst.songs.list").firstMatch
+        XCTAssertTrue(list.waitForExistence(timeout: 15))
         let song = app.buttons["fst.songs.row.fixture-pulse"]
-        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        SongsUITestSupport.reveal(song, in: app, scrollingUp: true)
         song.tap()
         let lead = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
-        XCTAssertTrue(lead.waitForExistence(timeout: 10))
+        XCTAssertTrue(lead.waitForExistence(timeout: FestivalApp.budget(20)), "The Lead preview did not load")
+        SongsUITestSupport.reveal(lead, in: app, scrollingUp: true)
         lead.tap()
         SongsUITestSupport.collapseSidebarOnPad(app)
         let next = app.buttons["fst.song-leaderboard.page-next"]
+        let pageInfo = app.descendants(matching: .any).matching(identifier: "fst.song-leaderboard.page-info")
         XCTAssertTrue(next.waitForExistence(timeout: 10))
+        XCTAssertTrue(pageInfo.matching(NSPredicate(format: "value == %@", "1 of 2")).firstMatch
+            .waitForExistence(timeout: 10))
         let accuracy = SongsUITestSupport.revealSoloAccuracy("fixture-player-1", app: app)
         SongsUITestSupport.assertWholeSoloScore("fixture-player-1", rank: 1, score: 99_900, app: app)
+        try SongsUITestSupport.assertScoreAccuracyAccent(accuracy, fullCombo: false)
         SongsUITestSupport.record(app, name: "solo-largest-text-page1")
         XCTAssertTrue(accuracy.isHittable)
         XCTAssertTrue(next.isHittable)
         XCTAssertFalse(app.buttons["fst.song-leaderboard.page-first"].isEnabled)
         next.tap()
-        XCTAssertTrue(app.staticTexts["2 / 2"].waitForExistence(timeout: 10))
+        XCTAssertTrue(pageInfo.matching(NSPredicate(format: "value == %@", "2 of 2")).firstMatch
+            .waitForExistence(timeout: 10))
+        func checkName(_ rank: Int, capture: String) {
+            let expected = "Fixture Player \(rank)"
+            let row = app.descendants(matching: .any)
+                .matching(identifier: "fst.song-leaderboard.row.fixture-player-\(rank)").firstMatch
+            let name = row.staticTexts.matching(NSPredicate(format: "label == %@", expected)).firstMatch
+            for _ in 0..<6 where !name.exists { app.swipeUp(velocity: .slow) }
+            XCTAssertTrue(name.exists, "The chart did not expose \(expected)")
+            SongsUITestSupport.revealSoloText(name, in: app)
+            let drawn = RecognizedText.recognize(name, label: expected, frame: name.frame)
+            XCTAssertTrue(RecognizedText.showsWhole(expected, in: drawn.text),
+                          "\(expected) is clipped at AX5: \(drawn.text ?? "unreadable")")
+            SongsUITestSupport.record(app, name: capture)
+        }
+        checkName(1, capture: "solo-largest-text-first-player-name")
+        checkName(8, capture: "solo-largest-text-eighth-player-name")
         let lastAccuracy = SongsUITestSupport.revealSoloAccuracy(
             "fixture-player-26", fullCombo: true, app: app
         )
+        SongsUITestSupport.record(app, name: "solo-largest-text-page2")
         SongsUITestSupport.assertWholeSoloScore("fixture-player-26", rank: 26, score: 97_400, app: app)
+        try SongsUITestSupport.assertScoreAccuracyAccent(lastAccuracy, fullCombo: true)
         XCTAssertTrue(lastAccuracy.isHittable)
         XCTAssertTrue(app.buttons["fst.song-leaderboard.page-first"].isEnabled)
         XCTAssertFalse(next.isEnabled)
-        SongsUITestSupport.record(app, name: "solo-largest-text-page2")
+        let fullCombo = RecognizedText.recognize(lastAccuracy, label: "Full combo, accuracy 98%", frame: lastAccuracy.frame)
+        XCTAssertTrue(RecognizedText.showsWhole("Full combo, accuracy 98%", in: fullCombo.text)
+                      && fullCombo.text?.range(of: #"98\s*%"#, options: .regularExpression) != nil,
+                      "The complete AX5 full-combo description must paint: \(fullCombo.text ?? "unreadable")")
+        let leadingEdgeSpread = try XCTUnwrap(fullCombo.leftEdgeSpread, "The AX5 badge must wrap this description")
+        XCTAssertLessThanOrEqual(leadingEdgeSpread, 12, "Wrapped accuracy text should align at the leading edge")
+
+        checkName(26, capture: "solo-largest-text-final-player-name")
     }
 
 

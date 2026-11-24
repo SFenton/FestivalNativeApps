@@ -56,6 +56,40 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         try audit(app, types: Self.motionAudit, chromeTop: revealed.chromeTop, name: "reduce-motion")
     }
 
+    #if FST_UIKIT_PORT
+    /// The largest standard text size keeps the rank, score and accuracy legible
+    /// in the preview and the full board. The selected row stays one named button.
+    @MainActor
+    func testRevealedBandRowKeepsValuesAtLargestStandardTextSize() throws {
+        let app = openFocusedBoard(arguments: [
+            "-fst.accessibility.reduceMotion", "YES",
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.extraExtraExtraLarge.rawValue,
+        ], inspectPreview: { self.assertPaintedValues(in: $0, name: "preview") })
+        let revealed = try assertRevealedRow(in: app, minimumSide: 44, footerPinned: true)
+        XCTAssertTrue(revealed.label.contains("score 80,500"))
+        XCTAssertTrue(revealed.label.contains("5 stars"))
+        XCTAssertTrue(revealed.label.contains("accuracy 96.5%"))
+        assertPaintedValues(in: app.buttons[Self.focusedRow], name: "board")
+    }
+
+    @MainActor
+    private func assertPaintedValues(in row: XCUIElement, name: String) {
+        let shot = row.screenshot()
+        let attachment = XCTAttachment(screenshot: shot)
+        attachment.name = "song-band-\(name)-largest-standard-text"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        assertPaintedValues(RecognizedText.lines(in: shot).map(\.text).joined(separator: " "))
+    }
+
+    /// Checks the board fixture's exact rank, score and accuracy in recognized text.
+    private func assertPaintedValues(_ painted: String) {
+        XCTAssertNotNil(painted.range(of: #"#\s*29(?!\d)"#, options: .regularExpression), painted)
+        XCTAssertNotNil(painted.range(of: #"(?<!\d)80[ ,]?500(?!\d)"#, options: .regularExpression), painted)
+        XCTAssertNotNil(painted.range(of: #"(?<!\d)96[. ]5\s*%"#, options: .regularExpression), painted)
+    }
+    #endif
+
     /// AX5: the revealed row keeps its label, stays hittable and inside the screen, and
     /// grows past 1.35× its default height to fit its larger, stacked text rather than
     /// clipping it (accessibility.md: real growth at AX5; leaderboard-row R2). The band's
@@ -170,10 +204,12 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
     /// - Parameters:
     ///   - environment: Extra launch environment.
     ///   - arguments: Extra launch arguments (user-default overrides).
+    ///   - inspectPreview: Optional check of the appended row before opening the board.
     /// - Returns: The running app on the revealed board.
     @MainActor
     private func openFocusedBoard(
-        environment: [String: String] = [:], arguments: [String] = []
+        environment: [String: String] = [:], arguments: [String] = [],
+        inspectPreview: ((XCUIElement) -> Void)? = nil
     ) -> XCUIApplication {
         let app = FestivalApp.makeApp([
             "FST_UI_TEST_RESET_SONG_CARDS": "1",
@@ -197,10 +233,7 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
             any("fst.song-detail.intensity", in: app).waitForExistence(timeout: FestivalApp.budget(20)),
             "Song Detail did not open"
         )
-        let quickLinks = app.buttons["fst.quick-links.open"]
-        XCTAssertTrue(quickLinks.waitForExistence(timeout: FestivalApp.budget(15)))
-        quickLinks.tap()
-        // At AX5 the Duos row starts below the sheet's fold.
+        ShellUITestSupport.tapToolbarItem("fst.quick-links.open", overflowLabels: ["Quick Links"], in: app)
         let duos = FestivalApp.revealQuickLinkRow("band-Band_Duets", label: "Duos", in: app)
         XCTAssertTrue(duos.exists, "Quick Links has no Duos section")
         duos.tap()
@@ -212,6 +245,7 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
                 .press(forDuration: 0.05, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
         }
         waitHittable(selected, in: app, "Quick Links did not bring the appended Duos band into view")
+        inspectPreview?(selected)
         selected.tap()
         waitHittable(app.buttons[Self.focusedRow], in: app, "The board did not reveal the selected band's row")
         return app
@@ -267,9 +301,17 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
                     footer.frame.minY, row.frame.maxY, "The band's own row covers the board at this size"
                 )
             }
+            #if FST_UIKIT_PORT
+            // The scroll inset ends at the chrome's top, before the pager's padding.
+            let chrome = any("\(Self.boardPrefix)bottom-chrome", in: app)
+            XCTAssertFalse(chrome.frame.isEmpty, "No bottom chrome container")
+            chromeTop = chrome.frame.minY
+            #else
             chromeTop = pager.minY
+            #endif
         }
         let barBottom = app.navigationBars.allElementsBoundByIndex.map(\.frame.maxY).max() ?? 0
+        let window = app.windows.firstMatch.frame
         if row.frame.height <= chromeTop - barBottom + 1 {
             XCTAssertLessThanOrEqual(row.frame.maxY, chromeTop + 1, "The revealed row is under the pinned chrome")
             XCTAssertGreaterThanOrEqual(row.frame.minY, barBottom - 1, "The revealed row is under the bar")
@@ -286,15 +328,26 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
                 barBottom - row.frame.minY, row.frame.maxY - chromeTop, accuracy: 2,
                 "The tall revealed row is not centred: \(row.frame), bar \(barBottom), chrome \(chromeTop)"
             )
+            #if FST_UIKIT_PORT
+            // A band row is one accessibility button; measure its painted text, not AX children.
+            let lines = RecognizedText.lines(
+                in: app.screenshot(), region: row.frame.offsetBy(dx: -window.minX, dy: -window.minY)
+            )
+            let painted = lines.map(\.text).joined(separator: " ")
+            assertPaintedValues(painted)
+            XCTAssertTrue(RecognizedText.showsWhole("Fixture Player 1", in: painted), painted)
+            XCTAssertTrue(RecognizedText.showsWhole("Band 29 Member B", in: painted), painted)
+            let texts = lines.map { $0.frame.offsetBy(dx: window.minX, dy: window.minY) }
+            #else
             let texts = app.staticTexts.allElementsBoundByIndex.map(\.frame)
                 .filter { !$0.isEmpty && row.frame.contains($0) }
+            #endif
             XCTAssertFalse(texts.isEmpty, "The revealed row draws no text")
             for text in texts {
                 XCTAssertGreaterThanOrEqual(text.minY, barBottom - 1, "Revealed row text under the bar: \(text)")
                 XCTAssertLessThanOrEqual(text.maxY, chromeTop + 1, "Revealed row text under the pinned chrome: \(text)")
             }
         }
-        let window = app.windows.firstMatch.frame
         let visible = rows.filter {
             $0.frame.minY >= window.minY && ($0.frame.maxY <= chromeTop + 1 || $0.identifier == Self.focusedRow)
         }
@@ -302,9 +355,12 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         XCTAssertTrue(visible.contains { $0.identifier == Self.focusedRow }, "The revealed row is off screen")
         let ranks = visible.compactMap { $0.identifier.split(separator: ":").last.flatMap { Int($0) } }
         XCTAssertEqual(ranks, ranks.sorted(), "Rows do not read by rank: \(visible.map(\.identifier))")
-        let header = any("\(Self.boardPrefix)header", in: app).frame
-        if header.maxY > window.minY, let first = visible.first {
-            XCTAssertLessThanOrEqual(header.maxY, first.frame.minY + 1, "The song header does not read first")
+        let header = any("\(Self.boardPrefix)header", in: app)
+        if header.exists, let first = visible.first {
+            let frame = header.frame
+            if frame.maxY > window.minY {
+                XCTAssertLessThanOrEqual(frame.maxY, first.frame.minY + 1, "The song header does not read first")
+            }
         }
         return (row.label, row.frame, chromeTop)
     }

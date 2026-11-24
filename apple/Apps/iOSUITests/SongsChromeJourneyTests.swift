@@ -195,6 +195,7 @@ final class SongsChromeJourneyTests: XCTestCase {
             "FST_DEBUG_STILL_BACKGROUND": "1",
         ]
         let app = FestivalApp.makeApp(environment)
+        app.launchArguments += ["-fst.accessibility.lessTransparency", "NO", "-fst.accessibility.moreContrast", "NO"]
         app.launch()
         let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: FestivalApp.budget(15)))
@@ -223,17 +224,22 @@ final class SongsChromeJourneyTests: XCTestCase {
         }
         app.terminate()
 
-        let reduced = FestivalApp.makeApp(environment)
-        reduced.launchArguments += ["-fst.accessibility.lessTransparency", "YES"]
-        reduced.launch()
-        let opaqueField = SongsUITestSupport.songsSearchEntry(in: reduced)
-        XCTAssertTrue(opaqueField.waitForExistence(timeout: FestivalApp.budget(15)))
-        RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(1)))
-        assertSearchFieldContract(opaqueField)
-        let opaque = try fieldPixels(reduced, opaqueField, "Filter Songs, Reduce Transparency")
-        // BrandTokens.cardBackground is sRGB 11, 18, 32.
-        XCTAssertLessThan(opaque.interiorDistance, 12, "Filter Songs is not the opaque card capsule (Δ \(opaque.interiorDistance))")
-        try assertSearchFieldTarget(reduced, opaqueField)
+        for (settings, enabled, name) in [
+            ("YES", "NO", "Reduce Transparency"), ("NO", "YES", "Increase Contrast"),
+        ] {
+            let opaqueApp = FestivalApp.makeApp(environment)
+            opaqueApp.launchArguments += ["-fst.accessibility.lessTransparency", settings, "-fst.accessibility.moreContrast", enabled]
+            opaqueApp.launch()
+            defer { opaqueApp.terminate() }
+            let opaqueField = SongsUITestSupport.songsSearchEntry(in: opaqueApp)
+            XCTAssertTrue(opaqueField.waitForExistence(timeout: FestivalApp.budget(15)))
+            RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(1)))
+            assertSearchFieldContract(opaqueField)
+            let opaque = try fieldPixels(opaqueApp, opaqueField, "Filter Songs, \(name)")
+            // BrandTokens.cardBackground is sRGB 11, 18, 32.
+            XCTAssertLessThan(opaque.interiorDistance, 12, "\(name): Filter Songs is not the opaque card capsule (Δ \(opaque.interiorDistance))")
+            try assertSearchFieldTarget(opaqueApp, opaqueField)
+        }
     }
 
     /// The system search field contract the backing must not change.
@@ -2388,8 +2394,8 @@ struct PinnedRowProbe {
     /// Each descendant of the row button, as type and label, in tree order.
     let descendants: [String]
     /// Labelled, identified or typed elements inside the row's frame that are neither the
-    /// row, its descendants, its containers nor the A–Z rail overlapping its trailing
-    /// edge: what a card rim or mask exposing itself to VoiceOver would add.
+    /// row, its descendants, its containers nor known independent chrome: what a card
+    /// rim or mask exposing itself to VoiceOver would add.
     let strays: [String]
     /// Unlabelled `.other` containers drawn over most of the row (UIKit-backed
     /// backgrounds such as the material's effect view), which VoiceOver does not read; a
@@ -2403,9 +2409,13 @@ struct PinnedRowProbe {
     ///   - app: The running app.
     ///   - visibleBottom: Where page chrome (the tab bar and its accessory) starts over a
     ///     row taller than the space above it (AX5): strays below it are the chrome's.
+    ///   - separateChrome: Identifiers of independently verified chrome that can overlap the row.
     /// - Throws: A snapshot failure or a row missing from it.
     @MainActor
-    init(row: XCUIElement, in app: XCUIApplication, visibleBottom: CGFloat = .infinity) throws {
+    init(
+        row: XCUIElement, in app: XCUIApplication, visibleBottom: CGFloat = .infinity,
+        separateChrome: Set<String> = []
+    ) throws {
         let identifier = row.identifier
         var flat: [XCUIElementSnapshot] = []
         var ends: [Int] = []
@@ -2436,6 +2446,7 @@ struct PinnedRowProbe {
             let element = flat[other]
             let isContainer = other < index && ends[other] > index
             return !own.contains(other) && !isContainer && !rail.contains(other)
+                && !separateChrome.contains(element.identifier)
                 && element.elementType != .cell && !element.frame.isEmpty && inside.contains(element.frame)
         }
         func describe(_ element: XCUIElementSnapshot) -> String {

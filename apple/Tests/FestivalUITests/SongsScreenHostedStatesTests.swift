@@ -431,6 +431,22 @@ private func hostedSongsState(
     }
     #expect(oldSongs.observedPublicationId == 7 && session.publicationId == 8)
     #expect(!session.hasCurrentPlayerScores(forCatalogue: oldSongs.observedPublicationId))
+    let song = try #require(oldSongs.catalog.songs.first { $0.songId == "fixture-pulse" })
+    var presentation = SongRowPresentation(
+        song: song, instrument: .lead, session: session, profileChart: .lead,
+        catalogueObservation: oldSongs.observedPublicationId, metadata: SongMetadataVisibility(),
+        invalidScoreLeeway: nil, overThresholdCharts: [], showInstrumentIcons: true,
+        visibleInstruments: [.lead], currentSeason: nil, isShopRow: false, fieldOrder: [.score]
+    )
+    guard case .pausedPlayer = presentation.profileContent else {
+        Issue.record("A real row on the retained catalogue must keep showing the pause.")
+        return
+    }
+    presentation.showsProfile = false
+    if case .none = presentation.profileContent {} else {
+        Issue.record("A guide row must not show the selected player's profile status.")
+    }
+    #expect(presentation.structuredScore == nil)
     #expect(!SongShopPublicationPolicy.matches(
         catalogue: oldSongs.observedPublicationId,
         shop: newShop.observedPublicationId,

@@ -1,3 +1,4 @@
+import FestivalAppSupport
 import FestivalCore
 
 // MARK: - Song-valued routes across publications (issue #304)

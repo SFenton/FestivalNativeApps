@@ -664,7 +664,7 @@ struct FloatingPageToolsBar: View {
         )
         .allowsHitTesting(!covered)
         // An empty row is no element at all, so VoiceOver never lands on a nameless group.
-        .accessibilityHidden(covered || tools.isEmpty)
+        .accessibilityHidden(while: covered || tools.isEmpty)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Page Tools")
         .accessibilityIdentifier("fst.page-tools")

@@ -1,4 +1,5 @@
 import SwiftUI
+import FestivalAppSupport
 import FestivalCore
 import FestivalDesign
 
@@ -236,7 +237,10 @@ struct GlobalSearchResults: View {
     }
 
     /// One result card's List row chrome.
-    private static let cardInsets = EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16)
+    private static let cardInsets = EdgeInsets(
+        top: GlobalSearchResultLayout.cardVerticalInset, leading: GlobalSearchResultLayout.cardHorizontalInset,
+        bottom: GlobalSearchResultLayout.cardVerticalInset, trailing: GlobalSearchResultLayout.cardHorizontalInset
+    )
 
     // MARK: Wide landscape columns
 
@@ -316,7 +320,10 @@ struct GlobalSearchResults: View {
                 // Web `section` / `sectionSpaced`: a gap above every title but the first,
                 // the title inset 4pt inside the cards' margin.
                 .listRowInsets(EdgeInsets(
-                    top: isFirst ? 2 : Self.sectionSpacing, leading: 20, bottom: 6, trailing: 20
+                    top: GlobalSearchResultLayout.headingTopInset(first: isFirst),
+                    leading: GlobalSearchResultLayout.headingHorizontalInset,
+                    bottom: GlobalSearchResultLayout.headingBottomInset,
+                    trailing: GlobalSearchResultLayout.headingHorizontalInset
                 ))
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
@@ -331,9 +338,6 @@ struct GlobalSearchResults: View {
                 )
         }
     }
-
-    /// Space above a section title that follows another section.
-    private static let sectionSpacing: CGFloat = 16
 
     /// Vertically centred between the scope bar and the bottom safe area.
     private func centeredMessage(_ text: String) -> some View {
@@ -367,7 +371,7 @@ struct GlobalSearchResults: View {
                     } label: {
                         // Same art, fonts and padding as a Songs row (batch 6.3).
                         HStack(spacing: 12) {
-                            ArtworkTile(raw: song.albumArt, session: session, size: 44)
+                            ArtworkTile(raw: song.albumArt, session: session, size: GlobalSearchResultLayout.artworkSize)
                             VStack(alignment: .leading, spacing: 4) {
                                 MarqueeText(song.title, font: .headline)
                                     .foregroundStyle(BrandTokens.textPrimary)
@@ -377,7 +381,7 @@ struct GlobalSearchResults: View {
                             Spacer(minLength: 0)
                         }
                         .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
+                        .padding(.vertical, GlobalSearchResultLayout.songVerticalPadding)
                         .festivalCard(cornerRadius: 12)
                         .contentShape(Rectangle())
                     }
@@ -421,7 +425,10 @@ struct GlobalSearchResults: View {
                     } label: {
                         Label(player.displayName, systemImage: "person.crop.circle")
                             .foregroundStyle(BrandTokens.textPrimary)
-                            .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+                            .frame(
+                                maxWidth: .infinity, minHeight: GlobalSearchResultLayout.playerCardMinimumHeight,
+                                alignment: .leading
+                            )
                             .padding(.horizontal, 16)
                             .festivalCard(cornerRadius: 12)
                             .contentShape(Rectangle())
@@ -495,6 +502,23 @@ struct GlobalSearchResults: View {
         return text
     }
 
+}
+
+// MARK: - Result geometry
+
+/// Insets and minimums shared by the SwiftUI and UIKit result lists.
+enum GlobalSearchResultLayout {
+    static let cardVerticalInset: CGFloat = 2
+    static let cardHorizontalInset: CGFloat = 16
+    static let headingHorizontalInset: CGFloat = 20
+    static let headingBottomInset: CGFloat = 6
+    static let artworkSize: CGFloat = 44
+    static let songVerticalPadding: CGFloat = 10
+    static let playerCardMinimumHeight: CGFloat = 54
+
+    /// - Parameter first: Whether this is the first visible category.
+    /// - Returns: The spacing before its heading.
+    static func headingTopInset(first: Bool) -> CGFloat { first ? 2 : 16 }
 }
 
 /// Clear, separator-free chrome for a run of result cards (any title is its own row).

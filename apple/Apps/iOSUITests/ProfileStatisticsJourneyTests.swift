@@ -22,13 +22,13 @@ final class ProfileStatisticsJourneyTests: XCTestCase {
     func testSearchViewSelectStatisticsThenDeselect() throws {
         continueAfterFailure = false
         let app = SongsUITestSupport.fixtureApp()
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:18790"
-        app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
+        app.launchEnvironment["FST_API_BASE_URL"] = SongsUITestSupport.fixtureURL
         app.launch()
+        defer { app.terminate() }
 
         SongsUITestSupport.viewFixturePlayer("fixture-player-1", query: "Fixture Player 1", in: app)
         let unverified = app.staticTexts["fst.player.unverified"]
-        let selectButton = app.buttons["fst.player.select"]
+        let selectButton = SongsUITestSupport.profileSelectionAction(in: app)
         // A fresh publication read can briefly show the unverified notice before the
         // second, header-proven read arrives; wait for either terminal identity state.
         XCTAssertTrue(
@@ -44,6 +44,16 @@ final class ProfileStatisticsJourneyTests: XCTestCase {
         SongsUITestSupport.selectViewedPlayer(in: app)
         SongsUITestSupport.record(app, name: "profile-selected")
 
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_CLEAR_PROFILE")
+        app.launch()
+        let profile = app.buttons["fst.shell.profile"]
+        let restored = expectation(
+            for: NSPredicate(format: "label CONTAINS %@", "Fixture Player 1"), evaluatedWith: profile
+        )
+        wait(for: [restored], timeout: FestivalApp.budget(10))
+        SongsUITestSupport.record(app, name: "profile-restored")
+
         SongsUITestSupport.openStatistics(in: app)
         XCTAssertTrue(
             SongsUITestSupport.playerPage(in: app).waitForExistence(timeout: 15),
@@ -55,10 +65,12 @@ final class ProfileStatisticsJourneyTests: XCTestCase {
         XCTAssertFalse(app.staticTexts["fst.player.name"].exists)
         SongsUITestSupport.record(app, name: "statistics-selected-player")
 
+        let back = ShellUITestSupport.backButton(in: app)
+        if back.exists, back.isHittable { back.tap() }
         try SongsUITestSupport.deselectFixturePlayer(in: app)
         SongsUITestSupport.record(app, name: "profile-deselected")
         // The drawer hides Statistics again once no player is selected.
-        app.buttons["fst.shell.drawer.open"].tap()
+        ShellUITestSupport.tapToolbarItem("fst.shell.drawer.open", overflowLabels: ["Menu", "Open Navigation"], in: app)
         XCTAssertFalse(app.buttons["fst.shell.drawer.statistics"].exists)
         app.buttons["fst.shell.drawer.close"].tap()
     }

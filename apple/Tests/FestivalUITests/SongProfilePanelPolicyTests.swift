@@ -241,6 +241,9 @@ private func pulseScores() throws -> [Instrument: PlayerScore] {
         span: span, fold: fold, gutter: SongProfilePanelPolicy.gap, minimumSide: HingeColumns.minimumSide
     ))
     #expect(band == HingeBand(leadingWidth: 431, gap: 40, trailingWidth: 348))
+    let columns = SongProfilePanelPolicy.panelColumns(contentWidth: span.width, band: band)
+    #expect(span.minX + columns.leading == fold.minX)
+    #expect(span.maxX - columns.trailing == fold.maxX)
     #expect(SongProfilePanelPolicy.panelWidth(contentWidth: span.width, band: band) == 348)
     // Flat: the halves split the content evenly.
     #expect(SongProfilePanelPolicy.panelWidth(contentWidth: span.width, band: nil)

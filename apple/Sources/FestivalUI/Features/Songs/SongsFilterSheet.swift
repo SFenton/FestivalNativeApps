@@ -618,7 +618,8 @@ struct SongsFilterSheet: View {
 }
 
 extension SongScoreFilterKind {
-  fileprivate var label: String {
+  /// The action label for all enabled charts.
+  var label: String {
     switch self {
     case .missingScores: "Missing Scores"
     case .hasScores: "Has Scores"
@@ -631,7 +632,7 @@ extension SongScoreFilterKind {
   ///
   /// - Parameter chart: Visible solo instrument represented by the native toggle.
   /// - Returns: A concise, unique action label with its chart name.
-  fileprivate func label(for chart: Instrument) -> String {
+  func label(for chart: Instrument) -> String {
     switch self {
     case .missingScores: "Missing \(chart.label) Scores"
     case .hasScores: "Has \(chart.label) Scores"

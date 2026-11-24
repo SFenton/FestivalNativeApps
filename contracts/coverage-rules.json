@@ -5,11 +5,11 @@
   },
   "swift": {
     "sourceRoots": ["apple/Sources/**/*.swift"],
-    "logic": ["apple/Sources/FestivalCore/**/*.swift"],
+    "logic": ["apple/Sources/FestivalCore/**/*.swift", "apple/Sources/FestivalAppSupport/**/*.swift"],
     "ux": ["apple/Sources/FestivalDesign/**/*.swift", "apple/Sources/FestivalUI/**/*.swift"],
     "exclude": [
       "apple/Sources/FestivalDesign/BrandTokens.swift",
-      "apple/Sources/FestivalUI/App/AppRoute.swift",
+      "apple/Sources/FestivalAppSupport/AppRoute.swift",
       "apple/Sources/FestivalUI/Features/Settings/LicenseManifest.swift"
     ]
   },

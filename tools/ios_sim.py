@@ -96,7 +96,7 @@ CLEAN_STATUS_BAR = (
 )
 
 #: Source trees that, if changed, require rebuilding the driver's UI-test bundle.
-DRIVER_HASH_ROOTS = ("Sources", "Apps/iOS", "Apps/iOSUITests", "Apps/iPadOSUITests", "project.yml")
+DRIVER_HASH_ROOTS = ("Sources", "Apps/iOS", "Apps/iOSUITests", "Apps/iPadOSUITests", "Package.swift", "project.yml")
 
 
 @dataclass(frozen=True)
@@ -128,6 +128,10 @@ PRODUCTS = {
         "FestivalMobileIPad", "FestivalMobile", BUNDLE_ID, "FestivalMobileIPadUITests", "lane-driver-ipad"
     ),
 }
+
+# Keep explicit port-era commands working against the shipping UIKit app.
+PRODUCTS["uikit"] = PRODUCTS["phone"]
+PRODUCTS["uikit-ipad"] = PRODUCTS["ipad"]
 
 #: Device aliases that run the iPad UI-test bundle by default (``--app`` overrides).
 DEVICE_PRODUCTS = {"ipad": "ipad"}

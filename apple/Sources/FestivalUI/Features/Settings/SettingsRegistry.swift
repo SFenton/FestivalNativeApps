@@ -88,4 +88,13 @@ enum SettingsRegistry {
         case let .data(bytes): store.set(bytes, forKey: key)
         }
     }
+
+    /// Restore every registered preference to its default ("Reset App Settings"), in the
+    /// representation `@AppStorage` writes. Profile identity, Songs state and navigation
+    /// history are not registered and stay.
+    ///
+    /// - Parameter store: Defaults domain to write.
+    static func resetAll(in store: UserDefaults = .standard) {
+        for (key, value) in defaults { write(value, for: key, in: store) }
+    }
 }

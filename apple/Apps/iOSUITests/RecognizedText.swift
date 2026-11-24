@@ -21,6 +21,8 @@ enum RecognizedText {
     struct Reading {
         let text: String?
         let lineHeight: CGFloat?
+        /// Horizontal distance between the painted left edges of the detected lines, in points.
+        var leftEdgeSpread: CGFloat?
     }
 
     /// Recognize the element's text (upright, or turned when the capture arrives in the
@@ -60,7 +62,11 @@ enum RecognizedText {
             guard !lines.isEmpty else { continue }
             let text = lines.compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ")
             let heights = lines.map { $0.boundingBox.height * frame.height }.sorted()
-            let reading = Reading(text: text, lineHeight: heights[heights.count / 2])
+            let leftEdges = lines.map(\.boundingBox.minX)
+            var reading = Reading(text: text, lineHeight: heights[heights.count / 2])
+            if let left = leftEdges.min(), let right = leftEdges.max(), leftEdges.count > 1 {
+                reading.leftEdgeSpread = (right - left) * frame.width
+            }
             if showsWhole(label, in: text) { return reading }
             if (best.text?.count ?? -1) < text.count { best = reading }
         }
@@ -98,27 +104,45 @@ enum RecognizedText {
         return Reading(text: nil, lineHeight: nil)
     }
 
-    /// Every line Vision reads in an upright app capture, with its frame in the capture's
+    /// Every line Vision reads in the oriented app capture, with its frame in the capture's
     /// points, for proving where unattributed audit text lies (the iPad page behind a form
     /// sheet, `unattributed-text-behind-sheet` in `testing/apple/accessibility.md`).
     ///
-    /// - Parameter screenshot: A capture of the app window.
+    /// - Parameters:
+    ///   - screenshot: A capture of the app window or its framebuffer.
+    ///   - orientation: The framebuffer's rotation, if it was not captured upright.
+    ///   - region: Optional area in oriented capture points to read without surrounding content.
     /// - Returns: The recognized lines, top to bottom; empty when the capture has no bitmap.
-    static func lines(in screenshot: XCUIScreenshot) -> [(text: String, frame: CGRect)] {
+    static func lines(
+        in screenshot: XCUIScreenshot, orientation: CGImagePropertyOrientation = .up, region: CGRect? = nil
+    ) -> [(text: String, frame: CGRect)] {
         let capture = screenshot.image
         guard let image = capture.cgImage else { return [] }
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = false
         request.minimumTextHeight = 0
-        guard (try? VNImageRequestHandler(cgImage: image, orientation: .up, options: [:]).perform([request])) != nil
+        let quarterTurn = orientation == .left || orientation == .right
+        let size = quarterTurn ? CGSize(width: capture.size.height, height: capture.size.width) : capture.size
+        if let region {
+            let area = CGRect(origin: .zero, size: size).intersection(region)
+            guard !area.isEmpty else { return [] }
+            request.regionOfInterest = CGRect(
+                x: area.minX / size.width, y: 1 - area.maxY / size.height,
+                width: area.width / size.width, height: area.height / size.height
+            )
+        }
+        guard (try? VNImageRequestHandler(cgImage: image, orientation: orientation, options: [:]).perform([request])) != nil
         else { return [] }
-        let size = capture.size
         return (request.results ?? []).compactMap { line in
             guard let text = line.topCandidates(1).first?.string else { return nil }
             let box = line.boundingBox
-            let frame = CGRect(x: box.minX * size.width, y: (1 - box.maxY) * size.height,
-                               width: box.width * size.width, height: box.height * size.height)
+            let roi = request.regionOfInterest
+            let frame = CGRect(
+                x: (roi.minX + box.minX * roi.width) * size.width,
+                y: (1 - roi.minY - box.maxY * roi.height) * size.height,
+                width: box.width * roi.width * size.width, height: box.height * roi.height * size.height
+            )
             return (text, frame)
         }.sorted { $0.frame.minY < $1.frame.minY }
     }

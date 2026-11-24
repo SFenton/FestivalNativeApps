@@ -95,6 +95,46 @@ final class WhatsNewAccessibilityJourneyTests: XCTestCase {
         try assertReadableAtAX5(.landscapeLeft, name: "landscape")
     }
 
+    /// Replaying What's New before launch detection finishes shows one named spinner, not release notes.
+    @MainActor
+    func testPendingInstallChannelShowsNamedIndicatorThenTesterNotes() {
+        continueAfterFailure = false
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": Self.fixtureService,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_TAB": "settings",
+            "FST_DEBUG_ROUTE": "settingsTopic:version",
+            "FST_DEBUG_FIRST_RUN": "off",
+            "FST_DEBUG_STILL_BACKGROUND": "0",
+            "FST_DEBUG_WHATS_NEW": "off",
+            "FST_DEBUG_WHATS_NEW_FILE": Self.notesFile,
+            "FST_DEBUG_DISTRIBUTION": "delayed-testflight",
+        ])
+        app.launch()
+        let show = app.buttons["fst.settings.whats-new"]
+        XCTAssertTrue(show.waitForExistence(timeout: FestivalApp.budget(8)), "Settings offers What's New replay")
+        show.tap()
+        let close = app.buttons["fst.whats-new.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: FestivalApp.budget(8)))
+        let indicators = app.activityIndicators.matching(identifier: "fst.whats-new.pending")
+        let pending = indicators.firstMatch
+        XCTAssertTrue(pending.waitForExistence(timeout: FestivalApp.budget(8)), app.debugDescription)
+        XCTAssertEqual(pending.label, "Getting notes for this install")
+        XCTAssertEqual(indicators.count, 1)
+        let tester = app.staticTexts[Self.readingOrder[0].text]
+        XCTAssertFalse(tester.exists)
+        XCTAssertFalse(app.staticTexts["Version 2610.08.01"].exists)
+        XCTAssertTrue(close.isHittable, "The sheet remains dismissible while the install channel is unknown")
+        record(app, name: "whats-new-install-channel-pending")
+
+        XCTAssertTrue(tester.waitForExistence(timeout: FestivalApp.budget(24)))
+        XCTAssertFalse(pending.exists)
+        XCTAssertTrue(close.isHittable)
+        record(app, name: "whats-new-install-channel-testflight")
+        close.tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: FestivalApp.budget(8)))
+    }
+
     // MARK: - Assertions
 
     /// Measure the cover at the default size, then assert the AX5 rules against it.

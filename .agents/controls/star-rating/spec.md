@@ -13,4 +13,5 @@ Source: `FortniteFestivalWeb/src/components/songs/metadata/MiniStars.tsx:8-38`, 
 - Always use the bundled web star images, never platform glyphs (SF Symbols, Material icons, Segoe glyphs).
 - Do not list or mention the star images on the Licenses page (operator rule, [licenses spec](../../pages/licenses/spec.md)).
 - Implementations: Apple `FestivalUI/Design/StarRating.swift`, Android `ui/design/StarRating.kt`, Windows `StarRow` + Core `StarRating`. The image row is one accessibility element with the spoken count.
+- For `minimum-one`, pair a score that earned one star with a score that earned none: the song board draws and announces one star for the first and omits the rating for the second. This is separate from the Apple renderer's defensive minimum when a host explicitly creates a star rating with zero.
 - Platform notes: [windows.md](windows.md).

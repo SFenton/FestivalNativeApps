@@ -77,6 +77,7 @@ enum ShopStatusTone: Equatable, Sendable {
 /// hold a static tint at the tone's colour.
 struct ShopStatusBreathe: ViewModifier {
     let tone: ShopStatusTone
+    var allowsMotion = true
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     @Environment(\.scenePhase) private var scenePhase
@@ -112,7 +113,7 @@ struct ShopStatusBreathe: ViewModifier {
     func body(content: Content) -> some View {
         let running = Self.animates(
             reduceMotion: systemReduceMotion || appReduceMotion,
-            sceneActive: AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible),
+            sceneActive: allowsMotion && AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible),
             still: DebugAnimationOverride.stillBackground
         )
         // The web only cross-fades the fill; the former glow read as an overblown
@@ -224,12 +225,14 @@ struct ShopRowPulseBorder: View {
 struct SongDetailShopGlyph: View {
     /// Shop status the disc breathes in.
     let tone: ShopStatusTone
+    /// Whether the glyph is in an active illustration; live actions animate by default.
+    var allowsMotion = true
 
     var body: some View {
         Image(systemName: "bag")
             .font(.body.weight(.semibold))
             .foregroundStyle(FestivalText.primary)
             .frame(width: 34, height: 34)
-            .modifier(ShopStatusBreathe(tone: tone))
+            .modifier(ShopStatusBreathe(tone: tone, allowsMotion: allowsMotion))
     }
 }

@@ -287,6 +287,12 @@ struct FirstRunSongArt: View {
 }
 
 extension View {
+    /// Keep this illustration out of the carousel's combined narration, including
+    /// nodes that the pager can retain beneath an accessibility-hidden container.
+    func firstRunDecorative() -> some View {
+        accessibilityRepresentation { Color.clear.accessibilityHidden(true) }
+    }
+
     /// Redact this song text while `song` is a loading/unavailable placeholder, so demos show
     /// the system placeholder treatment instead of invented titles.
     ///
@@ -312,6 +318,13 @@ func firstRunAccuracyTint(_ accuracy: Double, isFullCombo: Bool) -> Color {
     }
     return BrandTokens.accentBlue.mix(with: BrandTokens.statusGreen, by: (t - 0.5) * 2)
 }
+
+#if os(iOS)
+/// The shared first-run accuracy tint as a UIKit color for the inert native chart.
+func firstRunAccuracyUIColor(_ accuracy: Double, isFullCombo: Bool) -> UIColor {
+    UIColor(firstRunAccuracyTint(accuracy, isFullCombo: isFullCombo))
+}
+#endif
 
 extension Color {
     /// Linear-blend two colors in sRGB — enough fidelity for a decorative demo gradient.

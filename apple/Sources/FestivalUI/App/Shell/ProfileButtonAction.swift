@@ -1,3 +1,4 @@
+import FestivalAppSupport
 import FestivalCore
 
 // MARK: - Profile button routing

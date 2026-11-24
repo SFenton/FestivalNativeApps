@@ -65,7 +65,7 @@ struct SongBandLeaderboardContent: View {
     let song: Song
     @Binding var bandType: BandType
     @State private var page: Int
-    @State private var state: RankLoadState<SongBandLeaderboardPayload> = .loading
+    @State private var state: RankLoadState<Shown> = .loading
     /// The last loaded page and the request it answered: keeps the footer and pager in
     /// place while the next page loads, so only the rows reload (issue #93).
     @State private var shown: Shown?
@@ -125,8 +125,6 @@ struct SongBandLeaderboardContent: View {
     nonisolated private static let rowsAnchor = "fst.song-band-leaderboard.rows"
     /// Space between the bar and the song header, like the solo board's header row.
     nonisolated private static let headerTopInset: CGFloat = 20
-    /// Space between the song header and the first card.
-    nonisolated private static let headerBottomGap: CGFloat = 12
 
     private struct RequestKey: Equatable {
         let bandType: BandType
@@ -218,7 +216,7 @@ struct SongBandLeaderboardContent: View {
                     // board's header row.
                     songHeader
                         .padding(.top, Self.headerTopInset)
-                        .padding(.bottom, Self.headerBottomGap)
+                        .padding(.bottom, SongBoardHeaderLayout.bandBottomGap)
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                             headerHeight = height
                         }
@@ -246,7 +244,7 @@ struct SongBandLeaderboardContent: View {
             .festivalScrollFadeInScope(fadeScope, resetKey: rowsReveal)
             // Read from the scroll offset, like the solo board's `List` (song-header R4):
             // the header's bottom edge is its padded height less the gap under it.
-            .songHeaderScrollAway(headerBottom: max(0, headerHeight - Self.headerBottomGap)) {
+            .songHeaderScrollAway(headerBottom: max(0, headerHeight - SongBoardHeaderLayout.bandBottomGap)) {
                 headerHidden = $0
             }
             // Cards fade out above the pinned footer and pager like the solo board's
@@ -440,8 +438,8 @@ struct SongBandLeaderboardContent: View {
     /// - Parameter entry: The selected player's band row.
     /// - Returns: Open Band Detail when the row is on this page, otherwise jump to it.
     private func footerAction(for entry: SongBandLeaderboardEntry) -> SelectedRowAction {
-        if case let .loaded(payload) = state {
-            return SongBandRowNavigation.footerAction(for: entry, pageEntries: payload.leaderboard.entries)
+        if case let .loaded(result) = state, result.key == requestKey {
+            return SongBandRowNavigation.footerAction(for: entry, pageEntries: result.payload.leaderboard.entries)
         }
         let pageSize = SongBandRowNavigation.pageSize
         return SelectedRowAction.footer(
@@ -555,7 +553,9 @@ struct SongBandLeaderboardContent: View {
                 Task { await load() }
             }
             .frame(maxWidth: .infinity, minHeight: gateMinHeight)
-        case let .loaded(payload):
+        case let .loaded(result):
+            let payload = result.payload
+            let revealKey = focusPending && result.key == requestKey ? result.key : nil
             // The same band row as the Song Detail previews (web `PlayerBandCard` on
             // both pages, issue #90), the page's rows segments of one group card per
             // column like the previews' card (leaderboard-row R10, owner #543).
@@ -603,11 +603,11 @@ struct SongBandLeaderboardContent: View {
             .frame(maxWidth: .infinity, minHeight: gateMinHeight, alignment: .top)
             // Revealed: the page no longer holds a full visible page of height.
             .onAppear { rowsAtTop = false }
-            // Opened for one band's row: scroll it into view once (web `navToPlayer`,
-            // issue #307).
-            .task(id: focusPending) {
-                let entries = payload.leaderboard.entries
-                guard focusPending, let targetIndex = entries.firstIndex(where: isFocused) else {
+            // The departing page can still be mounted when Jump requests the next one.
+            // Only the matching result can consume the pending reveal.
+            .task(id: revealKey) {
+                guard revealKey != nil, focusPending, result.key == requestKey else { return }
+                guard let targetIndex = entries.firstIndex(where: isFocused) else {
                     focusPending = false
                     return
                 }
@@ -617,7 +617,7 @@ struct SongBandLeaderboardContent: View {
                     entries[WideColumns.rowStart(of: targetIndex, columns: columns)].id,
                     proxy: proxy, reduceMotion: reduceMotion,
                     staggerIndex: BoardCardEntrance.index, scope: fadeScope
-                ) {
+                ), result.key == requestKey {
                     focusPending = false
                 }
             }
@@ -667,8 +667,9 @@ struct SongBandLeaderboardContent: View {
                 page = corrected
                 return
             }
-            shown = Shown(key: requested, payload: payload)
-            state = .loaded(payload)
+            let result = Shown(key: requested, payload: payload)
+            shown = result
+            state = .loaded(result)
         } catch is CancellationError {
             return
         } catch let error as URLError where error.code == .cancelled {

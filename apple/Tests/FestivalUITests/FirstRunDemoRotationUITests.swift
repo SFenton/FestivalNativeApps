@@ -145,10 +145,10 @@ struct FirstRunRotatingDemoDataTests {
         let songs = FirstRunDemoSongs.placeholders(count: 3)
         for song in songs {
             let expected = Int(Int64(FirstRunDemoScorePattern.hash(song.title)).magnitude % 10)
-            #expect(FirstRunNativeMetadataDemo.meta(for: song).score == FirstRunNativeMetadataDemo.records[expected].score)
+            #expect(FirstRunSongMetadataExample.meta(for: song).score == FirstRunSongMetadataExample.records[expected].score)
         }
-        #expect(FirstRunNativeMetadataDemo.records.count == 10)
-        let gold = FirstRunNativeMetadataDemo.records[0].pills
+        #expect(FirstRunSongMetadataExample.records.count == 10)
+        let gold = FirstRunSongMetadataExample.records[0].pills
         #expect(gold.contains(.stars(count: 5, gold: true)))
     }
 }

@@ -2,6 +2,7 @@ import CoreGraphics
 import Foundation
 import SwiftUI
 import Testing
+import FestivalAppSupport
 @testable import FestivalCore
 @testable import FestivalUI
 
@@ -348,6 +349,26 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
     #expect(reported.dividerMidX == 475.5 && reported.dividerWidth == 1 && !reported.isHinge)
 }
 
+/// A native tab measures the already-safe content span even while its safe-area
+/// observation still reports the rail. Use the same midpoint as a full-window host.
+@Test func nativeTabDoesNotSubtractTheDuoRailTwice() throws {
+    let container = CGRect(x: 0, y: 0, width: 867, height: 635)
+    var measured = SplitLayouts.duoInnerLandscape
+    measured.size = container.size
+    let tab = try #require(OnDemandSplitPolicy.geometry(OnDemandSplitPolicy.context(
+        layout: measured, container: container, containerExcludesVerticalBar: true
+    )))
+    let window = try #require(windowGeometry(SplitLayouts.duoInnerLandscape))
+    #expect(tab.dividerMidX == window.dividerMidX)
+    #expect(tab.leadingWidth == tab.trailingWidth)
+
+    let book = try #require(OnDemandSplitPolicy.geometry(OnDemandSplitPolicy.context(
+        layout: SplitLayouts.duoBook, container: container, containerExcludesVerticalBar: true
+    )))
+    #expect(book.dividerMidX == SplitLayouts.duoBook.splitHinge?.midX)
+    #expect(book.isHinge)
+}
+
 /// The free-space midpoint falls back to the container's when the span misses it.
 @Test func freeMidpointClampsToTheContainer() {
     let box = CGRect(x: 100, y: 0, width: 800, height: 10)
@@ -480,6 +501,20 @@ private func windowGeometry(_ layout: DeviceLayout) -> OnDemandSplitPolicy.Geome
     #expect(SplitLayouts.duoFolded.screenDivide() == nil)
     #expect(SplitLayouts.iPadLandscape.screenDivide() == nil)
     #expect(DeviceLayout.standardPhone.freeSpan() == nil)
+}
+
+/// A full SwiftUI board measures the rail-free span even when root geometry already excluded the rail.
+@Test func screenDivideUsesTheRealizedFreeSpanWhenFlat() {
+    let measured = CGRect(x: 0, y: 583, width: 867, height: 44)
+    let layout = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 867, height: 635), widthClass: .regular,
+        safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
+        verticalBarEdge: .trailing, hinge: .fullyOpen
+    ))
+    #expect(layout.screenDivide(flatContentFrame: measured) == CGRect(x: 433.5, y: 583, width: 0, height: 44))
+    let mirrored = measured.offsetBy(dx: 84, dy: 0)
+    #expect(layout.screenDivide(layoutDirection: .rightToLeft, flatContentFrame: mirrored)?.midX == 517.5)
+    #expect(SplitLayouts.duoBook.screenDivide(flatContentFrame: measured) == SplitLayouts.duoBook.splitHinge)
 }
 
 /// The select action opens only the list page's detail routes and compares by page.

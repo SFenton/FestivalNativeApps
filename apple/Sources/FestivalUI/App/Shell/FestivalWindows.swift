@@ -1,4 +1,5 @@
 import SwiftUI
+import FestivalAppSupport
 import FestivalCore
 #if os(iOS)
 import UIKit

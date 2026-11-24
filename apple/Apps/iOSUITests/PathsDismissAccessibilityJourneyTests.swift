@@ -234,7 +234,9 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
         XCTAssertFalse(app.buttons["fst.paths.zoom-in"].exists, "Zoom controls without the image (\(run.name))")
         assertCloseReachable(in: app, run: run, "text")
         assertSelectorsReachable(in: app, run: run)
-        assertMeasuredTime(in: app, run: run, baseline: baseline?.time)
+        assertMeasuredTime(in: table, app: app, run: run, baseline: baseline?.time)
+        assertCloseReachable(in: app, run: run, "text after revealing the activation")
+        assertSelectorsReachable(in: app, run: run)
         assertOrder(["fst.paths.close", "fst.paths.text.Solo_Guitar.expert", "fst.paths.activation.1"]
                     + Self.selectors, in: app, "text (\(run.name))")
         record(app, name: "paths-dismiss-\(run.name)-text")
@@ -386,21 +388,36 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
 
     /// Text scaling on the first activation's time (``measuredTime``), the activation table's
     /// widest value: it draws whole on one recognized line and, in an AX5 run, that line is
-    /// over 1.35× as tall as at Large in the same form (#626). As with ``measuredValue``, the
-    /// simulated inner display at Large takes only the baseline.
+    /// over 1.35× as tall as at Large in the same form (#626). The first card can be taller
+    /// than the viewport at AX5, so reveal its time within the table before reading it. As
+    /// with ``measuredValue``, the simulated inner display at Large takes only the baseline.
     ///
     /// - Parameters:
+    ///   - table: The activation table's scroll view.
     ///   - app: The viewer on Text.
     ///   - run: Launch settings.
     ///   - baseline: The Large launch's line height, for an AX5 run.
     @MainActor
-    private func assertMeasuredTime(in app: XCUIApplication, run: Run, baseline: CGFloat?) {
+    private func assertMeasuredTime(
+        in table: XCUIElement, app: XCUIApplication, run: Run, baseline: CGFloat?
+    ) {
         let card = element("fst.paths.activation.1", in: app)
         XCTAssertTrue(card.waitForExistence(timeout: FestivalApp.budget(5)), "No first activation (\(run.name))")
-        let reading = RecognizedText.recognizeLine(Self.measuredTime, in: card)
+        var reading = RecognizedText.recognizeLine(Self.measuredTime, in: card)
+        let initialFrame = card.frame
+        if run.isAX5, reading.lineHeight == nil, card.frame.maxY > table.frame.maxY {
+            let start = table.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
+            let end = table.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+            for _ in 0..<2 where reading.lineHeight == nil {
+                start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.25)
+                reading = RecognizedText.recognizeLine(Self.measuredTime, in: card)
+            }
+            XCTAssertLessThan(card.frame.minY, initialFrame.minY,
+                              "The first activation must scroll clear of the fixed selectors (\(run.name))")
+        }
         attach("paths-dismiss-\(run.name)-time-text",
                "read '\(reading.text ?? "")', line \(reading.lineHeight.map { "\($0)" } ?? "-") pt, "
-               + "baseline \(baseline.map { "\($0)" } ?? "-") pt; card \(card.frame)")
+               + "baseline \(baseline.map { "\($0)" } ?? "-") pt; card \(initialFrame) → \(card.frame)")
         if run.isAX5 || !simulatesInnerDisplay(run, in: app.windows.firstMatch.frame) {
             XCTAssertNotNil(reading.text, "'\(Self.measuredTime)' draws whole in the first activation (\(run.name))")
         }

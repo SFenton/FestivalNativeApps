@@ -27,6 +27,8 @@ struct TopEdgeScrim: ViewModifier {
     /// The tallest the scrim gets: the status bar, a collapsed iPhone bar and a little
     /// of the content below.
     static let maxHeight: CGFloat = 150
+    /// Black opacity at the window's top edge, shared with the UIKit scrim.
+    static let maximumOpacity = 0.55
 
     /// Safe-area edges the gradient extends under: the top (status bar and navigation
     /// bar) and both horizontal edges (the iPhone Duo vertical bar), like the backdrop
@@ -43,7 +45,7 @@ struct TopEdgeScrim: ViewModifier {
 
     /// The black-to-clear gradient (also drawn across a split's divider band).
     static let gradient = LinearGradient(
-        colors: [Color.black.opacity(0.55), Color.black.opacity(0)],
+        colors: [Color.black.opacity(maximumOpacity), Color.black.opacity(0)],
         startPoint: .top, endPoint: .bottom
     )
 

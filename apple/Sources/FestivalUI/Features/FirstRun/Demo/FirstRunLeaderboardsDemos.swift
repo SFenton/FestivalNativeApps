@@ -22,7 +22,7 @@ struct FirstRunLeaderboardsOverviewDemo: View {
                     .firstRunStagger(6, interval: FirstRunMotion.rowStaggerSeconds)
             }
         }
-        .accessibilityHidden(true)
+        .firstRunDecorative()
     }
 }
 
@@ -34,7 +34,7 @@ struct FirstRunLeaderboardsOverviewDemo: View {
 struct FirstRunLeaderboardsExperimentalMetricsDemo: View {
     @State private var active = 0
 
-    private let metrics: [(String, String)] = [
+    nonisolated static let metrics: [(String, String)] = [
         ("Adjusted Percentile", "Estimated skill from your rank position."),
         ("Popularity-Weighted Percentile", "Adjusts for how many players know this song."),
         ("FC Rate", "Share of your tracked scores that were full combos."),
@@ -45,7 +45,7 @@ struct FirstRunLeaderboardsExperimentalMetricsDemo: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Rank By").font(.caption.weight(.semibold))
                 .foregroundStyle(FestivalText.primary)
-            ForEach(Array(metrics.enumerated()), id: \.offset) { index, metric in
+            ForEach(Array(Self.metrics.enumerated()), id: \.offset) { index, metric in
                 HStack {
                     Image(systemName: index == active ? "largecircle.fill.circle" : "circle")
                         .foregroundStyle(index == active ? BrandTokens.accentBlue : FestivalText.deemphasized)
@@ -60,8 +60,8 @@ struct FirstRunLeaderboardsExperimentalMetricsDemo: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .festivalCard(cornerRadius: 16)
-        .accessibilityHidden(true)
-        .firstRunDemoTicker { active = (active + 1) % metrics.count }
+        .firstRunDecorative()
+        .firstRunDemoTicker { active = (active + 1) % Self.metrics.count }
     }
 }
 
@@ -83,6 +83,6 @@ struct FirstRunLeaderboardsYourRankDemo: View {
                     FirstRunDemoPool.rankingNeighborhood.count, interval: FirstRunMotion.rowStaggerSeconds
                 )
         }
-        .accessibilityHidden(true)
+        .firstRunDecorative()
     }
 }

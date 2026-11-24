@@ -76,7 +76,7 @@ iPadOS decides the size class; the app never checks a width for the shell (layou
 
 ## Menu bar
 
-iPadOS 26 reveals a menu bar (pointer at, or swipe down from, the top edge). `FestivalCommands` (`App/Shell/FestivalCommands.swift`, `.commands` on the `WindowGroup`) mirrors the Mac's `MacCommands`; on iPadOS before 26 the same commands fill the ⌘-hold overlay. Order follows the HIG (app, File, Edit, View, app menus, Window, Help; the-menu-bar.md "Support the standard menus and their order").
+iPadOS 26 reveals a menu bar (pointer at, or swipe down from, the top edge). `UKMenuBar` (`UIKit/App/Shell/UKMenuBar.swift`) registers native menus and keyboard commands; `UKPageMenus` supplies front-page actions on iPadOS 26 and later. Order follows the HIG (app, File, Edit, View, app menus, Window, Help; the-menu-bar.md "Support the standard menus and their order").
 
 | Menu | Items | HIG |
 |---|---|---|
@@ -89,8 +89,8 @@ iPadOS 26 reveals a menu bar (pointer at, or swipe down from, the top edge). `Fe
 | Profile | Select / Switch Profile… ⇧⌘P, Deselect Profile, Find Rival…, Notifications | same |
 | Help | Festival Score Tracker Website, What's New, Licenses | the-menu-bar.md Help menu |
 
-- **Scene-safe:** each window's root publishes its own `FestivalShellCommands` with `focusedSceneValue`; pages publish Sort/Filter, Rank By, Instrument, Quick Links and Song tools only from the top page of their column (`menuBarColumn(isTop:isList:)`, `MenuBarTopPagePublisher`), so the menu acts on the window and page in front. Every command is also reachable in the UI (the-menu-bar.md iPadOS "Ensure every function is reachable in your UI").
-- iPad drops the hidden `KeyCommandButton`s (the menu carries the shortcuts); iPhone keeps them and publishes nothing (`MenuBarCommandsSupport.isAvailable`).
+- **Scene-safe:** the focused root resolves the current front page when UIKit requests a deferred menu. Page actions reuse the toolbar handlers; they are not cached across focus or route changes. Every command is also reachable in the UI (the-menu-bar.md iPadOS "Ensure every function is reachable in your UI").
+- iPad's shortcuts come from its menus; iPhone uses the root's `keyCommands` and does not register menu-bar items. The Debug mirror exercises the native View and Profile actions; it does not automate the system menu's placement or focus.
 - Evidence: `testMenuBarShortcuts`, `testCommandDigitSelectsDestination`; menu captures `~/FestivalShowcase/native-ipad/2/menu-{go,view,song,profile,help}.png` (rotate 270°). Driver: reveal with `drag:0.5,0.0,0.5,0.12`, open with `systemTap:Go`.
 
 ## Keyboard and pointer

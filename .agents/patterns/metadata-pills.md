@@ -35,6 +35,12 @@ Both are shared by seven web files (song rows, Suggestions, Song Detail, leaderb
 | Songs full-combo accuracy (R7) | `apple/Sources/FestivalUI/Features/Songs/SongProfileMetadataPills.swift` `SongMetadataFieldView` (`GoldSkewBadgeShape`) | `android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongRow.kt` `MetadataPill` (debt below) | `MetadataPills.FullCombo` (look `MetadataPillStyle.FullCombo`, width `AccuracyMinWidth`), placed by `Controls/SongRowVisuals.Pill` |
 | Percentile pill (R3, R4) | `apple/Sources/FestivalUI/Features/Profile/PlayerPercentileTable.swift` `PercentilePill` | `MetadataPills.kt` `PercentilePill` (gold outlines via `ui/design/AccuracyPill.kt` `goldOutline`) | `MetadataPills.Percentile` / `ApplyPercentile` (XAML templates: `Controls/PercentilePillView`); tiers `MetadataPillStyle.Tier` / `TierOf` |
 
+Apple song rows (Songs and Band Detail) use `SongMetadataFieldView` in SwiftUI and `UKSongMetadataFieldView` in UIKit. In a Band Detail stack, the shared field keeps its measured width and the song information takes the spare space. The row name includes the percentile (R5).
+
+Apple Songs, Band Detail and Suggestions use the same `GoldSkewBadgeShape` as full-combo accuracy for Top 1%. The shear applies to the outline, not the label or the layout frame. Top 5% stays upright. Profile's percentile table already draws both tiers.
+
+UIKit Songs exposes individual pill test IDs when VoiceOver is off. Their frames come from the pill flow's placement plan, not the subviews' frames, which may still be unset when the row is first exposed. VoiceOver keeps the combined row rather than separate stops (R5; [Apple HIG VoiceOver](https://developer.apple.com/design/human-interface-guidelines/voiceover)).
+
 Android consumers:
 
 - `SeasonPill`: Songs rows (`ui/songs/SongRow.kt` `MetadataPill`, current season from the row projection), Suggestions rows (`SuggestionCardView` `RowMetadata`), Song Detail instrument cards and song leaderboards (`SongDetailScreen` `SeasonCell` / `StackedScoreRow`), the Song Detail Score History card (`SongHistoryCard`), Score History rows (`PlayerHistoryScreen` `HistoryRow`) and the First Run Songs demo (through `MetadataPill`).
@@ -91,6 +97,7 @@ Agent decision (#644, 2026-10-13, owner may override with `/choose`). The web dr
 
 ## Known debt
 
+- UIKit Suggestions' accuracy and season still use its own Auto Layout pill, `UKSuggestionMetadataPill`; its percentile uses the shared Songs field.
 - Android Songs rows still draw a full combo as `100% FC` with a gold fill (`ui/songs/SongRow.kt`), not the R7 percent-only skewed gold outline. Out of the Windows #644 lane's scope; the Android session owns it.
 
 ## Guards (`tools/pattern_guard.py`)

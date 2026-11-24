@@ -50,6 +50,8 @@ Agent decisions (#591, 2026-10-08; the owner may override with `/choose`):
 
 ## Known debt
 
+Until Apple adopts R1–R3, `PlayerStatTileView` and `UKStatTileView` fit a value on one line at standard text sizes within one cell. At accessibility sizes they allow two lines; UIKit keeps the value at full Dynamic Type scale. Both expose the complete value as one accessibility element.
+
 | Debt | Breaks | Plan |
 |---|---|---|
 | Apple `StatTileGridLayout` sizes each row to its tallest tile and never spans | R1–R3 | Apple session: port `StatTileSpans` (pure) into `StatTileGridLayout` |

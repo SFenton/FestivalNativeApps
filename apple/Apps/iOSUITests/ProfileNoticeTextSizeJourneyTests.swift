@@ -95,6 +95,11 @@ final class ProfileNoticeTextSizeJourneyTests: XCTestCase {
         let notice = page.staticTexts["fst.player.unverified"]
         XCTAssertTrue(notice.waitForExistence(timeout: FestivalApp.budget(15)), "No unverified notice on an unpinned read")
         XCTAssertEqual(notice.label, Self.message)
+        XCTAssertEqual(page.staticTexts.matching(identifier: "fst.player.unverified").count, 1)
+        XCTAssertFalse(app.buttons["fst.player.select"].exists)
+        XCTAssertFalse(app.buttons["fst.player.select.rail"].exists)
+        let pending = app.buttons["fst.player.select.pending"].firstMatch
+        if pending.exists { XCTAssertFalse(pending.isEnabled) }
         let heading = page.staticTexts[Self.firstHeading]
         XCTAssertTrue(heading.waitForExistence(timeout: FestivalApp.budget(15)), "No \(Self.firstHeading) heading")
         // Let the notice's fade-in (`festivalFadeIn`, stagger slot 0) finish.
@@ -110,8 +115,9 @@ final class ProfileNoticeTextSizeJourneyTests: XCTestCase {
                                         "\(name): notice \(frame) starts under the navigation bar \(bar.frame)")
         }
         let bottomChrome = [app.tabBars.firstMatch, app.buttons["fst.quick-links.open"]]
-            .filter { $0.exists && !$0.frame.isEmpty && $0.frame.minY > frame.minY }
-            .map(\.frame.minY).min() ?? window.maxY
+            .filter(\.exists).map(\.frame)
+            .filter { !$0.isEmpty && $0.minY > frame.minY && $0.minX < frame.maxX && $0.maxX > frame.minX }
+            .map(\.minY).min() ?? window.maxY
         XCTAssertLessThanOrEqual(frame.maxY, bottomChrome + 0.5,
                                  "\(name): notice \(frame) runs under the bottom chrome at \(bottomChrome)")
         XCTAssertLessThanOrEqual(frame.maxY, heading.frame.minY + 0.5,
@@ -143,6 +149,8 @@ final class ProfileNoticeTextSizeJourneyTests: XCTestCase {
         )
         let normal = try readNotice(at: .large)
         let large = try readNotice(at: .accessibilityExtraExtraExtraLarge)
+        XCTAssertEqual(normal.frame.height, 56, accuracy: 0.5,
+                       "The short footnote keeps a 44 pt body plus 6 pt padding on each side")
         let summary = XCTAttachment(string: """
             default: frame \(normal.frame), line \(normal.reading.lineHeight ?? 0) pt, needs \(normal.neededLines) lines, \
             read "\(normal.reading.text ?? "")"

@@ -61,6 +61,30 @@ final class DuoFilterFieldAccessibilityJourneyTests: XCTestCase {
         ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"] ?? "http://127.0.0.1:8765"
     }
 
+    /// The real outer display keeps the Search button and Filter Songs level and
+    /// separate. The field is one reachable search control, not a stop for its icon.
+    @MainActor
+    func testFoldedFilterAlignsWithSearchWithoutOverlappingTheRail() throws {
+        try XCTSkipUnless((ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] ?? "").contains("Duo"),
+                          "Needs the actual folded Duo vertical bar")
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": Self.fixtureURL, "FST_DEBUG_ANONYMOUS": "1", "FST_DEBUG_TAB": "songs",
+        ])
+        app.launch()
+        defer { app.terminate() }
+        let field = field(in: app)
+        XCTAssertTrue(field.waitForExistence(timeout: FestivalApp.budget(20)))
+        let search = app.buttons.matching(NSPredicate(format: "label == %@", "Search")).firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: FestivalApp.budget(10)))
+        XCTAssertTrue(field.isHittable)
+        XCTAssertTrue([.searchField, .textField].contains(field.elementType))
+        XCTAssertTrue([field.label, field.placeholderValue ?? ""].contains("Filter Songs"))
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: Self.field).count, 1)
+        XCTAssertEqual(field.frame.midY, search.frame.midY, accuracy: 3)
+        XCTAssertLessThanOrEqual(field.frame.maxX, search.frame.minX)
+        XCTAssertGreaterThanOrEqual(field.frame.height, Self.minimumTarget)
+    }
+
     /// The field in each unfolded pose at the default text size, then at AX5, where its
     /// target is taller than at the default size in the same pose (only a little in flat
     /// portrait, where the default is already the tab bar Search button's 62 pt).

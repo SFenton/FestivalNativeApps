@@ -46,6 +46,84 @@ final class FeedbackSentJourneyTests: XCTestCase {
         try fileAndExpectSentAlert(kind: "feature", title: "Request Sent")
     }
 
+    /// The feature row scrolls without activating on a held drag. Its form keeps the
+    /// hint and editors aligned inside the sheet at default and largest text sizes.
+    @MainActor
+    func testGroupedFeatureFormKeepsHintsReadable() throws {
+        try requireFixture()
+        let hintText = "Keep the [Feature] prefix and name the idea in a few words."
+        var standardHintHeight: CGFloat = 0
+        for size in [UIContentSizeCategory.large, .accessibilityExtraExtraExtraLarge] {
+            let app = FeedbackJourney.fixtureApp(origin: Self.origin)
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", size.rawValue]
+            app.launch()
+            defer { app.terminate() }
+            let viewport = app.windows.firstMatch
+            let title = app.textFields["fst.settings.feedback.field.title"]
+            if size.isAccessibilityCategory, viewport.frame.width < 600 {
+                let row = FeedbackJourney.row("feature", in: app)
+                XCTAssertTrue(FeedbackJourney.scrollTo(row, in: app, maximumSwipes: 24))
+                let window = viewport.frame
+                let visible = row.frame.intersection(window.insetBy(dx: 0, dy: 110))
+                XCTAssertGreaterThan(visible.height, 100, "The enlarged feature action is not reachable")
+                let start = viewport.coordinate(withNormalizedOffset: .zero).withOffset(
+                    CGVector(dx: visible.midX - window.minX, dy: visible.minY + 20 - window.minY)
+                )
+                let before = row.frame.minY
+                start.press(forDuration: 0.2, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 64)),
+                            withVelocity: .slow, thenHoldForDuration: 0.2)
+                XCTAssertFalse(title.exists, "A drag activated the feature action")
+                XCTAssertGreaterThan(row.frame.minY, before + 24, "A drag on the enlarged action did not scroll")
+            }
+            FeedbackJourney.openForm("feature", in: app, maximumSwipes: size.isAccessibilityCategory ? 24 : 12)
+
+            let hint = app.staticTexts[hintText].firstMatch
+            let description = app.textViews["fst.settings.feedback.field.description"]
+            let submit = app.buttons["fst.settings.feedback.submit"]
+            XCTAssertTrue(hint.exists)
+            XCTAssertEqual(title.value as? String, "[Feature] ")
+            XCTAssertTrue(submit.exists)
+            XCTAssertFalse(submit.isEnabled)
+            XCTAssertFalse(app.textViews["fst.settings.feedback.field.repro"].exists)
+            XCTAssertFalse(app.textViews["fst.settings.feedback.field.expected"].exists)
+
+            let helperFrame = hint.frame
+            let fieldFrame = title.frame
+            let bar = app.navigationBars["Request a Feature"].firstMatch
+            let sheetFrame = bar.frame
+            let usableTrailingEdge = submit.frame.maxX
+            XCTAssertGreaterThanOrEqual(helperFrame.minX, sheetFrame.minX + 16)
+            XCTAssertLessThanOrEqual(helperFrame.maxX, sheetFrame.maxX - 16)
+            XCTAssertEqual(helperFrame.minX, fieldFrame.minX, accuracy: 2)
+            XCTAssertLessThan(helperFrame.maxY, fieldFrame.minY)
+            if size == .large {
+                standardHintHeight = helperFrame.height
+            } else {
+                XCTAssertGreaterThan(helperFrame.height, standardHintHeight * 1.5)
+            }
+            XCTAssertTrue(FeedbackJourney.scrollTo(description, in: app))
+            XCTAssertEqual(description.label, "Description")
+            let descriptionFrame = description.frame
+            XCTAssertEqual(descriptionFrame.minX, fieldFrame.minX, accuracy: 2)
+            XCTAssertGreaterThanOrEqual(descriptionFrame.height, 95.5)
+            XCTAssertLessThanOrEqual(descriptionFrame.maxX, usableTrailingEdge + 2,
+                                     "The editor extends behind the sheet's trailing safe area")
+            let window = viewport.frame
+            if [window.width.rounded(), window.height.rounded()] == [466, 678] {
+                XCTAssertEqual(descriptionFrame.minX, window.minX + 44, accuracy: 2,
+                               "Keep the standard margin on the side opposite the cover rail")
+                XCTAssertEqual(descriptionFrame.maxX, window.minX + 362, accuracy: 2,
+                               "The rail's safe area must not be followed by a second form margin")
+            }
+            SongsUITestSupport.record(app, name: size.isAccessibilityCategory ? "feedback-form-ax5" : "feedback-form-default")
+            let cancel = app.buttons["fst.settings.feedback.close"]
+            XCTAssertTrue(bar.exists, "Scrolling hid the sheet's task title")
+            XCTAssertTrue(cancel.isHittable, "Scrolling hid the Cancel action")
+            cancel.tap()
+            XCTAssertTrue(FeedbackJourney.waitUntil { !title.exists }, "Cancel did not close the empty form")
+        }
+    }
+
     /// A refused report (503 `feedback_busy`) and a failed filing keep the form, its
     /// input and Submit, under "Couldn't Send".
     @MainActor
@@ -86,6 +164,7 @@ final class FeedbackSentJourneyTests: XCTestCase {
     func testSubmitSwapsFormForCentredSendingStatus() throws {
         try requireFixture()
         let app = FeedbackJourney.fixtureApp(origin: Self.origin)
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", UIContentSizeCategory.large.rawValue]
         app.launch()
         defer { app.terminate() }
         FeedbackJourney.openForm(in: app)
@@ -106,16 +185,27 @@ final class FeedbackSentJourneyTests: XCTestCase {
         XCTAssertEqual(sending.count("stop", .button), 0, "Stop Sending shows with no media")
         XCTAssertEqual(sending.count("busy", .activityIndicator), 1, "No single busy indicator while sending")
         XCTAssertEqual(sending.label("busy", .activityIndicator), "Sending your issue")
+        XCTAssertTrue(sending.readsInOrder(["busy", "status.title", "status.subtitle"]),
+                      "The status must read the spinner, title and explanation in that order")
         for id in ["field.title", "field.description", "attach"] {
             XCTAssertEqual(sending.count(id), 0, "The form's \(id) is still reachable behind the status")
         }
-        // Across the sheet (page-sized on iPad), whose bar spans its width; down the window.
-        let sheet = try XCTUnwrap(sending.sheetBar, "No sheet bar holds Cancel/Close")
+        // The actual actions delimit the usable width, not the bar that can still span the Duo rail.
+        let closeFrame = try XCTUnwrap(sending.frame("close"))
+        let submitFrame = try XCTUnwrap(sending.frame("submit"))
+        let sheetCentre = (min(closeFrame.minX, submitFrame.minX) + max(closeFrame.maxX, submitFrame.maxX)) / 2
         let window = sending.window
+        let accuracy: CGFloat = abs(sheetCentre - window.midX) > 12 ? 10 : 2
         let sendingSpinner = try XCTUnwrap(sending.frame("busy", .activityIndicator))
         let titleFrame = try XCTUnwrap(sending.frame("status.title"))
-        XCTAssertEqual(sendingSpinner.midX, sheet.midX, accuracy: 2, "The spinner is not centred across")
-        XCTAssertEqual(titleFrame.midX, sheet.midX, accuracy: 2, "The title is not centred across")
+        let subtitleFrame = try XCTUnwrap(sending.frame("status.subtitle", .staticText))
+        let body = UIFont.preferredFont(
+            forTextStyle: .body, compatibleWith: UITraitCollection(preferredContentSizeCategory: .large)
+        )
+        XCTAssertLessThanOrEqual(subtitleFrame.height, 2 * body.lineHeight + 2,
+                                 "The two-line explanation stretches to the reserved upload-controls height")
+        XCTAssertEqual(sendingSpinner.midX, sheetCentre, accuracy: accuracy, "The spinner is not centred in the usable sheet")
+        XCTAssertEqual(titleFrame.midX, sendingSpinner.midX, accuracy: 2, "The title is not centred over the spinner")
         XCTAssertTrue((window.minY + window.height * 0.3...window.minY + window.height * 0.7)
             .contains(sendingSpinner.midY),
                       "The status is not centred down the sheet: \(sendingSpinner) in \(window)")
@@ -131,6 +221,7 @@ final class FeedbackSentJourneyTests: XCTestCase {
         XCTAssertEqual(filing.count("busy", .activityIndicator), 1)
         XCTAssertEqual(filing.label("busy", .activityIndicator), "Sending your issue",
                        "The spinner was renamed between phases")
+        XCTAssertTrue(filing.readsInOrder(["busy", "status.title", "status.subtitle"]))
         let filingSpinner = try XCTUnwrap(filing.frame("busy", .activityIndicator))
         XCTAssertEqual(filingSpinner.midX, sendingSpinner.midX, accuracy: 1, "The spinner moved between phases")
         XCTAssertEqual(filingSpinner.midY, sendingSpinner.midY, accuracy: 1, "The spinner moved between phases")
@@ -231,13 +322,11 @@ final class FeedbackSentJourneyTests: XCTestCase {
 
 // MARK: - Sending status snapshot
 
-/// The feedback sheet's nodes, bar and window from one accessibility snapshot, so a stage's
+/// The feedback sheet's nodes and window from one accessibility snapshot, so a stage's
 /// labels and frames are read at one instant rather than over a dozen live queries (#662).
-private struct SendingStatusSnapshot {
+struct SendingStatusSnapshot {
     /// Every `fst.settings.feedback.*` node, in depth-first order.
     let nodes: [XCUIElementSnapshot]
-    /// The navigation bar that holds Cancel/Close: the sheet's width (page-sized on iPad).
-    let sheetBar: CGRect?
     /// The app's first window.
     let window: CGRect
 
@@ -249,22 +338,14 @@ private struct SendingStatusSnapshot {
     init(_ app: XCUIApplication) throws {
         let root = try app.snapshot()
         var nodes: [XCUIElementSnapshot] = []
-        var bars: [XCUIElementSnapshot] = []
         var windows: [XCUIElementSnapshot] = []
         func walk(_ node: XCUIElementSnapshot) {
             if node.identifier.hasPrefix("fst.settings.feedback.") { nodes.append(node) }
-            if node.elementType == .navigationBar { bars.append(node) }
             if node.elementType == .window { windows.append(node) }
             node.children.forEach(walk)
         }
         walk(root)
-        // By identifier alone: iOS 27 can type the close control, which carries a
-        // confirmation dialog, as a disclosure triangle rather than a button.
-        func holdsClose(_ node: XCUIElementSnapshot) -> Bool {
-            node.identifier == "fst.settings.feedback.close" || node.children.contains(where: holdsClose)
-        }
         self.nodes = nodes
-        sheetBar = bars.first(where: holdsClose)?.frame
         window = windows.first?.frame ?? root.frame
     }
 
@@ -281,4 +362,12 @@ private struct SendingStatusSnapshot {
 
     /// The first such node's frame, or nil when there is none.
     func frame(_ id: String, _ type: XCUIElement.ElementType? = nil) -> CGRect? { matching(id, type).first?.frame }
+
+    /// Whether each named element occurs in this depth-first snapshot in the given order.
+    func readsInOrder(_ ids: [String]) -> Bool {
+        let indices = ids.compactMap { id in
+            nodes.firstIndex { $0.identifier == "fst.settings.feedback.\(id)" }
+        }
+        return indices.count == ids.count && zip(indices, indices.dropFirst()).allSatisfy { $0.0 < $0.1 }
+    }
 }

@@ -25,6 +25,10 @@ enum SongRowLayoutPolicy {
     /// the Shop.
     static let shopSlotWidth: CGFloat = 16
     static let shopSlotGap: CGFloat = 12
+    /// Spacing within the catalogue row's Shop badge group.
+    static let shopIconGap: CGFloat = 6
+    /// Minimum spacer after the title and chips in a split profile row.
+    static let profileInfoSpacer: CGFloat = 4
 
     /// Width one line of chips needs.
     ///

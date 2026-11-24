@@ -23,6 +23,31 @@ struct StatTile: Identifiable {
     var isPlaceholder = false
 }
 
+/// Shared spoken hints and value typography for native stat tiles.
+enum StatTilePresentation {
+    /// The Player profile's tile identifier prefix.
+    static let playerIdentifierPrefix = "fst.player.stat"
+
+    /// - Parameter accessibility: Whether accessibility text sizing is enabled.
+    /// - Returns: The value's line limit.
+    static func valueLineLimit(accessibility: Bool) -> Int { accessibility ? 2 : 1 }
+
+    /// - Parameter accessibility: Whether accessibility text sizing is enabled.
+    /// - Returns: The minimum scale for a tile that allows shrinking to fit.
+    static func valueMinimumScale(accessibility: Bool) -> CGFloat { accessibility ? 0.5 : 0.6 }
+
+    /// - Parameter link: Where the tile goes.
+    /// - Returns: The VoiceOver hint for that destination.
+    static func hint(for link: PlayerStatLink) -> String {
+        switch link {
+        case .songs: "Shows these songs in Songs"
+        case .songDetail, .bandSongDetail: "Opens the song"
+        case .fullRankings: "Opens the full rankings"
+        case .bandRankings: "Opens the band rankings"
+        }
+    }
+}
+
 // MARK: - Grid
 
 /// Stat tiles in an adaptive grid: two columns on iPhone, three or four as the page
@@ -38,7 +63,7 @@ struct PlayerStatGrid: View {
     /// Accessibility identifier scope: `overview` or an instrument's raw value.
     let scope: String
     /// Accessibility identifier prefix: the Player profile's, or Band Detail's `fst.band.stat`.
-    var identifierPrefix = PlayerStatTileView.playerIdentifierPrefix
+    var identifierPrefix = StatTilePresentation.playerIdentifierPrefix
     let onSelect: (PlayerStatLink) -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.deviceLayout) private var layout
@@ -154,12 +179,9 @@ struct StatTileGridLayout: Layout {
 /// One tile: a button with a trailing chevron when it links somewhere, otherwise a
 /// single static accessibility element.
 struct PlayerStatTileView: View {
-    /// The Player profile's tile identifier prefix.
-    static let playerIdentifierPrefix = "fst.player.stat"
-
     let tile: StatTile
     let scope: String
-    var identifierPrefix = playerIdentifierPrefix
+    var identifierPrefix = StatTilePresentation.playerIdentifierPrefix
     let onSelect: (PlayerStatLink) -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Side padding that clears the chevron at every text size: a fixed 22 pt let the
@@ -179,7 +201,7 @@ struct PlayerStatTileView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(tile.label)
             .accessibilityValue(spokenValue)
-            .accessibilityHint(Self.hint(for: link))
+            .accessibilityHint(StatTilePresentation.hint(for: link))
             .accessibilityAddTraits(.isButton)
             .accessibilityIdentifier(identifier)
         } else {
@@ -191,19 +213,6 @@ struct PlayerStatTileView: View {
                 .accessibilityIdentifier(identifier)
         }
     }
-
-    /// Lines a tile value may take: one, or two at accessibility text sizes.
-    ///
-    /// - Parameter size: The environment's Dynamic Type size.
-    /// - Returns: The value's line limit.
-    static func valueLineLimit(_ size: DynamicTypeSize) -> Int { size.isAccessibilitySize ? 2 : 1 }
-
-    /// How far a tile value may shrink to fit: further at accessibility sizes, where a
-    /// two-column grid in a 375 pt window still cut "(66.6%)" at AX5 after wrapping.
-    ///
-    /// - Parameter size: The environment's Dynamic Type size.
-    /// - Returns: The minimum scale factor.
-    static func valueMinimumScale(_ size: DynamicTypeSize) -> CGFloat { size.isAccessibilitySize ? 0.5 : 0.6 }
 
     private var spokenValue: String {
         if tile.isPlaceholder { return "Loading" }
@@ -229,9 +238,9 @@ struct PlayerStatTileView: View {
                         // One line, shrinking to fit; at accessibility sizes the value may
                         // also wrap ("2 (66.6%)" truncated to "2 (66…" in an iPad tile at
                         // AX5: HIG Typography "Keep text truncation to a minimum").
-                        .lineLimit(Self.valueLineLimit(dynamicTypeSize))
+                        .lineLimit(StatTilePresentation.valueLineLimit(accessibility: dynamicTypeSize.isAccessibilitySize))
                         .multilineTextAlignment(.center)
-                        .minimumScaleFactor(Self.valueMinimumScale(dynamicTypeSize))
+                        .minimumScaleFactor(StatTilePresentation.valueMinimumScale(accessibility: dynamicTypeSize.isAccessibilitySize))
                         .redacted(reason: tile.isPlaceholder ? .placeholder : [])
                 }
             }
@@ -257,19 +266,6 @@ struct PlayerStatTileView: View {
         .contentShape(RoundedRectangle(cornerRadius: StatTileSurface.cornerRadius))
     }
 
-    /// VoiceOver hint naming where a tile goes.
-    ///
-    /// - Parameter link: The tile's link.
-    /// - Returns: A short hint sentence.
-    static func hint(for link: PlayerStatLink) -> String {
-        switch link {
-        case .songs: "Shows these songs in Songs"
-        case .songDetail: "Opens the song"
-        case .fullRankings: "Opens the full rankings"
-        case .bandRankings: "Opens the band rankings"
-        case .bandSongDetail: "Opens the song"
-        }
-    }
 }
 
 /// Each tile is its own material card, like the web's one `frostedCard` per `StatBox`

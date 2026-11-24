@@ -23,7 +23,7 @@ struct FirstRunSuggestionsCategoryCardDemo: View {
                 .firstRunSwapRow(0, rise: 8)
         }
         .environment(\.firstRunFadingRows, fading)
-        .accessibilityHidden(true)
+        .firstRunDecorative()
         .firstRunDemoTicker { await swap() }
     }
 
@@ -61,7 +61,7 @@ struct FirstRunSuggestionsCategoryCardDemo: View {
         }
     }
 
-    static let templates: [Template] = [
+    nonisolated static let templates: [Template] = [
         Template(
             key: "unfc_guitar", title: "Finish the Lead FCs",
             description: "Play these songs again on Lead and grab an FC!", type: .nearFC, instrument: .lead
@@ -90,7 +90,7 @@ struct FirstRunSuggestionsCategoryCardDemo: View {
     ]
 
     /// The infinite-scroll demo's six web `CATEGORY_TEMPLATES`, in its order.
-    static let scrollTemplates: [Template] = [
+    nonisolated static let scrollTemplates: [Template] = [
         templates[0],
         templates[1],
         Template(
@@ -234,7 +234,7 @@ struct FirstRunSuggestionsInfiniteScrollDemo: View {
         .onChange(of: running, initial: true) { _, now in
             if now { startedAt = Date() }
         }
-        .accessibilityHidden(true)
+        .firstRunDecorative()
     }
 
     private func track(

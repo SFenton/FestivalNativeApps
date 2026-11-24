@@ -1,3 +1,4 @@
+import FestivalAppSupport
 import CoreGraphics
 import Foundation
 import SwiftUI
@@ -463,17 +464,20 @@ enum OnDemandSplitPolicy {
     ///   - container: The split container's frame in window coordinates.
     ///   - layoutDirection: The split's layout direction (which side the safe-area
     ///     insets are on in window coordinates).
+    ///   - containerExcludesVerticalBar: True when the native tab container already
+    ///     measures the span beside the rail, as on iPhone Duo in SwiftUI.
     /// - Returns: The context (landscape, regular in both dimensions, the Duo book-pose
     ///   hinge, the window's free span).
     static func context(
-        layout: DeviceLayout, container: CGRect, layoutDirection: LayoutDirection = .leftToRight
+        layout: DeviceLayout, container: CGRect, layoutDirection: LayoutDirection = .leftToRight,
+        containerExcludesVerticalBar: Bool = false
     ) -> Context {
         Context(
             container: container,
             isLandscape: layout.orientation == .landscape,
             isRegular: layout.windowWidthClass == .regular && layout.heightClass == .regular,
             hinge: layout.splitHinge,
-            freeSpan: layout.freeSpan(layoutDirection: layoutDirection)
+            freeSpan: containerExcludesVerticalBar ? nil : layout.freeSpan(layoutDirection: layoutDirection)
         )
     }
 }

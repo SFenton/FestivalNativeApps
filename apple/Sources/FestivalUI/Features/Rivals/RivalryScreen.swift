@@ -1,4 +1,5 @@
 import SwiftUI
+import FestivalAppSupport
 import FestivalCore
 import FestivalDesign
 
@@ -60,7 +61,8 @@ struct RivalryScreen: View {
         routeScope?.coerced(experimentalRanks: experimentalRanks)
     }
 
-    private static let modeTitles: [String: String] = [
+    /// Section names by `RivalCategory.key`; `nonisolated` so ``title(for:)`` (also read by the UIKit port) can use it.
+    private nonisolated static let modeTitles: [String: String] = [
         "closest_battles": "Closest Battles",
         "almost_passed": "Almost Passed",
         "slipping_away": "Slipping Away",
@@ -144,7 +146,7 @@ struct RivalryScreen: View {
             .accessibilityIdentifier("fst.rivalry.view-profile")
         }
         // Mac and iPad menu bar: Profile › View Rival's Profile (issue #633).
-        .macProfilePageCommands(MacProfilePageCommands(viewRivalProfile: {
+        .macProfilePageCommands(ProfilePageMenuCommands(viewRivalProfile: {
             pushRoute?(.player(accountId: rivalId, displayName: rivalName))
         }))
         .task(id: RivalryTaskKey(rivalId: rivalId, mode: mode, scope: scope)) { await load() }

@@ -38,6 +38,31 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
 
     // MARK: - Journeys
 
+    /// The horizontal-bar Songs title is read once and sits in the same row as the
+    /// drawer and profile, rather than displacing the filter and list with a large title.
+    @MainActor
+    func testSongsTitleSitsBesideDrawerWhenPageToolsFloat() throws {
+        continueAfterFailure = false
+        let app = fixtureApp(profile: false, tab: "songs")
+        app.launch()
+        defer { app.terminate() }
+        let tools = app.descendants(matching: .any)["fst.page-tools"]
+        XCTAssertTrue(tools.waitForExistence(timeout: 20), "Expected horizontal-tab page tools")
+
+        let bar = app.navigationBars.firstMatch
+        let titles = bar.staticTexts.matching(NSPredicate(format: "label == %@", "Songs"))
+        let title = titles.firstMatch
+        let drawer = bar.buttons["fst.shell.drawer.open"]
+        let profile = bar.buttons["fst.shell.profile"]
+        XCTAssertTrue(title.exists)
+        XCTAssertEqual(titles.count, 1)
+        XCTAssertEqual(drawer.label, "Open Navigation")
+        XCTAssertEqual(profile.label, "Choose Profile")
+        XCTAssertEqual(title.frame.midY, drawer.frame.midY, accuracy: 3)
+        XCTAssertGreaterThanOrEqual(title.frame.minX, drawer.frame.maxX)
+        XCTAssertLessThan(title.frame.maxX, profile.frame.minX)
+    }
+
     /// Songs' floating page tools accept 44 pt near-miss taps.
     @MainActor
     func testSongsPageToolsAcceptNearMisses() throws {
@@ -416,6 +441,37 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
             }
             app.terminate()
         }
+    }
+
+    /// The pinned Switch action and the existing account group coexist on a viewed profile.
+    @MainActor
+    func testViewedPlayerSwitchKeepsAccountGroupInTheHeader() throws {
+        continueAfterFailure = false
+        let app = fixtureApp(profile: true, route: "player:fixture-player-2")
+        app.launch()
+        defer { app.terminate() }
+        let window = app.windows.firstMatch.frame
+        try XCTSkipIf(window.width.rounded() == 466 && window.height.rounded() == 678,
+                      "The folded Duo uses the native vertical rail, not the horizontal account pill")
+        let bar = app.navigationBars.firstMatch
+        let control = bar.buttons["fst.player.select"]
+        XCTAssertTrue(control.waitForExistence(timeout: FestivalApp.budget(15)))
+        XCTAssertTrue(control.isEnabled)
+        XCTAssertEqual(control.label, "Switch To This Profile")
+        let bell = bar.buttons["fst.shell.notifications"]
+        let profile = bar.buttons["fst.shell.profile"]
+        XCTAssertTrue(bell.isHittable)
+        XCTAssertTrue(profile.isHittable)
+        XCTAssertTrue(bell.label.hasPrefix("Notifications"))
+        XCTAssertEqual(profile.label, "Profile: Fixture Player 1")
+        let ids = bar.buttons.allElementsBoundByIndex.map(\.identifier)
+        XCTAssertEqual(Array(ids.suffix(3)), [control.identifier, bell.identifier, profile.identifier])
+        XCTAssertLessThan(control.frame.midX, bell.frame.midX)
+        XCTAssertLessThan(bell.frame.midX, profile.frame.midX)
+        let order = try assertAccountReadingOrder(in: app, profileLabel: "Profile: Fixture Player 1", expectsBell: true)
+        XCTAssertTrue(order.tools.contains("fst.quick-links.open"), order.description)
+        control.tap()
+        XCTAssertTrue(app.buttons["Switch Profile"].waitForExistence(timeout: FestivalApp.budget(10)))
     }
 
     /// Issue #437 (for #85): anonymous, at the largest accessibility text size, Song
