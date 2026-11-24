@@ -116,10 +116,8 @@ final class SongsBottomFilterFieldJourneyTests: XCTestCase {
         XCTAssertTrue(fieldElement.isHittable, "the field is not hittable")
         app.coordinate(withNormalizedOffset: .zero)
             .withOffset(CGVector(dx: frame.minX + 14, dy: frame.midY)).tap()
-        let focused = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hasKeyboardFocus == true"),
-                                                object: fieldElement)
-        XCTAssertEqual(XCTWaiter.wait(for: [focused], timeout: FestivalApp.budget(5)), .completed,
-                       "a tap on the field's magnifier (\(frame.minX + 14), \(frame.midY)) did not focus it")
+        let focused = FestivalApp.waitForKeyboardFocus(Self.fieldID, in: app, focused: true, timeout: FestivalApp.budget(5))
+        XCTAssertTrue(focused, "a tap on the field's magnifier (\(frame.minX + 14), \(frame.midY)) did not focus it")
 
         // Editing: above the keyboard, Clear Search appears, named, 44 pt, and empties it.
         fieldElement.typeText(Self.query)
