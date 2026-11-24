@@ -91,6 +91,7 @@ class UKSongBoardViewController: UIViewController, UKPageToolsProviding {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
+        boardView.chrome.accessibilityIdentifier = "\(idPrefix).bottom-chrome"
         pageTopScrollEdge = UKPageTopScrollEdge(scrollView: boardView.collectionView, in: view)
         ukInstallAccountItems()
         ukSetPageTitle(showsSongHeader ? song.title : boardTitle, mode: .inline)

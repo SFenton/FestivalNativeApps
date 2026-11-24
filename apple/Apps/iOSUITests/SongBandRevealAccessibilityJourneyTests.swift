@@ -79,7 +79,11 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         attachment.name = "song-band-\(name)-largest-standard-text"
         attachment.lifetime = .keepAlways
         add(attachment)
-        let painted = RecognizedText.lines(in: shot).map(\.text).joined(separator: " ")
+        assertPaintedValues(RecognizedText.lines(in: shot).map(\.text).joined(separator: " "))
+    }
+
+    /// Checks the board fixture's exact rank, score and accuracy in recognized text.
+    private func assertPaintedValues(_ painted: String) {
         XCTAssertNotNil(painted.range(of: #"#\s*29(?!\d)"#, options: .regularExpression), painted)
         XCTAssertNotNil(painted.range(of: #"(?<!\d)80[ ,]?500(?!\d)"#, options: .regularExpression), painted)
         XCTAssertNotNil(painted.range(of: #"(?<!\d)96[. ]5\s*%"#, options: .regularExpression), painted)
@@ -297,9 +301,17 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
                     footer.frame.minY, row.frame.maxY, "The band's own row covers the board at this size"
                 )
             }
+            #if FST_UIKIT_PORT
+            // The scroll inset ends at the chrome's top, before the pager's padding.
+            let chrome = any("\(Self.boardPrefix)bottom-chrome", in: app)
+            XCTAssertFalse(chrome.frame.isEmpty, "No bottom chrome container")
+            chromeTop = chrome.frame.minY
+            #else
             chromeTop = pager.minY
+            #endif
         }
         let barBottom = app.navigationBars.allElementsBoundByIndex.map(\.frame.maxY).max() ?? 0
+        let window = app.windows.firstMatch.frame
         if row.frame.height <= chromeTop - barBottom + 1 {
             XCTAssertLessThanOrEqual(row.frame.maxY, chromeTop + 1, "The revealed row is under the pinned chrome")
             XCTAssertGreaterThanOrEqual(row.frame.minY, barBottom - 1, "The revealed row is under the bar")
@@ -316,15 +328,26 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
                 barBottom - row.frame.minY, row.frame.maxY - chromeTop, accuracy: 2,
                 "The tall revealed row is not centred: \(row.frame), bar \(barBottom), chrome \(chromeTop)"
             )
+            #if FST_UIKIT_PORT
+            // A band row is one accessibility button; measure its painted text, not AX children.
+            let lines = RecognizedText.lines(
+                in: app.screenshot(), region: row.frame.offsetBy(dx: -window.minX, dy: -window.minY)
+            )
+            let painted = lines.map(\.text).joined(separator: " ")
+            assertPaintedValues(painted)
+            XCTAssertTrue(RecognizedText.showsWhole("Fixture Player 1", in: painted), painted)
+            XCTAssertTrue(RecognizedText.showsWhole("Band 29 Member B", in: painted), painted)
+            let texts = lines.map { $0.frame.offsetBy(dx: window.minX, dy: window.minY) }
+            #else
             let texts = app.staticTexts.allElementsBoundByIndex.map(\.frame)
                 .filter { !$0.isEmpty && row.frame.contains($0) }
+            #endif
             XCTAssertFalse(texts.isEmpty, "The revealed row draws no text")
             for text in texts {
                 XCTAssertGreaterThanOrEqual(text.minY, barBottom - 1, "Revealed row text under the bar: \(text)")
                 XCTAssertLessThanOrEqual(text.maxY, chromeTop + 1, "Revealed row text under the pinned chrome: \(text)")
             }
         }
-        let window = app.windows.firstMatch.frame
         let visible = rows.filter {
             $0.frame.minY >= window.minY && ($0.frame.maxY <= chromeTop + 1 || $0.identifier == Self.focusedRow)
         }
@@ -332,9 +355,12 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         XCTAssertTrue(visible.contains { $0.identifier == Self.focusedRow }, "The revealed row is off screen")
         let ranks = visible.compactMap { $0.identifier.split(separator: ":").last.flatMap { Int($0) } }
         XCTAssertEqual(ranks, ranks.sorted(), "Rows do not read by rank: \(visible.map(\.identifier))")
-        let header = any("\(Self.boardPrefix)header", in: app).frame
-        if header.maxY > window.minY, let first = visible.first {
-            XCTAssertLessThanOrEqual(header.maxY, first.frame.minY + 1, "The song header does not read first")
+        let header = any("\(Self.boardPrefix)header", in: app)
+        if header.exists, let first = visible.first {
+            let frame = header.frame
+            if frame.maxY > window.minY {
+                XCTAssertLessThanOrEqual(frame.maxY, first.frame.minY + 1, "The song header does not read first")
+            }
         }
         return (row.label, row.frame, chromeTop)
     }
