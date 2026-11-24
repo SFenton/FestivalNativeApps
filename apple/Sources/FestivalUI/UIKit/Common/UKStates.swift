@@ -217,6 +217,7 @@ final class UKLoadingView: UIView {
 
     private let arc: UKArcView
     private let placement: Placement
+    private let usesPageRegion: Bool
     /// Hinge provider for `fill` placement.
     var hingeProvider: (() -> CGRect?)?
 
@@ -228,11 +229,15 @@ final class UKLoadingView: UIView {
     ///   - status: Optional text beside the spinner.
     ///   - identifier: Accessibility identifier of the named busy indicator.
     ///   - size: An explicit arc size, or nil for the size implied by placement and status.
+    ///   - usesPageRegion: Intersect the host with its safe area and active fold. False
+    ///     preserves a result viewer that has already supplied the exact region.
     init(
         accessibilityLabel: String = "Loading", placement: Placement = .inline,
-        status: String? = nil, identifier: String? = nil, size: Size? = nil
+        status: String? = nil, identifier: String? = nil, size: Size? = nil,
+        usesPageRegion: Bool = true
     ) {
         self.placement = placement
+        self.usesPageRegion = usesPageRegion
         arc = UKArcView(size: size ?? (placement == .fill ? .large : (status == nil ? .medium : .small)))
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
@@ -272,11 +277,41 @@ final class UKLoadingView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         guard placement == .fill, arc.superview === self else { return }
-        let region = FoldAvoidingPlacement.region(
-            container: window == nil ? CGRect(origin: .zero, size: bounds.size) : convert(bounds, to: nil),
-            fold: hingeProvider?()
-        )
+        let viewport = window == nil
+            ? CGRect(origin: .zero, size: bounds.size)
+            : convert(bounds, to: nil)
+        let region: CGRect
+        if usesPageRegion {
+            let usable = window == nil
+                ? viewport
+                : convert(safeAreaLayoutGuide.layoutFrame, to: nil)
+            region = LoadingRegionPolicy.region(
+                viewport: viewport, usable: usable, fold: resolvedHinge()
+            )
+        } else {
+            region = FoldAvoidingPlacement.region(container: viewport, fold: hingeProvider?())
+        }
         arc.center = CGPoint(x: region.midX, y: region.midY)
+    }
+
+    override func safeAreaInsetsDidChange() {
+        super.safeAreaInsetsDidChange()
+        setNeedsLayout()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        setNeedsLayout()
+    }
+
+    private func resolvedHinge() -> CGRect? {
+        if let hingeProvider { return hingeProvider() }
+        var responder: UIResponder? = self
+        while let current = responder?.next {
+            if let controller = current as? UIViewController { return controller.ukLayout.splitHinge }
+            responder = current
+        }
+        return nil
     }
 }
 

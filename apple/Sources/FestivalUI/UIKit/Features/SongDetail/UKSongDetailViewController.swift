@@ -68,6 +68,8 @@ final class UKSongDetailViewController: UIViewController, UKPageToolsProviding, 
     private var cardGrid: UKSongDetailCardGridView?
     private var bandGrid: UKSongDetailCardGridView?
     private var barTitleView: UKSongBarTitleView?
+    private var pageTopScrollEdge: UKPageTopScrollEdge?
+    private var needsInitialOffset = true
 
     // Seams
     private lazy var background = UKBackgroundRegistration(session: session, mode: .song(song.albumArt))
@@ -162,7 +164,11 @@ final class UKSongDetailViewController: UIViewController, UKPageToolsProviding, 
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        if needsInitialOffset, UKPageScrollViewport.placeAtInitialTop(scrollView) {
+            needsInitialOffset = false
+        }
         measureHeroTitle()
+        pageTopScrollEdge?.layout()
         quickLinks.scrollViewDidScroll()
     }
 
@@ -171,6 +177,7 @@ final class UKSongDetailViewController: UIViewController, UKPageToolsProviding, 
         scrollView.delegate = self
         scrollView.alwaysBounceVertical = true
         scrollView.contentInsetAdjustmentBehavior = .automatic
+        scrollView.accessibilityIdentifier = "fst.song-detail.scroll"
         view.addSubview(scrollView)
         contentStack.axis = .vertical
         contentStack.spacing = 20
@@ -188,14 +195,16 @@ final class UKSongDetailViewController: UIViewController, UKPageToolsProviding, 
             contentStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
             contentStack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
         ])
+        setContentScrollView(scrollView)
         scrollView.isHidden = true
     }
 
     private func configureLoading() {
-        let loading = UKLoadingView(accessibilityLabel: "Loading \(song.title)", placement: .fill)
+        let loading = UKLoadingView(
+            accessibilityLabel: "Loading \(song.title)", placement: .fill, identifier: "fst.song-detail.loading"
+        )
         loading.hingeProvider = { [weak self] in self?.ukLayout.splitHinge }
         loading.translatesAutoresizingMaskIntoConstraints = false
-        loading.accessibilityIdentifier = "fst.song-detail.loading"
         view.addSubview(loading)
         NSLayoutConstraint.activate([
             loading.leadingAnchor.constraint(equalTo: view.leadingAnchor), loading.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -397,6 +406,7 @@ final class UKSongDetailViewController: UIViewController, UKPageToolsProviding, 
         loadingFill?.removeFromSuperview()
         loadingFill = nil
         scrollView.isHidden = false
+        pageTopScrollEdge = UKPageTopScrollEdge(scrollView: scrollView, in: view)
         rebuildContent()
         shopTaskKey = ShopTaskKey(publicationRevision: session.publicationRevision, hidden: hideShop, contentShown: true)
         ukPageToolsDidChange()
@@ -499,7 +509,10 @@ final class UKSongDetailViewController: UIViewController, UKPageToolsProviding, 
     private func applyBarTitle(animated: Bool) {
         let next: UIView
         if heroTitleHidden {
-            let title = UKSongBarTitleView(song: song, session: session, identifier: "fst.song-detail.pinned-title")
+            let title = UKSongBarTitleView(
+                song: song, session: session, caption: UKSongBarTitleView.detailCaption(for: song),
+                identifier: "fst.song-detail.pinned-title"
+            )
             barTitleView = title
             next = title
         } else {

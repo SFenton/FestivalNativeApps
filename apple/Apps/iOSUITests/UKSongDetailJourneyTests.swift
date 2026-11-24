@@ -180,10 +180,30 @@ final class UKSongDetailJourneyTests: XCTestCase {
     @MainActor
     func testAccessibilityTextSizeGrowthAndAudit() throws {
         let app = try openSongDetail(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
+        let scroll = app.scrollViews["fst.song-detail.scroll"]
+        XCTAssertTrue(scroll.waitForExistence(timeout: 5), "Song Detail did not register its page scroller")
+        let hero = app.descendants(matching: .any)["fst.song-detail.hero-title"]
+        XCTAssertFalse(app.descendants(matching: .any)["fst.song-detail.pinned-title"].exists)
         let row = app.buttons["fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         XCTAssertGreaterThan(row.frame.height, 80, "the row did not grow at AX5")
         XCTAssertLessThanOrEqual(row.frame.maxX, app.windows.firstMatch.frame.maxX + 1)
+        try app.performAccessibilityAudit(for: [.hitRegion, .textClipped, .sufficientElementDescription])
+
+        let window = app.windows.firstMatch.frame
+        if window.height > window.width {
+            let bar = app.navigationBars.firstMatch.frame
+            XCTAssertEqual(hero.frame.minY - bar.maxY, 16, accuracy: 2, "The stack margin, not an added inset, follows the bar")
+        } else {
+            XCTAssertLessThan(hero.frame.minY, 64, "Unfolded Duo has no second adjusted-inset gap above the hero")
+        }
+        for _ in 0..<5 where !app.descendants(matching: .any)["fst.song-detail.pinned-title"].exists {
+            scroll.swipeUp(velocity: .slow)
+        }
+        let pinned = app.descendants(matching: .any)["fst.song-detail.pinned-title"]
+        XCTAssertTrue(pinned.waitForExistence(timeout: 5), "The song identity did not pin after the hero")
+        XCTAssertEqual(pinned.label, "Fixture Pulse, Synthetic Quartet · 2026")
+        XCTAssertTrue(app.windows.firstMatch.frame.contains(pinned.frame))
         try app.performAccessibilityAudit(for: [.hitRegion, .textClipped, .sufficientElementDescription])
     }
 }

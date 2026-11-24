@@ -74,6 +74,15 @@ final class UKSongBarTitleView: UIView {
         }
     }
 
+    /// Song Details' bar caption: artist, then year when the catalogue supplies one.
+    ///
+    /// - Parameter song: The page's song.
+    /// - Returns: A one-line caption for the pinned title.
+    static func detailCaption(for song: Song) -> String {
+        guard let year = song.year else { return song.artist }
+        return "\(song.artist) · \(year.formatted(.number.grouping(.never)))"
+    }
+
     /// Creates the bar title.
     ///
     /// - Parameters:
@@ -120,14 +129,14 @@ final class UKSongBarTitleView: UIView {
         NSLayoutConstraint.activate([
             row.leadingAnchor.constraint(equalTo: leadingAnchor), row.trailingAnchor.constraint(equalTo: trailingAnchor),
             row.topAnchor.constraint(equalTo: topAnchor), row.bottomAnchor.constraint(equalTo: bottomAnchor),
-            widthAnchor.constraint(lessThanOrEqualToConstant: 260),
         ])
+        let identity = [song.title, caption].compactMap { $0 }.joined(separator: ", ")
         isAccessibilityElement = true
         accessibilityTraits = .header
-        accessibilityLabel = [song.title, caption].compactMap { $0 }.joined(separator: ", ")
+        accessibilityLabel = identity
         accessibilityIdentifier = identifier
         showsLargeContentViewer = true
-        largeContentTitle = song.title
+        largeContentTitle = identity
         addInteraction(UILargeContentViewerInteraction())
     }
 

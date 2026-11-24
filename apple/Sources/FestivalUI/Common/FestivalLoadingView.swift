@@ -1,6 +1,30 @@
 import SwiftUI
 import FestivalDesign
 
+// MARK: - Visible loading region
+
+/// Resolves a page or result spinner's usable viewport without subtracting chrome twice.
+/// `usable` and `fold` use window coordinates; the result uses the viewport's local
+/// coordinate space.
+enum LoadingRegionPolicy {
+    /// - Parameters:
+    ///   - viewport: The actual viewport supplied by the parent.
+    ///   - usable: A safe-area or chrome-clipped rectangle in window coordinates. Nil
+    ///     means the parent already supplied the usable viewport.
+    ///   - fold: The active separating fold in window coordinates, if one crosses the
+    ///     viewport.
+    /// - Returns: The fold-safe region, in viewport coordinates.
+    static func region(viewport: CGRect, usable: CGRect? = nil, fold: CGRect?) -> CGRect {
+        let candidate = viewport.intersection(usable ?? viewport)
+        let visible = candidate.isNull || candidate.isEmpty ? viewport : candidate
+        let foldSafe = FoldAvoidingPlacement.region(container: visible, fold: fold)
+        return foldSafe.offsetBy(
+            dx: visible.minX - viewport.minX,
+            dy: visible.minY - viewport.minY
+        )
+    }
+}
+
 // MARK: - FestivalLoadingView
 
 /// The app's one loading spinner (operator, 2026-09-28: "Any loading spinner should be
@@ -48,8 +72,9 @@ struct FestivalLoadingView: View {
             indicator
         case .fill:
             GeometryReader { proxy in
-                let region = FoldAvoidingPlacement.region(
-                    container: proxy.frame(in: .global), fold: layout.splitHinge
+                let viewport = proxy.frame(in: .global)
+                let region = LoadingRegionPolicy.region(
+                    viewport: viewport, fold: layout.splitHinge
                 )
                 indicator
                     .controlSize(.large)

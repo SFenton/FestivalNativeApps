@@ -39,7 +39,8 @@ private final class UKPathPane: UIView {
         if visible {
             guard spinner == nil else { return }
             let loading = UKLoadingView(
-                accessibilityLabel: "Loading \(display.label.lowercased()) path", placement: .fill, size: .medium
+                accessibilityLabel: "Loading \(display.label.lowercased()) path", placement: .fill, size: .medium,
+                usesPageRegion: false
             )
             loading.alpha = fade > 0 ? 0 : 1
             addSubview(loading)

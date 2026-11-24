@@ -46,9 +46,38 @@ struct ArcSpinnerMetricsTests {
         #expect(FestivalArcMetrics.turns(still: false))
         #expect(!FestivalArcMetrics.turns(still: true))
     }
+
+    @Test func loadingRegionIntersectsSafeAreaBeforeChoosingAFoldSide() {
+        let viewport = CGRect(x: 100, y: 80, width: 800, height: 600)
+        let usable = CGRect(x: 132, y: 130, width: 736, height: 470)
+        let fold = CGRect(x: 500, y: 0, width: 24, height: 760)
+        let region = LoadingRegionPolicy.region(viewport: viewport, usable: usable, fold: fold)
+        #expect(region == CGRect(x: 32, y: 50, width: 368, height: 470))
+        #expect(!region.intersects(fold.offsetBy(dx: -viewport.minX, dy: -viewport.minY)))
+    }
+
+    @Test func loadingRegionKeepsFlatAndClippedPanesWhole() {
+        let page = CGRect(x: 0, y: 100, width: 860, height: 530)
+        let flat = CGRect(x: 0, y: 120, width: 860, height: 480)
+        #expect(LoadingRegionPolicy.region(viewport: page, usable: flat, fold: nil)
+            == CGRect(x: 0, y: 20, width: 860, height: 480))
+
+        let pane = CGRect(x: 540, y: 100, width: 352, height: 530)
+        let fold = CGRect(x: 500, y: 0, width: 24, height: 760)
+        #expect(LoadingRegionPolicy.region(viewport: pane, fold: fold)
+            == CGRect(origin: .zero, size: pane.size), "A pane already beside the fold stays centred in its own viewport")
+    }
+
+    @Test func loadingRegionChoosesTheLowerSideOfAHorizontalFold() {
+        let viewport = CGRect(x: 0, y: 40, width: 760, height: 820)
+        let fold = CGRect(x: 0, y: 360, width: 760, height: 24)
+        #expect(LoadingRegionPolicy.region(viewport: viewport, fold: fold)
+            == CGRect(x: 0, y: 344, width: 760, height: 476))
+    }
 }
 
 #if os(iOS)
+import FestivalCore
 import UIKit
 
 // MARK: - UIKit spinner motion
@@ -77,6 +106,137 @@ struct UIKitArcSpinnerTests {
             #expect(animation.beginTime > 0, "Core Animation must not start a new phase at attachment")
             #expect(error < 6, "The spinner should stay within one 60 Hz frame of the shared phase")
         }
+    }
+
+    /// A raw, full-page UIKit wrapper uses the safe-area intersection and places the
+    /// accessibility identifier on the actual arc's indicator.
+    @Test func fillingSpinnerUsesTheSafeViewportAndActualBusyFrame() throws {
+        let windowFrame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        let window = UIWindow(frame: windowFrame)
+        let controller = UIViewController()
+        controller.view.frame = windowFrame
+        controller.additionalSafeAreaInsets = UIEdgeInsets(top: 96, left: 24, bottom: 72, right: 8)
+        let loading = UKLoadingView(
+            accessibilityLabel: "Loading song", placement: .fill, identifier: "fst.loading-test.uikit"
+        )
+        controller.view.addSubview(loading)
+        NSLayoutConstraint.activate([
+            loading.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor),
+            loading.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor),
+            loading.topAnchor.constraint(equalTo: controller.view.topAnchor),
+            loading.bottomAnchor.constraint(equalTo: controller.view.bottomAnchor),
+        ])
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.view.layoutIfNeeded()
+        loading.layoutIfNeeded()
+
+        let indicator = try #require(Self.indicators(in: loading).first)
+        #expect(indicator.accessibilityIdentifier == "fst.loading-test.uikit")
+        #expect(loading.accessibilityIdentifier == nil, "The wrapper is not the AX busy element")
+        let actual = indicator.convert(indicator.bounds, to: window)
+        let viewport = loading.convert(loading.bounds, to: window)
+        let usable = loading.convert(loading.safeAreaLayoutGuide.layoutFrame, to: window)
+        let expected = LoadingRegionPolicy.region(viewport: viewport, usable: usable, fold: nil)
+        #expect(abs(actual.midX - (viewport.minX + expected.midX)) < 1)
+        #expect(abs(actual.midY - (viewport.minY + expected.midY)) < 1)
+    }
+
+    /// A reload gate and the direct Song Detail form share the same raw-host region
+    /// contract and emit only one named activity indicator.
+    @Test func gateAndDirectSpinnerShareOneRegionContract() throws {
+        let frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        let window = UIWindow(frame: frame)
+        let controller = UIViewController()
+        controller.view.frame = frame
+        controller.additionalSafeAreaInsets = UIEdgeInsets(top: 110, left: 0, bottom: 64, right: 0)
+        let gate = UKReloadGate(
+            key: 0, isLoading: true, spinnerLabel: "Loading songs", spinnerIdentifier: "fst.loading-test.gate"
+        )
+        controller.view.addSubview(gate)
+        gate.ukPin(to: controller.view)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.view.layoutIfNeeded()
+        gate.layoutIfNeeded()
+
+        let indicators = Self.indicators(in: gate)
+        #expect(indicators.count == 1)
+        let indicator = try #require(indicators.first)
+        #expect(indicator.accessibilityIdentifier == "fst.loading-test.gate")
+        let actual = indicator.convert(indicator.bounds, to: window)
+        let expectedViewport = gate.convert(gate.bounds, to: window)
+        let usable = gate.convert(gate.safeAreaLayoutGuide.layoutFrame, to: window)
+        let expected = LoadingRegionPolicy.region(viewport: expectedViewport, usable: usable, fold: nil)
+        #expect(abs(actual.midX - (expectedViewport.minX + expected.midX)) < 1)
+        #expect(abs(actual.midY - (expectedViewport.minY + expected.midY)) < 1)
+    }
+
+    /// A non-scrolling accessibility holder is not the page scroller; its collection is.
+    @Test func pageScrollViewportFindsTheNestedCollection() {
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: 400, height: 800))
+        let holder = UIScrollView(frame: host.bounds)
+        holder.isScrollEnabled = false
+        let collection = UICollectionView(
+            frame: holder.bounds,
+            collectionViewLayout: UICollectionViewFlowLayout()
+        )
+        host.addSubview(holder)
+        holder.addSubview(collection)
+        #expect(UKPageScrollViewport.scrollingDescendant(in: host) === collection)
+    }
+
+    /// The content stack's 16 pt margin is the only gap after a newly registered
+    /// scroller accounts for the navigation bar's adjusted inset.
+    @Test func pageScrollStartsAtAdjustedTopInsteadOfAddingABlankInset() {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 402, height: 874))
+        let controller = UIViewController()
+        controller.view.frame = window.bounds
+        let scrollView = UIScrollView(frame: window.bounds)
+        scrollView.contentInsetAdjustmentBehavior = .never
+        scrollView.contentInset = UIEdgeInsets(top: 94, left: 0, bottom: 44, right: 0)
+        scrollView.contentOffset = .zero
+        controller.view.addSubview(scrollView)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        #expect(UKPageScrollViewport.placeAtInitialTop(scrollView))
+        #expect(scrollView.contentOffset.y == -94)
+    }
+
+    /// Song Detail adds artist/year to the existing bar title without changing board
+    /// captions, the combined spoken name or the Large Content Viewer string.
+    @Test func songBarTitleKeepsCombinedDetailAndBoardIdentities() throws {
+        let client = try FestivalAPI(baseURL: URL(string: "http://127.0.0.1:9")!)
+        let session = FestivalSession(factory: { client })
+        func song(year: Int?) -> Song {
+            Song(
+                songId: "fixture-song", title: "Fixture Pulse", artist: "Synthetic Quartet",
+                album: nil, year: year, durationSeconds: 180, albumArt: nil, difficulty: nil,
+                pathArtifactGenerationId: nil, sig: nil, maxScores: nil, doubleBassSupported: nil
+            )
+        }
+        let withYear = song(year: 2026)
+        let detail = UKSongBarTitleView(
+            song: withYear, session: session,
+            caption: UKSongBarTitleView.detailCaption(for: withYear), identifier: "fst.test.detail-title"
+        )
+        #expect(detail.accessibilityLabel == "Fixture Pulse, Synthetic Quartet · 2026")
+        #expect(detail.largeContentTitle == detail.accessibilityLabel)
+
+        let noYear = song(year: nil)
+        #expect(UKSongBarTitleView.detailCaption(for: noYear) == "Synthetic Quartet")
+        let board = UKSongBarTitleView(song: withYear, session: session, caption: "Lead · 42 entries")
+        #expect(board.accessibilityLabel == "Fixture Pulse, Lead · 42 entries")
+        #expect(board.largeContentTitle == board.accessibilityLabel)
+    }
+
+    private static func indicators(in view: UIView) -> [UIActivityIndicatorView] {
+        var found = view.subviews.compactMap { $0 as? UIActivityIndicatorView }
+        for subview in view.subviews { found += indicators(in: subview) }
+        return found
     }
 }
 #endif

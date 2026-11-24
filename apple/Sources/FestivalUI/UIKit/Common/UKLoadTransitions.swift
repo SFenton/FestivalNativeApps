@@ -141,16 +141,15 @@ final class UKReloadGate: UIView {
         contentView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(contentView)
         addSubview(spinner)
-        let visibleRegion = safeAreaLayoutGuide
         NSLayoutConstraint.activate([
             contentView.leadingAnchor.constraint(equalTo: leadingAnchor),
             contentView.trailingAnchor.constraint(equalTo: trailingAnchor),
             contentView.topAnchor.constraint(equalTo: topAnchor),
             contentView.bottomAnchor.constraint(equalTo: bottomAnchor),
-            spinner.leadingAnchor.constraint(equalTo: visibleRegion.leadingAnchor),
-            spinner.trailingAnchor.constraint(equalTo: visibleRegion.trailingAnchor),
-            spinner.topAnchor.constraint(equalTo: visibleRegion.topAnchor),
-            spinner.bottomAnchor.constraint(equalTo: visibleRegion.bottomAnchor),
+            spinner.leadingAnchor.constraint(equalTo: leadingAnchor),
+            spinner.trailingAnchor.constraint(equalTo: trailingAnchor),
+            spinner.topAnchor.constraint(equalTo: topAnchor),
+            spinner.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
         spinner.isUserInteractionEnabled = !retainsFrame
         render(animation: nil)
